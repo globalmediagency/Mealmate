@@ -1,0 +1,135 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   MealMate design tokens — dark, premium, warm.
+   Deep blacks · sage greens · brass accents · cream text.
+--------------------------------------------------------------------------- */
+@theme {
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
+
+  --color-ink-950: #060806;
+  --color-ink-900: #0b0d0b;
+  --color-ink-800: #121612;
+  --color-ink-700: #1a201a;
+  --color-ink-600: #242b24;
+  --color-ink-500: #303a30;
+  --color-ink-400: #465246;
+
+  --color-sage-200: #d8e2cc;
+  --color-sage-300: #c3d2b3;
+  --color-sage-400: #a9bc99;
+  --color-sage-500: #8ba07a;
+  --color-sage-600: #6f8461;
+  --color-sage-700: #5e7053;
+  --color-sage-800: #3f4c38;
+
+  --color-brass-200: #f6e4ae;
+  --color-brass-300: #f0d68f;
+  --color-brass-400: #e8c36a;
+  --color-brass-500: #c9a24e;
+  --color-brass-600: #a6823a;
+  --color-brass-700: #7d6129;
+
+  --color-cream-50: #f7f4ec;
+  --color-cream-100: #f2efe6;
+  --color-cream-300: #d9d5c8;
+  --color-cream-500: #9aa396;
+  --color-cream-700: #6f776c;
+
+  --color-health: #7fb77e;
+  --color-hunger: #e39b4a;
+  --color-mood: #7da7d9;
+  --color-danger: #d9666b;
+  --color-rarity-common: #9aa396;
+  --color-rarity-rare: #7da7d9;
+  --color-rarity-epic: #b48ae0;
+  --color-rarity-legendary: #e8c36a;
+
+  --shadow-glow: 0 0 60px rgba(139, 160, 122, 0.22);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 12px 32px rgba(0, 0, 0, 0.35);
+
+  --animate-breathe: mm-breathe 3s ease-in-out infinite;
+  --animate-float: mm-float 4s ease-in-out infinite;
+  --animate-wobble: mm-wobble 5s ease-in-out infinite;
+  --animate-pulse-soft: mm-pulse-soft 2.4s ease-in-out infinite;
+  --animate-rise: mm-rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+
+  @keyframes mm-breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+  }
+  @keyframes mm-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+  @keyframes mm-wobble {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-3deg); }
+    75% { transform: rotate(3deg); }
+  }
+  @keyframes mm-pulse-soft {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+  }
+  @keyframes mm-rise {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+/* iOS safe areas */
+@utility safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+@utility safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility pb-nav {
+  padding-bottom: calc(5.75rem + env(safe-area-inset-bottom));
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    min-height: 100dvh;
+    background-color: var(--color-ink-900);
+    background-image:
+      radial-gradient(60% 40% at 50% -10%, rgba(139, 160, 122, 0.18), transparent 70%),
+      radial-gradient(40% 30% at 100% 100%, rgba(201, 162, 78, 0.06), transparent 70%);
+    background-attachment: fixed;
+    color: var(--color-cream-100);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+
+  ::selection {
+    background: rgba(201, 162, 78, 0.35);
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+  }
+
+  /* Respect reduced motion everywhere. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
