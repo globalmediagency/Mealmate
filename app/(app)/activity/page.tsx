@@ -1,29 +1,37 @@
 import type { Metadata } from "next";
-import { Activity, Egg, Sparkles } from "lucide-react";
+import { Egg, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { StepsForm } from "@/components/game/steps-form";
 import { StepsHistory } from "@/components/game/steps-history";
 import { ChestOpener } from "@/components/game/chest-reveal";
+import { StravaCard } from "@/components/game/strava-card";
 import { getChestStatus } from "@/lib/accessories/service";
 import { getActiveCreature } from "@/lib/creatures/service";
-import { Button } from "@/components/ui/button";
 import { Card, CardText, CardTitle } from "@/components/ui/card";
 import { requireViewer } from "@/lib/auth/session";
 import { loadActiveCreatureView } from "@/lib/creatures/loader";
+import { getConfigStatus } from "@/lib/env";
 import { STEPS } from "@/lib/game/config";
 import { gameDate } from "@/lib/game/time";
 import { getManualEntry, getStepHistory } from "@/lib/steps/service";
+import { getStravaStatus } from "@/lib/strava/service";
 
 export const metadata: Metadata = { title: "Activité" };
 
-export default async function ActivityPage() {
+export const dynamic = "force-dynamic";
+
+type SearchParams = Promise<{ strava?: string }>;
+
+export default async function ActivityPage({ searchParams }: { searchParams: SearchParams }) {
   const { session } = await requireViewer();
+  const { strava: stravaNotice } = await searchParams;
   const today = gameDate();
-  const [entry, history, creature, raw] = await Promise.all([
+  const [entry, history, creature, raw, strava] = await Promise.all([
     getManualEntry(session.user.id, today),
     getStepHistory(session.user.id, 14, today),
     loadActiveCreatureView(session.user.id),
     getActiveCreature(session.user.id),
+    getStravaStatus(session.user.id),
   ]);
   const chest = raw && raw.status === "alive" && creature?.status === "alive" ? await getChestStatus(raw) : null;
 
@@ -70,10 +78,7 @@ export default async function ActivityPage() {
         <StepsHistory history={history} className="mt-4" />
       </Card>
 
-      <Button variant="secondary" disabled>
-        <Activity className="h-5 w-5" aria-hidden="true" />
-        Connecter Strava · bientôt
-      </Button>
+      <StravaCard configured={getConfigStatus().strava} status={strava} notice={stravaNotice ?? null} />
     </div>
   );
 }

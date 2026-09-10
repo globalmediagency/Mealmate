@@ -72,6 +72,7 @@ Si tu avais déjà exécuté `db/init.sql` avant une phase, colle ses migrations
 - phase 4 : [`db/migrations/003_game_settings.sql`](./db/migrations/003_game_settings.sql)
 - phase 5 : [`db/migrations/004_creatures_accessory_drops.sql`](./db/migrations/004_creatures_accessory_drops.sql)
 - phase 7 : [`db/migrations/005_gifts_trades.sql`](./db/migrations/005_gifts_trades.sql)
+- phase 8 : [`db/migrations/006_strava_athlete_name.sql`](./db/migrations/006_strava_athlete_name.sql)
 
 Un `init.sql` fraîchement exécuté contient déjà toutes ces colonnes.
 
@@ -186,9 +187,24 @@ Ce que la phase 7 ajoute côté jeu :
 
 ### Strava — import d'activités (phase 8)
 
-1. <https://www.strava.com/settings/api> → **Create an app** : nom `MealMate`, site `https://TON-URL`,
-   **Authorization Callback Domain** = ton domaine sans `https://` (ex. `mealmate.vercel.app`).
+Prérequis : la migration [`db/migrations/006_strava_athlete_name.sql`](./db/migrations/006_strava_athlete_name.sql)
+(voir étape E).
+
+1. <https://www.strava.com/settings/api> → **Create an app** : nom `MealMate`, catégorie « Training »,
+   site `https://TON-URL`, **Authorization Callback Domain** = ton domaine **sans** `https://` ni chemin
+   (ex. `mealmate.vercel.app`). Strava n'accepte qu'un seul domaine : mets celui de production. Pour
+   tester sur une preview, remplace-le temporairement par le domaine de la preview.
 2. Copie **Client ID** et **Client Secret** → Vercel `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET` → Redeploy.
+3. Vérification : **Activité → Connecter Strava** → écran Strava → coche « Voir les données de tes
+   activités » (lecture, y compris privées) → **Autoriser** → retour sur Activité avec « Strava est
+   connecté ! » → **Synchroniser** : les courses, marches, randos et sorties vélo des 30 derniers jours
+   apparaissent (1 km à pied ≈ 1 300 pas, 1 km à vélo ≈ 400 pas, autres sports 100 pas par minute).
+4. Limites : une synchronisation manuelle toutes les 5 minutes ; l'app Strava en mode test est limitée
+   à un seul athlète (le tien) tant qu'elle n'est pas validée par Strava.
+
+Ce que Strava voit : uniquement une demande de lecture des activités. Ce que MealMate garde : les jetons
+d'accès côté serveur (jamais envoyés au navigateur), ton prénom Strava, et les pas convertis. **Déconnecter
+Strava** révoque l'accès chez Strava et efface les jetons ; les pas déjà importés restent.
 
 ### Galeries de design (phase 2)
 

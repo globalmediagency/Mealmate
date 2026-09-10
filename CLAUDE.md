@@ -73,6 +73,15 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 - Soins aux amis : passer par `healFriendCreature()` (ami accepté, créature vivante et `needsCare`), qui applique le tick avant d'agir et journalise dans `gifts`.
 - Trocs : `lib/trades/service.ts`. L'acceptation bascule d'abord le statut par `UPDATE` conditionnel puis échange les lignes `user_accessories` et retire les accessoires des tenues. Ne jamais échanger sans cette bascule.
 
+## Strava
+
+- Client dans `lib/strava/api.ts` (interface `StravaApi`, implémentation `stravaApi` avec `requireEnv` à l'appel) ; le service `lib/strava/service.ts` reçoit l'API injectée, les tests (`strava.integration.test.ts`) utilisent une fausse API.
+- Conversion activité → pas et fenêtre / throttle : `lib/game/strava.ts` (constantes dans `STEPS.strava`), test à côté.
+- Le `state` OAuth est signé (`lib/strava/state.ts`) et vérifié contre `session.user.id` dans le callback : ne jamais accepter un callback sans session ni `state` valide.
+- Les jetons ne sortent jamais du serveur : renvoyer `StravaStatus`, jamais la ligne `strava_connections`.
+- Import idempotent par `ON CONFLICT (strava_activity_id) DO NOTHING` ; crédit à la créature **par jour toutes sources** via `creditDays()` (jamais par activité).
+- Le bouton « Connecter Strava » est une balise `<a href="/api/strava/connect">` (pas `Link`) : la route répond par une redirection externe.
+
 ## Nourrissage et IA
 
 - Toute lecture d'une créature vivante passe par `getActiveCreatureTicked()` (tick paresseux). Ne jamais lire `creatures` directement pour afficher des stats.

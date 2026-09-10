@@ -397,6 +397,8 @@ export const stravaConnections = pgTable("strava_connections", {
   refreshToken: text("refresh_token").notNull(),
   expiresAt: timestamptz("expires_at").notNull(),
   lastSyncAt: timestamptz("last_sync_at"),
+  /** First name of the athlete, for display only (migration 006). */
+  athleteName: text("athlete_name"),
 });
 
 // ---------------------------------------------------------------------------

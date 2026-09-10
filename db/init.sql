@@ -271,5 +271,6 @@ CREATE TABLE IF NOT EXISTS strava_connections (
   access_token  text NOT NULL,
   refresh_token text NOT NULL,
   expires_at    timestamptz NOT NULL,
-  last_sync_at  timestamptz
+  last_sync_at  timestamptz,
+  athlete_name  text
 );

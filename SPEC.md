@@ -147,6 +147,14 @@ public/sw.js, icons/    Service worker et icônes
 - **Envoyer un soin à un ami** : `POST /api/friends/:id/heal { item }` — ami accepté uniquement, créature **vivante et mal en point** (santé < 60, état fatigué ou malade), tick appliqué avant, dose prise dans **mon** inventaire, effet identique, ligne `gifts`. Le destinataire voit un encart « Un coup de pouce pour X » sur son écran créature jusqu'à ce qu'il le ferme (`POST /api/gifts/seen`).
 - **Troc d'accessoires** : `GET /api/friends/:id/accessories` liste ce que l'ami possède et que je n'ai pas (« je reçois ») et ce que je possède et qu'il n'a pas (« je donne »). `POST /api/trades` propose l'échange (max 10 propositions en attente, pas de doublon) ; le destinataire accepte (`POST /api/trades/:id/accept`) ou refuse, le proposant retire (`DELETE /api/trades/:id`). L'acceptation est un `UPDATE` conditionnel `pending → accepted` puis un échange de lignes `user_accessories` ; les accessoires échangés sont retirés des tenues. Une proposition devenue impossible (accessoire déjà cédé) est annulée automatiquement. La pastille de l'onglet Amis additionne demandes d'amis et trocs reçus.
 
+### 3.14 Strava (phase 8)
+- **Connexion** : `GET /api/strava/connect` (utilisateur connecté) redirige vers l'écran de consentement Strava avec `scope=activity:read_all` et un `state` signé (HMAC `BETTER_AUTH_SECRET`, lié à l'utilisateur, 10 min). `GET /api/strava/callback` vérifie la session, le `state` et la portée accordée, échange le code (`oauth/token`) et enregistre `strava_connections` (tokens **jamais** renvoyés au client ; `athlete_name` = prénom, migration 006). Tous les cas reviennent sur `/activity?strava=connected|denied|scope|state|config|error`.
+- **Synchronisation** (`POST /api/strava/sync`, bouton « Synchroniser ») : au plus une fois toutes les 5 min ; rafraîchit le jeton s'il expire dans moins de 5 min ; lit `athlete/activities` sur une fenêtre de 30 jours au premier passage puis depuis la synchro précédente moins 2 jours (jusqu'à 4 pages de 50). Chaque activité devient une ligne `step_entries` `source = 'strava'` datée de `start_date_local`, insérée avec `ON CONFLICT (strava_activity_id) DO NOTHING` (idempotent).
+- **Conversion** (`lib/game/strava.ts`, constantes `STEPS.strava`) : à pied (Run, Walk, Hike, TrailRun…) distance × 1,3 ; vélo (Ride, VirtualRide, VTT…) distance × 0,4 ; autres sports 100 pas par minute de mouvement ; plafond 40 000 pas par activité.
+- **Effets** : œuf → recalcul de `egg_steps` (somme toutes sources depuis le choix de l'œuf) ; créature vivante → crédit **par jour, toutes sources confondues** (`stepCredit(total du jour, déjà crédité)`), uniquement pour les jours ≥ jour d'éclosion, puis toutes les entrées du jour sont marquées créditées. Le plafond +10 santé / jour reste donc respecté même en cumulant saisie manuelle et activités.
+- **Déconnexion** (`DELETE /api/strava`) : `oauth/deauthorize` (meilleur effort) puis suppression de la ligne ; les pas importés restent.
+- Page Activité : carte Strava (non configuré / connecter / connecté avec dernière synchro, liste des activités importées avec leurs pas, gains, déconnexion avec confirmation). Le bouton « Connecter » est un lien HTML simple vers `/api/strava/connect` (redirection externe).
+
 ## 4. Schéma de données
 
 Source de vérité : `db/init.sql` (idempotent) ⇄ `lib/db/schema.ts`. Colonnes en `snake_case`, horodatages en `timestamptz`.
@@ -166,7 +174,7 @@ Source de vérité : `db/init.sql` (idempotent) ⇄ `lib/db/schema.ts`. Colonnes
 | `gifts` | Soins envoyés à un ami (phase 7) | `from_user_id`, `to_user_id`, `creature_id` (nullable), `item`, `seen_at` |
 | `trades` | Trocs d'accessoires (phase 7) | `proposer_id`, `receiver_id`, `offered_accessory_id`, `requested_accessory_id`, `status` (`pending` / `accepted` / `declined` / `cancelled`), `resolved_at` |
 | `inventory` | Médicaments | PK `(user_id, item)`, `qty` |
-| `strava_connections` | Lien Strava | PK `user_id`, tokens, `expires_at`, `last_sync_at` |
+| `strava_connections` | Lien Strava | PK `user_id`, tokens (jamais exposés), `expires_at`, `last_sync_at`, `athlete_name` (migration 006) |
 | `game_settings` | Règles admin | PK `id` (= `default`), `data` jsonb (surcharges), `updated_at`, `updated_by` (migration 003) |
 
 ## 5. API (`app/api/…`)
@@ -209,7 +217,12 @@ Phase 7 :
 - `POST /api/friends/:id/heal { item }` ; `GET /api/friends/:id/accessories` → `{ friend, theirs, mine }` ; `POST /api/gifts/seen`.
 - `GET /api/trades` → `{ incoming, outgoing, recent }` ; `POST /api/trades { friendshipId, offeredId, requestedId }` ; `POST /api/trades/:id/accept` ; `DELETE /api/trades/:id`.
 
-Phases suivantes (brief § 7) : `strava/*`, `account`.
+Phase 8 :
+- `GET /api/strava` → statut `{ connected, athleteId, athleteName, lastSyncAt, nextSyncAt }` ; `DELETE /api/strava` → déconnexion.
+- `GET /api/strava/connect` → redirection Strava ; `GET /api/strava/callback` → retour OAuth (redirige vers `/activity?strava=…`).
+- `POST /api/strava/sync` → `{ imported, skipped, gains, status, creature }`.
+
+Phases suivantes (brief § 7) : `account`.
 
 ## 6. Design
 
@@ -269,3 +282,8 @@ Phases suivantes (brief § 7) : `strava/*`, `account`.
 | D38 | Une dose n'est jamais gaspillée : refus si la santé est déjà à 100 (soin) ou si l'ami n'est pas mal en point (santé ≥ 60) | Évite les dépenses inutiles et les envois « pour rien » ; le talisman reste utilisable à tout moment. |
 | D39 | Un troc échange exactement un accessoire contre un, et chaque côté ne peut demander que ce qui lui manque | `user_accessories` n'a pas de quantité (un doublon vaut de l'XP) ; l'échange reste lisible et sans doublon à gérer. |
 | D40 | Acceptation d'un troc = `UPDATE` conditionnel puis échange de lignes, sans transaction | Neon HTTP ne fournit pas de transaction ; la bascule de statut sert de verrou et rend l'échange rejouable au plus une fois. |
+| D41 | `state` OAuth Strava signé (HMAC, utilisateur + expiration) plutôt qu'un nonce stocké | Aucune table ni cookie supplémentaire ; le callback ne peut lier un compte Strava qu'à l'utilisateur qui a lancé le flux. |
+| D42 | Portée `activity:read_all` | Les activités privées (réglage par défaut chez beaucoup d'utilisateurs) doivent compter ; l'app ne lit rien d'autre. |
+| D43 | Crédit des pas Strava par jour toutes sources confondues, puis marquage de toutes les entrées du jour | Respecte le plafond quotidien de santé quel que soit l'ordre saisie manuelle / synchro ; évite de créditer deux fois. |
+| D44 | Plafond de 40 000 pas-équivalents par activité et jours antérieurs à l'éclosion non crédités | Une sortie vélo de 300 km ne doit pas remplir 30 coffres ; les activités d'avant la naissance de la créature ne la nourrissent pas (mais comptent pour l'œuf si postérieures à son choix). |
+| D45 | Un seul domaine de callback Strava (production) | Strava n'accepte qu'un « Authorization Callback Domain » par application : la connexion se teste en production, ou en changeant temporairement le domaine pour une preview. |

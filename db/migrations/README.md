@@ -14,5 +14,6 @@ l'éditeur SQL de Neon dans l'ordre des numéros.
 | `003_game_settings.sql` | 4 | table `game_settings` (règles de jeu réglables depuis `/admin`) |
 | `004_creatures_accessory_drops.sql` | 5 | `creatures.accessory_drops` (coffres d'accessoires déjà ouverts) |
 | `005_gifts_trades.sql` | 7 | tables `gifts` (médicaments offerts aux amis) et `trades` (trocs d'accessoires) |
+| `006_strava_athlete_name.sql` | 8 | `strava_connections.athlete_name` (prénom affiché) |
 
 Un `init.sql` fraîchement exécuté contient déjà toutes ces évolutions.

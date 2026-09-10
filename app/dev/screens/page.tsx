@@ -19,6 +19,7 @@ import { ACCESSORIES } from "@/lib/accessories/catalog";
 import { CollectionGrid } from "@/components/game/collection-grid";
 import { FriendsPanel } from "@/components/game/friends-panel";
 import { ShopPanel } from "@/components/shop/shop-panel";
+import { StravaCard } from "@/components/game/strava-card";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { Card, CardTitle } from "@/components/ui/card";
 import { playableTiers, speciesByTierAll, toSpeciesSummary, getSpecies } from "@/lib/creatures";
@@ -109,10 +110,15 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
       const today = gameDate();
       const history = Array.from({ length: 14 }, (_, i) => ({ date: shiftDate(today, i - 13), steps: [4200, 0, 6100, 9800, 3000, 12000, 7500, 0, 5400, 8800, 2300, 10400, 6600, 4100][i] }));
       content = (
-        <Card>
-          <CardTitle className="text-lg">14 derniers jours</CardTitle>
-          <StepsHistory history={history} className="mt-4" />
-        </Card>
+        <div className="space-y-4">
+          <Card>
+            <CardTitle className="text-lg">14 derniers jours</CardTitle>
+            <StepsHistory history={history} className="mt-4" />
+          </Card>
+          <StravaCard configured status={{ connected: true, athleteId: 4242, athleteName: "Camille", lastSyncAt: new Date(Date.now() - 3_600_000).toISOString(), nextSyncAt: null }} notice="connected" />
+          <StravaCard configured status={{ connected: false, athleteId: null, athleteName: null, lastSyncAt: null, nextSyncAt: null }} />
+          <StravaCard configured={false} status={{ connected: false, athleteId: null, athleteName: null, lastSyncAt: null, nextSyncAt: null }} />
+        </div>
       );
       break;
     }

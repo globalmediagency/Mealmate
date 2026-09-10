@@ -98,7 +98,7 @@ export function StepsForm({ initialSteps, onSaved, compact = false, className }:
       </div>
       {feedback ? <p className="text-sm text-health">{feedback}</p> : null}
       <p className="text-xs text-cream-700">
-        Une saisie par jour, modifiable. Le podomètre du téléphone arrivera plus tard.
+        Une saisie par jour, modifiable. Les activités Strava s&apos;ajoutent en plus.
       </p>
     </form>
   );
