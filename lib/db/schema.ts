@@ -327,6 +327,59 @@ export const inventory = pgTable(
   (table) => [primaryKey({ columns: [table.userId, table.item] })],
 );
 
+/** Medicine sent to a friend's creature (phase 7). */
+export const gifts = pgTable(
+  "gifts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    fromUserId: text("from_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    toUserId: text("to_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    creatureId: uuid("creature_id").references(() => creatures.id, { onDelete: "set null" }),
+    item: text("item").notNull(),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+    /** When the recipient saw the notice on their home screen. */
+    seenAt: timestamptz("seen_at"),
+  },
+  (table) => [
+    index("gifts_to_user_created_idx").on(table.toUserId, table.createdAt),
+    check("gifts_not_self_check", sql`${table.fromUserId} <> ${table.toUserId}`),
+  ],
+);
+
+/** Accessory swap proposed between two friends (phase 7). */
+export const trades = pgTable(
+  "trades",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    proposerId: text("proposer_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    receiverId: text("receiver_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    offeredAccessoryId: text("offered_accessory_id").notNull(),
+    requestedAccessoryId: text("requested_accessory_id").notNull(),
+    status: text("status", { enum: ["pending", "accepted", "declined", "cancelled"] })
+      .notNull()
+      .default("pending"),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+    resolvedAt: timestamptz("resolved_at"),
+  },
+  (table) => [
+    index("trades_receiver_status_idx").on(table.receiverId, table.status),
+    index("trades_proposer_status_idx").on(table.proposerId, table.status),
+    check("trades_not_self_check", sql`${table.proposerId} <> ${table.receiverId}`),
+    check(
+      "trades_status_check",
+      sql`${table.status} in ('pending', 'accepted', 'declined', 'cancelled')`,
+    ),
+  ],
+);
+
 /** Admin-editable overrides of the game constants (single row, id = "default"). */
 export const gameSettings = pgTable("game_settings", {
   id: text("id").primaryKey(),
@@ -358,4 +411,7 @@ export type StepEntry = typeof stepEntries.$inferSelect;
 export type PlaySession = typeof playSessions.$inferSelect;
 export type Friendship = typeof friendships.$inferSelect;
 export type Purchase = typeof purchases.$inferSelect;
+export type InventoryRow = typeof inventory.$inferSelect;
+export type Gift = typeof gifts.$inferSelect;
+export type Trade = typeof trades.$inferSelect;
 export type StravaConnection = typeof stravaConnections.$inferSelect;

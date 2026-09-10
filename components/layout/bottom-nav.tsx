@@ -44,7 +44,7 @@ export function BottomNav({ badges = {} }: BottomNavProps) {
                 >
                   <Icon className="h-5 w-5" strokeWidth={active ? 2.4 : 2} aria-hidden="true" />
                   {badge > 0 ? (
-                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brass-400 px-1 text-[10px] font-bold text-ink-950" aria-label={`${badge} demande${badge > 1 ? "s" : ""} en attente`}>
+                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brass-400 px-1 text-[10px] font-bold text-ink-950" aria-label={`${badge} notification${badge > 1 ? "s" : ""} en attente`}>
                       {badge}
                     </span>
                   ) : null}

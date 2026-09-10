@@ -139,6 +139,14 @@ public/sw.js, icons/    Service worker et icônes
 - Page Amis : mon code + pseudo (copie), formulaire d'ajout, demandes reçues (accepter / refuser) et envoyées (annuler), cartes d'amis triées vivantes par santé décroissante → œufs → cimetière → sans créature. Pastille sur l'onglet Amis avec le nombre de demandes reçues.
 - Visibilité (`FriendCreatureView`) : uniquement pour les amis acceptés, et seulement créature vivante animée (nom, espèce, état de santé, âge, stade, niveau, rareté, tenue), « œuf en incubation (x %) » ou « au cimetière ». Jamais la faim, l'humeur, les repas ni les photos. Le tick paresseux s'applique aussi à la lecture par un ami.
 
+### 3.13 Boutique, armoire à pharmacie et entraide (phase 7)
+- **Boutique** (`/shop`) : trois soins à prix fixes (`SHOP_ITEMS` : sirop 1,99 €, antibiotique 3,99 €, talisman 5,99 €). `POST /api/shop/checkout { item }` crée une session **Stripe Checkout** avec `price_data` inline (aucun produit à créer dans le dashboard), `metadata { userId, item }` et une ligne `purchases` en `pending`. Le client est redirigé vers Stripe puis revient sur `/shop?success=1&session_id=…` ou `/shop?cancelled=1`.
+- **Crédit idempotent** : `creditPurchase()` bascule la ligne `pending → paid` par `UPDATE` conditionnel et n'incrémente `inventory` que si la bascule a eu lieu. Il est appelé par le webhook `POST /api/webhooks/stripe` (signature vérifiée avec `STRIPE_WEBHOOK_SECRET`, événements `checkout.session.completed` / `async_payment_succeeded`) **et** par `GET /api/shop/confirm?session_id=` au retour sur la page (repli quand le webhook n'est pas configuré ou en retard). Une session inconnue mais payée est enregistrée à partir des métadonnées Stripe.
+- **Armoire à pharmacie** (`inventory`) : `POST /api/inventory/use { item }` décrémente la quantité par `UPDATE … WHERE qty > 0` puis applique `applyMedicine()` (pur, `lib/game/medicine.ts`) : sirop +30 santé, antibiotique santé = 100 et fin de maladie, talisman `protected_until` = +7 jours (prolonge une protection active). Une dose inutile (santé déjà à 100) est refusée pour ne pas être gaspillée.
+- **Écran créature** : action « Soigner » → `/shop` (avec le nombre de doses), mise en avant quand la créature est malade ; alerte de soin qui pointe vers l'armoire quand elle contient une dose ; badge « Protégée N j » quand un talisman est actif.
+- **Envoyer un soin à un ami** : `POST /api/friends/:id/heal { item }` — ami accepté uniquement, créature **vivante et mal en point** (santé < 60, état fatigué ou malade), tick appliqué avant, dose prise dans **mon** inventaire, effet identique, ligne `gifts`. Le destinataire voit un encart « Un coup de pouce pour X » sur son écran créature jusqu'à ce qu'il le ferme (`POST /api/gifts/seen`).
+- **Troc d'accessoires** : `GET /api/friends/:id/accessories` liste ce que l'ami possède et que je n'ai pas (« je reçois ») et ce que je possède et qu'il n'a pas (« je donne »). `POST /api/trades` propose l'échange (max 10 propositions en attente, pas de doublon) ; le destinataire accepte (`POST /api/trades/:id/accept`) ou refuse, le proposant retire (`DELETE /api/trades/:id`). L'acceptation est un `UPDATE` conditionnel `pending → accepted` puis un échange de lignes `user_accessories` ; les accessoires échangés sont retirés des tenues. Une proposition devenue impossible (accessoire déjà cédé) est annulée automatiquement. La pastille de l'onglet Amis additionne demandes d'amis et trocs reçus.
+
 ## 4. Schéma de données
 
 Source de vérité : `db/init.sql` (idempotent) ⇄ `lib/db/schema.ts`. Colonnes en `snake_case`, horodatages en `timestamptz`.
@@ -154,7 +162,9 @@ Source de vérité : `db/init.sql` (idempotent) ⇄ `lib/db/schema.ts`. Colonnes
 | `user_accessories` | Accessoires possédés | PK `(user_id, accessory_id)` |
 | `creature_outfits` | Tenue équipée | PK `(creature_id, slot)`, `slot ∈ {head, eyes, neck, body}` |
 | `friendships` | Amis | `requester_id`, `addressee_id`, `status ∈ {pending, accepted}`, unique sur la paire, `requester ≠ addressee` |
-| `purchases` | Achats Stripe | `stripe_session_id` unique (idempotence webhook), `item`, `amount_cents`, `status` |
+| `purchases` | Achats Stripe | `stripe_session_id` unique (idempotence webhook), `item`, `amount_cents`, `status` (`pending` / `paid` / `cancelled`) |
+| `gifts` | Soins envoyés à un ami (phase 7) | `from_user_id`, `to_user_id`, `creature_id` (nullable), `item`, `seen_at` |
+| `trades` | Trocs d'accessoires (phase 7) | `proposer_id`, `receiver_id`, `offered_accessory_id`, `requested_accessory_id`, `status` (`pending` / `accepted` / `declined` / `cancelled`), `resolved_at` |
 | `inventory` | Médicaments | PK `(user_id, item)`, `qty` |
 | `strava_connections` | Lien Strava | PK `user_id`, tokens, `expires_at`, `last_sync_at` |
 | `game_settings` | Règles admin | PK `id` (= `default`), `data` jsonb (surcharges), `updated_at`, `updated_by` (migration 003) |
@@ -193,7 +203,13 @@ Phase 4 (admin) :
 - `POST /api/admin/login` / `POST /api/admin/logout` — cookie signé.
 - `GET /api/admin/settings` — `{ rules, stored }` ; `PUT /api/admin/settings { patch } | { reset: true }`.
 
-Phases suivantes (brief § 7) : `shop/checkout`, `webhooks/stripe`, `inventory/use`, `strava/*`, `account`.
+Phase 7 :
+- `POST /api/shop/checkout { item }` → `{ url }` ; `GET /api/shop/confirm?session_id=` → `{ status, item, credited, inventory }` ; `POST /api/webhooks/stripe` (Stripe uniquement, corps brut signé).
+- `GET /api/inventory` → `{ inventory, purchases }` ; `POST /api/inventory/use { item }` → effet + `creature`.
+- `POST /api/friends/:id/heal { item }` ; `GET /api/friends/:id/accessories` → `{ friend, theirs, mine }` ; `POST /api/gifts/seen`.
+- `GET /api/trades` → `{ incoming, outgoing, recent }` ; `POST /api/trades { friendshipId, offeredId, requestedId }` ; `POST /api/trades/:id/accept` ; `DELETE /api/trades/:id`.
+
+Phases suivantes (brief § 7) : `strava/*`, `account`.
 
 ## 6. Design
 
@@ -248,3 +264,8 @@ Phases suivantes (brief § 7) : `shop/checkout`, `webhooks/stripe`, `inventory/u
 | D33 | Accessoires portés rendus dans les groupes tête / visage / corps du SVG | Ils suivent automatiquement les proportions du stade sans calcul d'ancre supplémentaire. |
 | D34 | Demande réciproque acceptée automatiquement | Évite deux demandes croisées en attente ; l'intention des deux côtés est explicite. |
 | D35 | Une seule ligne `friendships` par paire, dans un sens ou l'autre, lue avec `OR` | Plus simple qu'une paire ordonnée dupliquée ; l'index unique du brief reste respecté. |
+| D36 | Crédit d'achat par webhook **et** par confirmation au retour sur `/shop`, tous deux idempotents | Le webhook peut être absent (variable non posée) ou en retard ; l'`UPDATE` conditionnel sur `purchases.status` garantit un seul crédit quelle que soit la voie. |
+| D37 | Fournisseur de paiement injecté (`CheckoutProvider`) | Le service boutique se teste sur PGlite avec un faux fournisseur ; Stripe n'est touché qu'en production. |
+| D38 | Une dose n'est jamais gaspillée : refus si la santé est déjà à 100 (soin) ou si l'ami n'est pas mal en point (santé ≥ 60) | Évite les dépenses inutiles et les envois « pour rien » ; le talisman reste utilisable à tout moment. |
+| D39 | Un troc échange exactement un accessoire contre un, et chaque côté ne peut demander que ce qui lui manque | `user_accessories` n'a pas de quantité (un doublon vaut de l'XP) ; l'échange reste lisible et sans doublon à gérer. |
+| D40 | Acceptation d'un troc = `UPDATE` conditionnel puis échange de lignes, sans transaction | Neon HTTP ne fournit pas de transaction ; la bascule de statut sert de verrou et rend l'échange rejouable au plus une fois. |

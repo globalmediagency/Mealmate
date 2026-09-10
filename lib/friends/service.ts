@@ -101,6 +101,22 @@ export async function removeFriendship(userId: string, friendshipId: string): Pr
   if (deleted.length === 0) throw new DomainError("not_found", "Lien introuvable.", 404);
 }
 
+/** The accepted friendship `friendshipId` seen from `userId`, or a 404 error. */
+export async function getAcceptedFriend(userId: string, friendshipId: string): Promise<{ friendshipId: string; friend: PublicProfile }> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(friendships)
+    .where(and(eq(friendships.id, friendshipId), eq(friendships.status, "accepted"), or(eq(friendships.requesterId, userId), eq(friendships.addresseeId, userId))))
+    .limit(1);
+  const row = rows[0];
+  if (!row) throw new DomainError("not_found", "Cet ami est introuvable.", 404);
+  const friendId = row.requesterId === userId ? row.addresseeId : row.requesterId;
+  const [profile] = await db.select().from(profiles).where(eq(profiles.userId, friendId)).limit(1);
+  if (!profile) throw new DomainError("not_found", "Cet ami est introuvable.", 404);
+  return { friendshipId: row.id, friend: { userId: profile.userId, username: profile.username } };
+}
+
 export type FriendRequestView = { id: string; user: PublicProfile; createdAt: string };
 
 export async function listRequests(userId: string): Promise<{ incoming: FriendRequestView[]; outgoing: FriendRequestView[] }> {

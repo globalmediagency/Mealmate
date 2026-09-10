@@ -42,7 +42,7 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 ## Pages de validation visuelle
 
 - `/dev/creatures` : galerie espèces × stades × états, œufs et décors.
-- `/dev/screens?screen=…` : écrans du jeu avec données factices (`egg`, `incubation`, `ready`, `reveal`, `home`, `home-sick`, `home-hungry`, `activity`, `feed`, `meal-result`, `meals`, `mourning`, `admin`, `play`, `wardrobe`, `chest`, `collection`, `friends`).
+- `/dev/screens?screen=…` : écrans du jeu avec données factices (`egg`, `incubation`, `ready`, `reveal`, `home`, `home-sick`, `home-hungry`, `activity`, `feed`, `meal-result`, `meals`, `mourning`, `admin`, `play`, `wardrobe`, `chest`, `collection`, `friends`, `shop`, `home-protected`).
 - `/dev/creatures?compact=1` : les 60 espèces en un coup d'œil ; la page complète montre les 30 accessoires. `/dev/gemini` : modèles Gemini visibles avec la clé.
 - `/admin` (hors galerie) : espace d'administration protégé par `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
 - Les deux sont gardées par `NEXT_PUBLIC_DEV_GALLERY=true` (lue au build : redéployer après l'avoir changée).
@@ -63,6 +63,15 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 
 - Tout ce qu'un ami peut voir passe par `FriendCreatureView` (`lib/friends/service.ts`) : ne jamais renvoyer une `CreatureView` complète ni un profil complet (code ami, email) à un autre utilisateur.
 - Les lectures de créatures d'amis appliquent le tick (`tickCreature`) : c'est voulu, l'état affiché doit être le vrai.
+
+## Boutique, soins et trocs
+
+- Prix et libellés des soins : `SHOP_ITEMS` dans `lib/game/config.ts` ; effets purs dans `lib/game/medicine.ts` (`applyMedicine`, `needsCare`) avec test à côté.
+- Stripe : client paresseux `getStripe()` (`lib/payments/stripe.ts`). Le service `lib/shop/service.ts` reçoit un `CheckoutProvider` injecté (`stripeProvider` en prod, faux fournisseur dans `lib/shop/shop.integration.test.ts`). Toujours créditer via `creditPurchase()` (idempotent) : jamais d'`INSERT` direct dans `inventory` depuis une route.
+- Le webhook `app/api/webhooks/stripe/route.ts` lit le corps **brut** (`request.text()`) avant `constructEvent` : ne pas le parser en JSON avant.
+- Décrémenter l'inventaire uniquement par `UPDATE … WHERE qty > 0` (`consumeDose`).
+- Soins aux amis : passer par `healFriendCreature()` (ami accepté, créature vivante et `needsCare`), qui applique le tick avant d'agir et journalise dans `gifts`.
+- Trocs : `lib/trades/service.ts`. L'acceptation bascule d'abord le statut par `UPDATE` conditionnel puis échange les lignes `user_accessories` et retire les accessoires des tenues. Ne jamais échanger sans cette bascule.
 
 ## Nourrissage et IA
 

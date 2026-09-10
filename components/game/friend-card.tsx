@@ -18,7 +18,7 @@ const STATE_LABELS: Record<CreatureState, { label: string; className: string }> 
 };
 
 /** One friend with what they allow us to see of their creature (spec § 3.11). */
-export function FriendCard({ friend, children }: { friend: FriendView; children?: React.ReactNode }) {
+export function FriendCard({ friend, children, footer }: { friend: FriendView; children?: React.ReactNode; footer?: React.ReactNode }) {
   const { creature } = friend;
   return (
     <li className="flex gap-3 rounded-3xl border border-ink-600/80 bg-ink-800/90 p-3 shadow-card">
@@ -77,6 +77,7 @@ export function FriendCard({ friend, children }: { friend: FriendView; children?
             </Badge>
           )}
         </div>
+        {footer ? <div className="mt-2.5">{footer}</div> : null}
       </div>
     </li>
   );

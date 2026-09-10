@@ -2,28 +2,41 @@
 
 import { Check, UserPlus, UserRoundX, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useCallback, useState, type FormEvent } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardText, CardTitle } from "@/components/ui/card";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Input } from "@/components/ui/field";
 import type { FriendRequestView, FriendView } from "@/lib/friends/service";
+import type { Inventory } from "@/lib/shop/service";
+import type { TradeableAccessories, TradesOverview } from "@/lib/trades/service";
+import { HealFriend, TradeWithFriend, type Notify } from "./friend-actions";
 import { FriendCard } from "./friend-card";
+import { TradesList } from "./trades-list";
 
 type FriendsPanelProps = {
   me: { username: string; friendCode: string };
   friends: FriendView[];
   incoming: FriendRequestView[];
   outgoing: FriendRequestView[];
+  /** My medicine, to send to friends whose creature is tired or sick. */
+  inventory: Inventory;
+  trades: TradesOverview;
+  /** Dev gallery only: pre-loaded trade dialog for the first friend. */
+  demoTrade?: TradeableAccessories;
 };
 
-export function FriendsPanel({ me, friends, incoming, outgoing }: FriendsPanelProps) {
+export function FriendsPanel({ me, friends, incoming, outgoing, inventory, trades, demoTrade }: FriendsPanelProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: "success" | "danger" | "info"; text: string } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const notify = useCallback<Notify>((tone, text) => {
+    setMessage({ tone, text });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
 
   async function call(id: string, url: string, method: "POST" | "DELETE", success: string) {
     setPending(id);
@@ -146,6 +159,8 @@ export function FriendsPanel({ me, friends, incoming, outgoing }: FriendsPanelPr
         </section>
       ) : null}
 
+      <TradesList trades={trades} notify={notify} />
+
       <section>
         <h2 className="mb-2 font-display text-xl font-semibold text-cream-50">
           Mes amis <span className="text-sm font-normal text-cream-500">({friends.length})</span>
@@ -157,8 +172,17 @@ export function FriendsPanel({ me, friends, incoming, outgoing }: FriendsPanelPr
           </Card>
         ) : (
           <ul className="space-y-2">
-            {friends.map((friend) => (
-              <FriendCard key={friend.friendshipId} friend={friend}>
+            {friends.map((friend, index) => (
+              <FriendCard
+                key={friend.friendshipId}
+                friend={friend}
+                footer={
+                  <div className="flex flex-col gap-2">
+                    <HealFriend friend={friend} inventory={inventory} notify={notify} />
+                    <TradeWithFriend friend={friend} notify={notify} initialData={index === 0 ? demoTrade : undefined} />
+                  </div>
+                }
+              >
                 {confirmRemove === friend.friendshipId ? (
                   <span className="flex shrink-0 gap-1">
                     <button

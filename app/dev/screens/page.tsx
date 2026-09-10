@@ -18,6 +18,7 @@ import { ChestOpener } from "@/components/game/chest-reveal";
 import { ACCESSORIES } from "@/lib/accessories/catalog";
 import { CollectionGrid } from "@/components/game/collection-grid";
 import { FriendsPanel } from "@/components/game/friends-panel";
+import { ShopPanel } from "@/components/shop/shop-panel";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { Card, CardTitle } from "@/components/ui/card";
 import { playableTiers, speciesByTierAll, toSpeciesSummary, getSpecies } from "@/lib/creatures";
@@ -30,7 +31,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -176,6 +177,17 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
       content = (
         <FriendsPanel
           me={{ username: "Chabond_42", friendCode: "MM-7K3Q2X" }}
+          inventory={{ sirop: 2, antibiotique: 1, talisman: 0 }}
+          demoTrade={{
+            friend: { userId: "u1", username: "Marion" },
+            mine: ACCESSORIES.filter((a) => ["beret", "scarf", "sunglasses"].includes(a.id)),
+            theirs: ACCESSORIES.filter((a) => ["crown", "monocle"].includes(a.id)),
+          }}
+          trades={{
+            incoming: [{ id: "33333333-3333-4333-8333-333333333333", direction: "incoming", other: { userId: "u1", username: "Marion" }, offered: ACCESSORIES.find((a) => a.id === "crown")!, requested: ACCESSORIES.find((a) => a.id === "beret")!, status: "pending", createdAt: now, resolvedAt: null }],
+            outgoing: [{ id: "44444444-4444-4444-8444-444444444444", direction: "outgoing", other: { userId: "u2", username: "Karim" }, offered: ACCESSORIES.find((a) => a.id === "scarf")!, requested: ACCESSORIES.find((a) => a.id === "sunglasses")!, status: "pending", createdAt: now, resolvedAt: null }],
+            recent: [{ id: "55555555-5555-4555-8555-555555555555", direction: "outgoing", other: { userId: "u1", username: "Marion" }, offered: ACCESSORIES.find((a) => a.id === "cap")!, requested: ACCESSORIES.find((a) => a.id === "monocle")!, status: "accepted", createdAt: now, resolvedAt: now }],
+          }}
           incoming={[{ id: "11111111-1111-4111-8111-111111111111", user: { userId: "u9", username: "Lina" }, createdAt: now }]}
           outgoing={[{ id: "22222222-2222-4222-8222-222222222222", user: { userId: "u8", username: "Tom_92" }, createdAt: now }]}
           friends={[
@@ -185,6 +197,34 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
             { friendshipId: "d", since: now, user: { userId: "u4", username: "Jules" }, creature: { status: "dead", tier: "facile", name: "Miso", species: toSpeciesSummary(getSpecies("facile-chat-rond")!), rarity: "commun", lifespanDays: 9 } },
             { friendshipId: "e", since: now, user: { userId: "u5", username: "Nour" }, creature: { status: "none" } },
           ]}
+        />
+      );
+      break;
+    }
+    case "shop":
+      content = (
+        <ShopPanel
+          inventory={{ sirop: 2, antibiotique: 0, talisman: 1 }}
+          purchases={[
+            { id: "p1", item: "sirop", amountCents: 199, status: "paid", createdAt: new Date().toISOString() },
+            { id: "p2", item: "talisman", amountCents: 599, status: "cancelled", createdAt: new Date(Date.now() - 86_400_000).toISOString() },
+          ]}
+          stripeEnabled
+          webhookMissing={false}
+          testMode
+          creature={{ name: "Miso", health: 52 }}
+          checkout={{ success: false, cancelled: false, sessionId: null }}
+        />
+      );
+      break;
+    case "home-protected": {
+      const c = mockCreature({ health: 41, state: "tired", protectedUntil: new Date(Date.now() + 5 * 86_400_000).toISOString() });
+      content = (
+        <CreatureHome
+          creature={c}
+          line={creatureLine(c)}
+          doses={2}
+          gifts={[{ id: "g1", from: { userId: "u1", username: "Marion" }, item: "antibiotique", createdAt: new Date().toISOString() }]}
         />
       );
       break;

@@ -3,8 +3,11 @@ import Link from "next/link";
 import type { CreatureView } from "@/lib/game/creature-view";
 import { cn } from "@/lib/utils/cn";
 
-/** Actionable warning shown on the home screen when the creature needs care. */
-export function CareAlert({ creature }: { creature: CreatureView }) {
+/**
+ * Actionable warning shown on the home screen when the creature needs care.
+ * `doses` = medicine in the inventory: the sick alert then points to the shop.
+ */
+export function CareAlert({ creature, doses = 0 }: { creature: CreatureView; doses?: number }) {
   if (creature.status !== "alive") return null;
   const name = creature.name ?? "Ta créature";
 
@@ -13,7 +16,7 @@ export function CareAlert({ creature }: { creature: CreatureView }) {
     const urgent = left !== null && left <= 1;
     return (
       <Link
-        href="/feed"
+        href={doses > 0 ? "/shop" : "/feed"}
         className={cn(
           "flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm",
           urgent ? "border-danger/60 bg-danger/15 text-cream-50" : "border-hunger/50 bg-hunger/10 text-cream-100",
@@ -22,11 +25,18 @@ export function CareAlert({ creature }: { creature: CreatureView }) {
         <HeartPulse className={cn("mt-0.5 h-5 w-5 shrink-0", urgent ? "text-danger" : "text-hunger")} aria-hidden="true" />
         <span>
           <strong>{name} est malade.</strong>{" "}
-          {left !== null
-            ? left <= 0
-              ? "C'est la dernière limite : nourris-la maintenant."
-              : `Sans soins, il lui reste environ ${formatDays(left)}. Des repas sains font remonter sa santé.`
-            : "Des repas sains font remonter sa santé."}
+          {left !== null && left <= 0
+            ? doses > 0
+              ? "C'est la dernière limite : utilise un soin de ton armoire maintenant."
+              : "C'est la dernière limite : nourris-la maintenant."
+            : left !== null
+              ? `Sans soins, il lui reste environ ${formatDays(left)}. `
+              : ""}
+          {left === null || left > 0
+            ? doses > 0
+              ? "Tu as un soin dans ton armoire à pharmacie : c'est le moment."
+              : "Des repas sains font remonter sa santé, ou un soin de la boutique."
+            : null}
         </span>
       </Link>
     );

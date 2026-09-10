@@ -71,6 +71,7 @@ Si tu avais déjà exécuté `db/init.sql` avant une phase, colle ses migrations
 - phase 3 : [`db/migrations/002_creatures_mourned_at.sql`](./db/migrations/002_creatures_mourned_at.sql)
 - phase 4 : [`db/migrations/003_game_settings.sql`](./db/migrations/003_game_settings.sql)
 - phase 5 : [`db/migrations/004_creatures_accessory_drops.sql`](./db/migrations/004_creatures_accessory_drops.sql)
+- phase 7 : [`db/migrations/005_gifts_trades.sql`](./db/migrations/005_gifts_trades.sql)
 
 Un `init.sql` fraîchement exécuté contient déjà toutes ces colonnes.
 
@@ -154,11 +155,31 @@ valeurs par défaut et l'admin affiche une erreur à l'enregistrement.
 
 ### Stripe — boutique en mode test (phase 7)
 
+Prérequis : la migration [`db/migrations/005_gifts_trades.sql`](./db/migrations/005_gifts_trades.sql)
+(tables `gifts` et `trades`, voir étape E). Sans clé Stripe, la page **Boutique** reste visible mais les
+boutons d'achat sont désactivés ; l'armoire à pharmacie, les soins aux amis et les trocs fonctionnent
+quand même (ils n'ont pas besoin de Stripe).
+
 1. <https://dashboard.stripe.com> → active le **mode test** (interrupteur en haut à droite).
 2. **Developers → API keys** → copie la **Secret key** (`sk_test_…`) → Vercel `STRIPE_SECRET_KEY`.
-3. **Developers → Webhooks → Add endpoint** : URL `https://TON-URL/api/webhooks/stripe`,
-   événement `checkout.session.completed` → copie le **Signing secret** (`whsec_…`) → Vercel `STRIPE_WEBHOOK_SECRET`.
+3. **Developers → Webhooks → Add endpoint** : URL `https://TON-URL/api/webhooks/stripe`
+   (une par domaine : production **et** preview si tu veux tester dessus), événements
+   `checkout.session.completed` et `checkout.session.async_payment_succeeded` → copie le
+   **Signing secret** (`whsec_…`) → Vercel `STRIPE_WEBHOOK_SECRET`.
+   Sans cette variable, l'achat est quand même crédité au retour sur la page Boutique (repli), mais
+   pas si tu fermes l'onglet Stripe avant de revenir.
 4. Redeploy. Cartes de test : `4242 4242 4242 4242`, date future, CVC quelconque.
+5. Vérification : **Plus → Boutique** → acheter un sirop → payer avec la carte de test → retour sur
+   la boutique avec « Merci ! Sirop est dans ton armoire à pharmacie » ; dans Stripe → **Payments** la
+   ligne apparaît, et dans **Webhooks** la livraison est en `200`.
+
+Ce que la phase 7 ajoute côté jeu :
+
+- **Soigner** sur l'écran créature ouvre la boutique ; les soins achetés s'utilisent depuis l'armoire
+  (sirop +30 santé, antibiotique santé 100 et fin de maladie, talisman 7 jours sans risque de mort).
+- Onglet **Amis** : bouton **Soigner** sur un ami dont la créature est fatiguée ou malade (envoie une
+  dose de ton armoire), bouton **Échanger** pour troquer un de tes accessoires contre un des siens ;
+  l'ami accepte ou refuse depuis la section « Trocs d'accessoires ».
 
 > ⚠️ Le plan **Vercel Hobby interdit l'usage commercial**. Avant d'encaisser de vrais paiements,
 > passe le projet en plan **Pro** et remplace les clés Stripe de test par les clés réelles.

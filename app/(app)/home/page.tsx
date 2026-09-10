@@ -13,6 +13,7 @@ import { toCreatureView } from "@/lib/game/creature-view";
 import { creatureLine } from "@/lib/game/dialogue";
 import { getGameRules } from "@/lib/game/rules-service";
 import { gameDate } from "@/lib/game/time";
+import { getInventory, listUnseenGifts, totalDoses } from "@/lib/shop/service";
 import { getManualEntry } from "@/lib/steps/service";
 
 export const metadata: Metadata = { title: "Ma créature" };
@@ -50,6 +51,20 @@ export default async function HomePage() {
   }
 
   const raw = await getActiveCreature(session.user.id);
-  const [outfit, chest] = await Promise.all([getOutfit(creature.id), raw ? getChestStatus(raw) : null]);
-  return <CreatureHome creature={creature} line={creatureLine(creature)} accessories={outfitToEquipped(outfit)} chestsAvailable={chest?.available ?? 0} />;
+  const [outfit, chest, inventory, gifts] = await Promise.all([
+    getOutfit(creature.id),
+    raw ? getChestStatus(raw) : null,
+    getInventory(session.user.id),
+    listUnseenGifts(session.user.id),
+  ]);
+  return (
+    <CreatureHome
+      creature={creature}
+      line={creatureLine(creature)}
+      accessories={outfitToEquipped(outfit)}
+      chestsAvailable={chest?.available ?? 0}
+      doses={totalDoses(inventory)}
+      gifts={gifts}
+    />
+  );
 }

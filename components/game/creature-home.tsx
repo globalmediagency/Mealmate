@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Footprints, Gamepad2, Gift, Heart, HeartPulse, Shirt, Smile, Utensils } from "lucide-react";
+import { Camera, Footprints, Gamepad2, Gift, Heart, HeartPulse, Shield, Shirt, Smile, Utensils } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Creature, type EquippedAccessory, type Reaction } from "@/components/creatures/creature";
@@ -11,19 +11,31 @@ import { buttonClasses } from "@/components/ui/button";
 import { getSpecies } from "@/lib/creatures";
 import type { CreatureView } from "@/lib/game/creature-view";
 import { ageLabel, creatureLine, hungerLabel } from "@/lib/game/dialogue";
+import type { GiftView } from "@/lib/shop/service";
 import { cn } from "@/lib/utils/cn";
 import { CareAlert } from "./care-alert";
 import { Gauge } from "./gauge";
+import { GiftsNotice } from "./gifts-notice";
 
-type CreatureHomeProps = { creature: CreatureView; line: string; accessories?: EquippedAccessory[]; chestsAvailable?: number };
+type CreatureHomeProps = {
+  creature: CreatureView;
+  line: string;
+  accessories?: EquippedAccessory[];
+  chestsAvailable?: number;
+  /** Medicine doses in the user's inventory (shown on the "Soigner" action). */
+  doses?: number;
+  /** Medicine received from friends and not acknowledged yet. */
+  gifts?: GiftView[];
+};
 
-type Action = { id: string; label: string; icon: typeof Camera; href?: string; highlight?: boolean };
+type Action = { id: string; label: string; icon: typeof Camera; href: string; highlight?: boolean };
 
-export function CreatureHome({ creature, line, accessories = [], chestsAvailable = 0 }: CreatureHomeProps) {
+const DAY_MS = 86_400_000;
+
+export function CreatureHome({ creature, line, accessories = [], chestsAvailable = 0, doses = 0, gifts = [] }: CreatureHomeProps) {
   const species = creature.species ? getSpecies(creature.species.id) : undefined;
   const [reaction, setReaction] = useState<Reaction | null>(null);
   const [bubble, setBubble] = useState(line);
-  const [toast, setToast] = useState<string | null>(null);
   const timer = useRef<number | null>(null);
 
   useEffect(() => () => {
@@ -40,11 +52,6 @@ export function CreatureHome({ creature, line, accessories = [], chestsAvailable
     }, 1300);
   }
 
-  function soon(label: string) {
-    setToast(`${label} : bientôt disponible.`);
-    window.setTimeout(() => setToast(null), 2000);
-  }
-
   if (!species) return null;
 
   const actions: Action[] = [
@@ -52,8 +59,9 @@ export function CreatureHome({ creature, line, accessories = [], chestsAvailable
     { id: "play", label: "Jouer", icon: Gamepad2, href: "/play" },
     { id: "walk", label: "Marcher", icon: Footprints, href: "/activity" },
     { id: "dress", label: "Habiller", icon: Shirt, href: "/wardrobe" },
-    { id: "heal", label: "Soigner", icon: HeartPulse, highlight: creature.state === "sick" },
+    { id: "heal", label: doses > 0 ? `Soigner (${doses})` : "Soigner", icon: HeartPulse, href: "/shop", highlight: creature.state === "sick" || (creature.state === "tired" && doses > 0) },
   ];
+  const protectedDays = creature.protectedUntil ? Math.ceil((new Date(creature.protectedUntil).getTime() - Date.now()) / DAY_MS) : 0;
 
   return (
     <div className="space-y-4 animate-rise">
@@ -67,10 +75,17 @@ export function CreatureHome({ creature, line, accessories = [], chestsAvailable
         <div className="flex shrink-0 flex-col items-end gap-1.5">
           {creature.rarity ? <RarityBadge rarity={creature.rarity} /> : null}
           <Badge>{creature.stage.label}</Badge>
+          {protectedDays > 0 ? (
+            <Badge className="border-brass-400/60 bg-brass-500/15 text-brass-200" title="Talisman actif : pas de risque de mort">
+              <Shield className="h-3.5 w-3.5" aria-hidden="true" />
+              Protégée {protectedDays} j
+            </Badge>
+          ) : null}
         </div>
       </header>
 
-      <CareAlert creature={creature} />
+      {gifts.length > 0 && creature.name ? <GiftsNotice gifts={gifts} creatureName={creature.name} /> : null}
+      <CareAlert creature={creature} doses={doses} />
 
       <section
         className="relative overflow-hidden rounded-3xl border border-ink-600/80 shadow-card"
@@ -118,31 +133,13 @@ export function CreatureHome({ creature, line, accessories = [], chestsAvailable
       </section>
 
       <nav aria-label="Actions" className="grid grid-cols-3 gap-2">
-        {actions.map(({ id, label, icon: Icon, href, highlight }) => {
-          const classes = cn(
-            buttonClasses(highlight ? "brass" : "secondary", "md"),
-            "min-h-14 flex-col gap-1 text-xs",
-            !href && !highlight && "opacity-80",
-          );
-          return href ? (
-            <Link key={id} href={href} className={classes}>
-              <Icon className="h-5 w-5" aria-hidden="true" />
-              {label}
-            </Link>
-          ) : (
-            <button key={id} type="button" className={classes} onClick={() => soon(label)}>
-              <Icon className="h-5 w-5" aria-hidden="true" />
-              {label}
-            </button>
-          );
-        })}
+        {actions.map(({ id, label, icon: Icon, href, highlight }) => (
+          <Link key={id} href={href} className={cn(buttonClasses(highlight ? "brass" : "secondary", "md"), "min-h-14 flex-col gap-1 text-xs")}>
+            <Icon className="h-5 w-5" aria-hidden="true" />
+            {label}
+          </Link>
+        ))}
       </nav>
-
-      {toast ? (
-        <div role="status" className="fixed inset-x-4 bottom-24 z-50 mx-auto max-w-sm rounded-2xl border border-ink-500 bg-ink-800/95 px-4 py-3 text-center text-sm text-cream-100 shadow-card backdrop-blur animate-rise">
-          {toast}
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -95,6 +95,7 @@ export default async function MorePage() {
       <Card className="p-2">
         <ul className="divide-y divide-ink-600/80">
           {[
+            { href: "/shop", label: "Boutique et armoire à pharmacie" },
             { href: "/collection", label: "Collection" },
             { href: "/cemetery", label: "Cimetière" },
             { href: "/privacy", label: "Politique de confidentialité" },
