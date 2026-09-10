@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AdminTabs } from "@/components/admin/admin-tabs";
 import { Logo } from "@/components/brand/logo";
 
 export const metadata: Metadata = { title: { default: "Administration", template: "%s · Admin MealMate" }, robots: { index: false, follow: false } };
@@ -17,6 +18,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             Retour à l&apos;app
           </Link>
         </div>
+        <AdminTabs />
       </header>
       <main className="mx-auto w-full max-w-3xl px-4 pb-16 pt-5 safe-bottom">{children}</main>
     </div>
