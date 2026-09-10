@@ -128,3 +128,16 @@ describe("applyTick", () => {
     expect(day).toBeLessThanOrEqual(15);
   });
 });
+
+describe("applyTick with admin rules", () => {
+  it("uses the overridden rates and death delay", async () => {
+    const { mergeRules } = await import("./rules");
+    const rules = mergeRules({ tiers: { facile: { hungerPerHour: 10, healthLossPerHourWhenStarving: 5, sickDaysBeforeDeath: 1 } }, hungerDamageThreshold: 50 });
+    const { creature: c } = applyTick(creature(), hours(10), rules);
+    // hunger 50 after 5 h, then 5 h × 5 = 25 health lost
+    expect(c.hunger).toBe(100);
+    expect(c.health).toBeCloseTo(75);
+    const sick = creature({ hunger: 100, health: 10, sickSince: hours(-25) });
+    expect(applyTick(sick, hours(0.5), rules).died).toBe(true);
+  });
+});

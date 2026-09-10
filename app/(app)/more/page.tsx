@@ -18,6 +18,7 @@ const SERVICE_LABELS: Array<{ key: keyof ReturnType<typeof getConfigStatus>; lab
   { key: "gemini", label: "Analyse des repas (Gemini)" },
   { key: "stripe", label: "Boutique (Stripe)" },
   { key: "strava", label: "Strava" },
+  { key: "admin", label: "Espace admin (/admin)" },
 ];
 
 export default async function MorePage() {

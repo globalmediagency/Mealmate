@@ -1,6 +1,8 @@
 import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { creatures, type Creature } from "@/lib/db/schema";
+import type { GameRules } from "@/lib/game/rules";
+import { getGameRules } from "@/lib/game/rules-service";
 import { applyTick } from "@/lib/game/tick";
 
 /**
@@ -8,8 +10,8 @@ import { applyTick } from "@/lib/game/tick";
  * guarded by `last_tick_at` (optimistic concurrency): if another request
  * ticked first, the fresh row is re-read instead of being overwritten.
  */
-export async function tickCreature(creature: Creature, now: Date = new Date()): Promise<Creature> {
-  const result = applyTick(creature, now);
+export async function tickCreature(creature: Creature, now: Date = new Date(), rules?: GameRules): Promise<Creature> {
+  const result = applyTick(creature, now, rules ?? (await getGameRules()));
   if (!result.changed) return creature;
   const next = result.creature;
   const db = getDb();

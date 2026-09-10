@@ -3,8 +3,10 @@ import { z } from "zod";
 import { DomainError } from "@/lib/api/errors";
 import { getDb } from "@/lib/db";
 import { creatures, type Creature } from "@/lib/db/schema";
-import { CREATURE_NAME, TIER_CONFIG, TIERS, type Tier } from "@/lib/game/config";
+import { CREATURE_NAME, TIERS, type Tier } from "@/lib/game/config";
 import { drawSpecies } from "@/lib/game/rarity";
+import type { GameRules } from "@/lib/game/rules";
+import { getGameRules } from "@/lib/game/rules-service";
 import { gameDate } from "@/lib/game/time";
 import { sumStepsSince } from "@/lib/steps/service";
 import { isTierPlayable } from "./index";
@@ -34,10 +36,10 @@ export async function getActiveCreature(userId: string): Promise<Creature | null
  * that died during this tick is returned with `status = "dead"` so callers
  * can show the mourning screen.
  */
-export async function getActiveCreatureTicked(userId: string, now: Date = new Date()): Promise<Creature | null> {
+export async function getActiveCreatureTicked(userId: string, now: Date = new Date(), rules?: GameRules): Promise<Creature | null> {
   const creature = await getActiveCreature(userId);
   if (!creature) return null;
-  return creature.status === "alive" ? tickCreature(creature, now) : creature;
+  return creature.status === "alive" ? tickCreature(creature, now, rules) : creature;
 }
 
 /** Most recent dead creature whose death has not been acknowledged yet. */
@@ -106,7 +108,8 @@ export async function hatchEgg(userId: string, now: Date = new Date()): Promise<
   }
   const egg = await refreshEggSteps(active);
   const tier = egg.tier as Tier;
-  if (egg.eggSteps < TIER_CONFIG[tier].hatchSteps) {
+  const rules = await getGameRules();
+  if (egg.eggSteps < rules.tiers[tier].hatchSteps) {
     throw new DomainError("egg_not_ready", "L'œuf a encore besoin de pas pour éclore.", 409);
   }
   const species = drawSpecies(tier);

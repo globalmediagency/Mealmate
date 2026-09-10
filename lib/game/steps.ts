@@ -1,4 +1,5 @@
-import { STEPS, TIER_CONFIG, type Tier } from "./config";
+import { STEPS, type Tier } from "./config";
+import { DEFAULT_RULES, type GameRules } from "./rules";
 
 export type StepCredit = {
   /** Health points to add to the living creature. */
@@ -33,8 +34,8 @@ export function stepCredit(totalToday: number, creditedSoFar: number): StepCredi
 }
 
 /** Fraction (0–1) of the hatch goal reached by the egg. */
-export function hatchProgress(eggSteps: number, tier: Tier): number {
-  const goal = TIER_CONFIG[tier].hatchSteps;
+export function hatchProgress(eggSteps: number, tier: Tier, rules: GameRules = DEFAULT_RULES): number {
+  const goal = rules.tiers[tier].hatchSteps;
   return Math.max(0, Math.min(1, eggSteps / goal));
 }
 

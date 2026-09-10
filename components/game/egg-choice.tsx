@@ -9,6 +9,7 @@ import { RARITY_COLORS } from "@/components/creatures/rarity-badge";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { Species } from "@/lib/creatures/types";
+import type { GameRules } from "@/lib/game/rules";
 import {
   RARITIES,
   RARITY_LABELS,
@@ -24,11 +25,13 @@ type EggChoiceProps = {
   speciesByTier: Record<Tier, Species[]>;
   obtainedSpeciesIds: string[];
   playableTiers: Tier[];
+  /** Effective game rules (admin overrides applied). */
+  rules: GameRules;
   /** Shown after a death or on a brand-new account. */
   intro?: string;
 };
 
-export function EggChoice({ speciesByTier, obtainedSpeciesIds, playableTiers, intro }: EggChoiceProps) {
+export function EggChoice({ speciesByTier, obtainedSpeciesIds, playableTiers, rules, intro }: EggChoiceProps) {
   const router = useRouter();
   const [selected, setSelected] = useState<Tier>("facile");
   const [pending, setPending] = useState(false);
@@ -57,7 +60,7 @@ export function EggChoice({ speciesByTier, obtainedSpeciesIds, playableTiers, in
     }
   }
 
-  const config = TIER_CONFIG[selected];
+  const config = { ...TIER_CONFIG[selected], ...rules.tiers[selected] };
   const species = speciesByTier[selected];
   const playable = playableTiers.includes(selected);
 
@@ -73,7 +76,7 @@ export function EggChoice({ speciesByTier, obtainedSpeciesIds, playableTiers, in
 
       <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Niveau de l'œuf">
         {TIERS.map((tier) => {
-          const t = TIER_CONFIG[tier];
+          const t = { ...TIER_CONFIG[tier], ...rules.tiers[tier] };
           const active = tier === selected;
           const locked = !playableTiers.includes(tier);
           return (

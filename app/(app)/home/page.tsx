@@ -10,6 +10,7 @@ import { loadActiveCreatureView } from "@/lib/creatures/loader";
 import { getObtainedSpeciesIds, getUnmournedDeath } from "@/lib/creatures/service";
 import { toCreatureView } from "@/lib/game/creature-view";
 import { creatureLine } from "@/lib/game/dialogue";
+import { getGameRules } from "@/lib/game/rules-service";
 import { gameDate } from "@/lib/game/time";
 import { getManualEntry } from "@/lib/steps/service";
 
@@ -25,13 +26,14 @@ export default async function HomePage() {
 
   if (!creature) {
     const unmourned = await getUnmournedDeath(session.user.id);
-    if (unmourned) return <Mourning creature={toCreatureView(unmourned)} />;
-    const obtained = await getObtainedSpeciesIds(session.user.id);
+    if (unmourned) return <Mourning creature={toCreatureView(unmourned, new Date(), await getGameRules())} />;
+    const [obtained, rules] = await Promise.all([getObtainedSpeciesIds(session.user.id), getGameRules()]);
     return (
       <EggChoice
         speciesByTier={speciesByTierAll()}
         obtainedSpeciesIds={obtained}
         playableTiers={playableTiers()}
+        rules={rules}
         intro={obtained.length > 0 ? "Un nouveau compagnon t'attend. Choisis librement le niveau de ton prochain œuf." : undefined}
       />
     );

@@ -65,3 +65,19 @@ describe("toCreatureView", () => {
     expect(view.canHatch).toBe(true);
   });
 });
+
+describe("care fields", () => {
+  it("computes days until death while sick", () => {
+    const now = new Date("2026-09-10T12:00:00Z");
+    const view = toCreatureView(creature({ health: 20, sickSince: new Date("2026-09-08T12:00:00Z") }), now);
+    expect(view.sickSince).toBe("2026-09-08T12:00:00.000Z");
+    expect(view.daysUntilDeath).toBe(5);
+    expect(view.sickDaysBeforeDeath).toBe(7);
+    expect(view.hungerDamageThreshold).toBe(80);
+    expect(view.healthyScoreThreshold).toBe(40);
+  });
+
+  it("is null when healthy", () => {
+    expect(toCreatureView(creature()).daysUntilDeath).toBeNull();
+  });
+});

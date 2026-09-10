@@ -3,6 +3,7 @@ import { fail, handleRouteError, ok } from "@/lib/api/respond";
 import { getSession } from "@/lib/auth/session";
 import { creatureNameSchema, nameCreature } from "@/lib/creatures/service";
 import { toCreatureView } from "@/lib/game/creature-view";
+import { getGameRules } from "@/lib/game/rules-service";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export async function POST(request: Request) {
     if (!session) return fail("unauthorized", "Connecte-toi pour continuer.", 401);
     const body = nameSchema.parse(await request.json().catch(() => ({})));
     const creature = await nameCreature(session.user.id, body.name);
-    return ok({ creature: toCreatureView(creature) });
+    return ok({ creature: toCreatureView(creature, new Date(), await getGameRules()) });
   } catch (error) {
     return handleRouteError(error);
   }

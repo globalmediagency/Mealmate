@@ -325,6 +325,14 @@ export const inventory = pgTable(
   (table) => [primaryKey({ columns: [table.userId, table.item] })],
 );
 
+/** Admin-editable overrides of the game constants (single row, id = "default"). */
+export const gameSettings = pgTable("game_settings", {
+  id: text("id").primaryKey(),
+  data: jsonb("data").$type<Record<string, unknown>>().notNull().default({}),
+  updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+  updatedBy: text("updated_by"),
+});
+
 export const stravaConnections = pgTable("strava_connections", {
   userId: text("user_id")
     .primaryKey()

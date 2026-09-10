@@ -69,6 +69,7 @@ Si tu avais déjà exécuté `db/init.sql` avant une phase, colle ses migrations
 
 - phase 2 : [`db/migrations/001_step_entries_credited_steps.sql`](./db/migrations/001_step_entries_credited_steps.sql)
 - phase 3 : [`db/migrations/002_creatures_mourned_at.sql`](./db/migrations/002_creatures_mourned_at.sql)
+- phase 4 : [`db/migrations/003_game_settings.sql`](./db/migrations/003_game_settings.sql)
 
 Un `init.sql` fraîchement exécuté contient déjà toutes ces colonnes.
 
@@ -81,6 +82,20 @@ puis mourir si elle n'est jamais nourrie (voir `SPEC.md` § 3.8).
 1. **R2** : suis la section « Cloudflare R2 » ci-dessous (4 variables).
 2. **Gemini** : suis la section « Google Gemini » ci-dessous (1 variable, `GEMINI_MODEL` optionnel).
 3. Vercel → **Redeploy**, puis onglet Créature → **Nourrir** → prends une photo de ton assiette.
+
+### Étape G — Espace admin (phase 4)
+
+1. Vercel → **Environment Variables** : `ADMIN_USERNAME` (ex. `chef`) et `ADMIN_PASSWORD` (long et unique) → Redeploy.
+2. Ouvre `https://TON-URL/admin` → connecte-toi.
+3. Règle l'exigence des créatures par niveau (pas pour éclore, seuil repas sain, faim/heure, perte de santé/heure,
+   perte d'humeur/heure, jours malade avant la mort) et les règles communes (seuil de faim critique, repas max/jour,
+   ralentissement après absence). La simulation en bas de page montre en combien de temps une créature jamais
+   nourrie tombe malade puis meurt.
+4. **Enregistrer** : effet immédiat pour toi, au plus tard une minute après pour les autres (cache serveur).
+   **Valeurs par défaut** restaure les constantes du code.
+
+Prérequis : la migration `db/migrations/003_game_settings.sql` (voir étape E). Sans elle, l'app continue avec les
+valeurs par défaut et l'admin affiche une erreur à l'enregistrement.
 
 ## 2. Cycle de travail
 

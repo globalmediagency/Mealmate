@@ -12,6 +12,7 @@ import { getSpecies } from "@/lib/creatures";
 import type { CreatureView } from "@/lib/game/creature-view";
 import { ageLabel, creatureLine, hungerLabel } from "@/lib/game/dialogue";
 import { cn } from "@/lib/utils/cn";
+import { CareAlert } from "./care-alert";
 import { Gauge } from "./gauge";
 
 type CreatureHomeProps = { creature: CreatureView; line: string };
@@ -68,6 +69,8 @@ export function CreatureHome({ creature, line }: CreatureHomeProps) {
           <Badge>{creature.stage.label}</Badge>
         </div>
       </header>
+
+      <CareAlert creature={creature} />
 
       <section
         className="relative overflow-hidden rounded-3xl border border-ink-600/80 shadow-card"

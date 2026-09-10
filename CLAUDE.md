@@ -27,6 +27,7 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 - Toute requête de données filtre sur `session.user.id`.
 - Schéma : modifier **à la fois** `lib/db/schema.ts` et un nouveau fichier `db/migrations/NNN_description.sql` idempotent (`ADD COLUMN IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`…). `db/init.sql` reste la photo complète du schéma courant : le mettre à jour aussi.
 - Constantes de jeu : uniquement dans `lib/game/config.ts`. Logique de jeu pure (tick, tirages, effets) dans `lib/game/*.ts` avec un test `*.test.ts` à côté.
+- Règles réglables depuis `/admin` : les fonctions pures prennent `rules: GameRules` (défaut `DEFAULT_RULES`) ; côté serveur, toujours charger `await getGameRules()` (`lib/game/rules-service.ts`) et le passer explicitement (`applyTick`, `toCreatureView`, `mealEffects`, `hatchProgress`). Ne jamais lire `TIER_CONFIG` pour une valeur numérique à l'exécution, seulement pour les libellés.
 - UI : composants dans `components/`, classes Tailwind avec `cn()`. Tokens de couleur : `ink-*`, `sage-*`, `brass-*`, `cream-*`, `health`, `hunger`, `mood`, `danger`. Titres en `font-display`.
 - Accessibilité : boutons ≥ 44 px, champs `text-base`, `aria-*` sur les icônes décoratives, animations coupées par `prefers-reduced-motion` (déjà global dans `globals.css`).
 - Textes utilisateur : ton bienveillant, tutoiement, jamais culpabilisant.
@@ -43,6 +44,7 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 - `/dev/creatures` : galerie espèces × stades × états, œufs et décors.
 - `/dev/screens?screen=…` : écrans du jeu avec données factices (`egg`, `incubation`, `ready`, `reveal`, `home`, `home-sick`, `activity`, `feed`, `meal-result`, `meals`, `mourning`).
 - `/dev/creatures?compact=1` : les 30 espèces en un coup d'œil. `/dev/gemini` : modèles Gemini visibles avec la clé.
+- `/admin` (hors galerie) : espace d'administration protégé par `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
 - Les deux sont gardées par `NEXT_PUBLIC_DEV_GALLERY=true` (lue au build : redéployer après l'avoir changée).
 
 ## Ajouter un accessoire (à partir de la phase 5)

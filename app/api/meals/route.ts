@@ -4,6 +4,7 @@ import { fail, handleRouteError, ok } from "@/lib/api/respond";
 import { getSession } from "@/lib/auth/session";
 import { FEEDING } from "@/lib/game/config";
 import { toCreatureView } from "@/lib/game/creature-view";
+import { getGameRules } from "@/lib/game/rules-service";
 import { feedCreature, listMeals, mealStats, toMealView } from "@/lib/meals/service";
 import { r2Storage } from "@/lib/storage/r2";
 
@@ -40,11 +41,13 @@ export async function POST(request: NextRequest) {
     if (file.size === 0) return fail("validation_error", "Image vide.", 400);
 
     const bytes = new Uint8Array(await file.arrayBuffer());
+    const rules = await getGameRules();
     const result = await feedCreature({
       userId: session.user.id,
       image: { bytes, mimeType: file.type },
       analyzer: analyzeMealWithGemini,
       storage: r2Storage,
+      rules,
     });
 
     return ok({
@@ -52,7 +55,7 @@ export async function POST(request: NextRequest) {
       analysis: result.analysis,
       effects: result.effects,
       before: result.before,
-      creature: toCreatureView(result.creature),
+      creature: toCreatureView(result.creature, new Date(), rules),
       mealsToday: result.mealsToday,
     });
   } catch (error) {

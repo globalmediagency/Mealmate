@@ -26,6 +26,12 @@ function view(overrides: Partial<CreatureView> = {}): CreatureView {
     hatchedAt: "2026-09-03T00:00:00.000Z",
     diedAt: null,
     lifespanDays: null,
+    sickSince: null,
+    daysUntilDeath: null,
+    protectedUntil: null,
+    sickDaysBeforeDeath: 7,
+    hungerDamageThreshold: 80,
+    healthyScoreThreshold: 40,
     ...overrides,
   };
 }

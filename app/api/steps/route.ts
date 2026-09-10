@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth/session";
 import { applyStepGains, getActiveCreatureTicked, refreshEggSteps } from "@/lib/creatures/service";
 import { STEPS } from "@/lib/game/config";
 import { toCreatureView } from "@/lib/game/creature-view";
+import { getGameRules } from "@/lib/game/rules-service";
 import { gameDate } from "@/lib/game/time";
 import { getManualEntry, getStepHistory, saveManualSteps } from "@/lib/steps/service";
 
@@ -39,7 +40,8 @@ export async function POST(request: Request) {
     const body = saveSchema.parse(await request.json().catch(() => ({})));
     const userId = session.user.id;
 
-    const creature = await getActiveCreatureTicked(userId);
+    const rules = await getGameRules();
+    const creature = await getActiveCreatureTicked(userId, new Date(), rules);
     const { entry, gains } = await saveManualSteps(userId, body.steps, creature);
     let updated = creature;
     if (creature?.status === "egg") updated = await refreshEggSteps(creature);
@@ -49,7 +51,7 @@ export async function POST(request: Request) {
       date: entry.date,
       today: entry.steps,
       gains,
-      creature: updated ? toCreatureView(updated) : null,
+      creature: updated ? toCreatureView(updated, new Date(), rules) : null,
     });
   } catch (error) {
     return handleRouteError(error);

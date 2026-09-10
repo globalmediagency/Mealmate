@@ -11,18 +11,20 @@ import { MealResult } from "@/components/game/meal-result";
 import { MealsHistory } from "@/components/game/meals-history";
 import { Mourning } from "@/components/game/mourning";
 import type { MealStats, MealView } from "@/lib/meals/service";
+import { RulesForm } from "@/components/admin/rules-form";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { Card, CardTitle } from "@/components/ui/card";
 import { playableTiers, speciesByTierAll, toSpeciesSummary, getSpecies } from "@/lib/creatures";
 import type { CreatureView } from "@/lib/game/creature-view";
 import { creatureLine } from "@/lib/game/dialogue";
+import { DEFAULT_RULES } from "@/lib/game/rules";
 import { gameDate, shiftDate } from "@/lib/game/time";
 import { isDevGalleryEnabled } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "activity", "feed", "meal-result", "meals", "mourning"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "meal-result", "meals", "mourning", "admin"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -50,6 +52,12 @@ function mockCreature(overrides: Partial<CreatureView>): CreatureView {
     hatchedAt: new Date().toISOString(),
     diedAt: null,
     lifespanDays: null,
+    sickSince: null,
+    daysUntilDeath: null,
+    protectedUntil: null,
+    sickDaysBeforeDeath: 7,
+    hungerDamageThreshold: 80,
+    healthyScoreThreshold: 40,
     ...overrides,
   };
 }
@@ -62,7 +70,7 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
   let content: React.ReactNode;
   switch (screen) {
     case "egg":
-      content = <EggChoice speciesByTier={speciesByTierAll()} obtainedSpeciesIds={["facile-lapin-doux"]} playableTiers={playableTiers()} />;
+      content = <EggChoice speciesByTier={speciesByTierAll()} obtainedSpeciesIds={["facile-lapin-doux"]} playableTiers={playableTiers()} rules={DEFAULT_RULES} />;
       break;
     case "incubation":
       content = (
@@ -86,7 +94,7 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
       break;
     }
     case "home-sick": {
-      const c = mockCreature({ health: 22, hunger: 85, mood: 30, state: "sick", stage: { id: "adulte", label: "Adulte", minXp: 500 }, xp: 620, xpToNextStage: 580 });
+      const c = mockCreature({ health: 22, hunger: 85, mood: 30, state: "sick", stage: { id: "adulte", label: "Adulte", minXp: 500 }, xp: 620, xpToNextStage: 580, sickSince: new Date(Date.now() - 2 * 86_400_000).toISOString(), daysUntilDeath: 5 });
       content = <CreatureHome creature={c} line={creatureLine(c)} />;
       break;
     }
@@ -137,6 +145,14 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
       content = <MealsHistory meals={meals} stats={stats} tier="facile" />;
       break;
     }
+    case "home-hungry": {
+      const c = mockCreature({ hunger: 86, health: 74, mood: 50 });
+      content = <CreatureHome creature={c} line={creatureLine(c)} />;
+      break;
+    }
+    case "admin":
+      content = <RulesForm initialRules={DEFAULT_RULES} storedPatch={{}} updatedAt={null} updatedBy={null} />;
+      break;
     case "mourning":
       content = <Mourning creature={mockCreature({ status: "dead", state: "dead", health: 0, hunger: 100, mood: 5, ageDays: 9, lifespanDays: 9, diedAt: new Date().toISOString() })} />;
       break;

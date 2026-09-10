@@ -52,6 +52,7 @@ export type ConfigStatus = {
   gemini: boolean;
   stripe: boolean;
   strava: boolean;
+  admin: boolean;
 };
 
 /** Non-secret overview of which integrations are configured (booleans only). */
@@ -71,6 +72,7 @@ export function getConfigStatus(): ConfigStatus {
     gemini: has("GEMINI_API_KEY"),
     stripe: has("STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"),
     strava: has("STRAVA_CLIENT_ID", "STRAVA_CLIENT_SECRET"),
+    admin: has("ADMIN_USERNAME", "ADMIN_PASSWORD"),
   };
 }
 

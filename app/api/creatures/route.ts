@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { loadActiveCreatureView } from "@/lib/creatures/loader";
 import { createEgg, tierSchema } from "@/lib/creatures/service";
 import { toCreatureView } from "@/lib/game/creature-view";
+import { getGameRules } from "@/lib/game/rules-service";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
     if (!session) return fail("unauthorized", "Connecte-toi pour continuer.", 401);
     const body = createSchema.parse(await request.json().catch(() => ({})));
     const egg = await createEgg(session.user.id, body.tier);
-    return ok({ creature: toCreatureView(egg) }, { status: 201 });
+    return ok({ creature: toCreatureView(egg, new Date(), await getGameRules()) }, { status: 201 });
   } catch (error) {
     return handleRouteError(error);
   }

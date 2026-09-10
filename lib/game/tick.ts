@@ -1,5 +1,6 @@
 import type { Creature } from "@/lib/db/schema";
-import { HEALTH_STATE, HUNGER_DAMAGE_THRESHOLD, TICK, TIER_CONFIG, type Tier } from "./config";
+import { HEALTH_STATE, type Tier } from "./config";
+import { DEFAULT_RULES, type GameRules } from "./rules";
 import { daysBetween, hoursBetween } from "./time";
 
 const HOUR_MS = 3_600_000;
@@ -10,11 +11,11 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
  * Real elapsed hours → "effective" degradation hours: full rate up to the cap,
  * then 25 % of the rate beyond it (spec § 3.4).
  */
-export function effectiveHours(elapsedHours: number): number {
+export function effectiveHours(elapsedHours: number, tick: GameRules["tick"] = DEFAULT_RULES.tick): number {
   if (elapsedHours <= 0) return 0;
-  const capped = Math.min(elapsedHours, TICK.fullRateHoursCap);
-  const beyond = Math.max(0, elapsedHours - TICK.fullRateHoursCap);
-  return capped + beyond * TICK.slowRate;
+  const capped = Math.min(elapsedHours, tick.fullRateHoursCap);
+  const beyond = Math.max(0, elapsedHours - tick.fullRateHoursCap);
+  return capped + beyond * tick.slowRate;
 }
 
 export type TickResult = {
@@ -29,14 +30,15 @@ export type TickResult = {
  * Pure lazy tick: applies hunger, health and mood decay between
  * `creature.lastTickAt` and `now`, manages `sickSince` and death.
  */
-export function applyTick(creature: Creature, now: Date = new Date()): TickResult {
+export function applyTick(creature: Creature, now: Date = new Date(), rules: GameRules = DEFAULT_RULES): TickResult {
   if (creature.status !== "alive") return { creature, changed: false, died: false };
 
   const elapsed = hoursBetween(creature.lastTickAt, now);
   if (elapsed <= 0) return { creature, changed: false, died: false };
 
-  const tier = TIER_CONFIG[creature.tier as Tier];
-  const t = effectiveHours(elapsed);
+  const tier = rules.tiers[creature.tier as Tier];
+  const threshold = rules.hungerDamageThreshold;
+  const t = effectiveHours(elapsed, rules.tick);
 
   // Hunger rises linearly (0 = full, 100 = starving).
   const hunger0 = creature.hunger;
@@ -44,7 +46,7 @@ export function applyTick(creature: Creature, now: Date = new Date()): TickResul
 
   // Health only drops while hunger is above the damage threshold.
   const hoursUntilStarving =
-    hunger0 >= HUNGER_DAMAGE_THRESHOLD ? 0 : (HUNGER_DAMAGE_THRESHOLD - hunger0) / tier.hungerPerHour;
+    hunger0 >= threshold ? 0 : tier.hungerPerHour > 0 ? (threshold - hunger0) / tier.hungerPerHour : Number.POSITIVE_INFINITY;
   const starvingHours = Math.max(0, t - hoursUntilStarving);
   const health = clamp(creature.health - tier.healthLossPerHourWhenStarving * starvingHours, 0, 100);
 
@@ -55,7 +57,8 @@ export function applyTick(creature: Creature, now: Date = new Date()): TickResul
   if (health < HEALTH_STATE.tiredMin) {
     if (!sickSince) {
       // Estimate when health crossed the threshold (never before the last tick).
-      const hoursBelow = (HEALTH_STATE.tiredMin - health) / tier.healthLossPerHourWhenStarving;
+      const hoursBelow =
+        tier.healthLossPerHourWhenStarving > 0 ? (HEALTH_STATE.tiredMin - health) / tier.healthLossPerHourWhenStarving : 0;
       const estimate = new Date(now.getTime() - hoursBelow * HOUR_MS);
       sickSince = estimate < creature.lastTickAt ? creature.lastTickAt : estimate;
     }

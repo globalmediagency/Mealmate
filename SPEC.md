@@ -117,6 +117,14 @@ public/sw.js, icons/    Service worker et icônes
 - Gemini (`lib/ai/gemini.ts`) : REST `generateContent`, image inline, `systemInstruction` en français (`lib/ai/meal-prompt.ts`), `responseMimeType: application/json` + `responseSchema`, validation zod (`lib/ai/meal-schema.ts`), une nouvelle tentative si JSON invalide, modèle suivant sur 404/429/5xx. Modèle : `GEMINI_MODEL` sinon dernier `gemini-X.Y-flash` stable listé par l'API `models` (cache 1 h), sinon chaîne de repli.
 - Affichage : URLs presignées GET 1 h générées à chaque lecture ; historique + graphique 7/30 jours (`recharts`) + moyenne hebdo.
 
+### 3.10 Espace admin et règles paramétrables (phase 4)
+- `/admin` : connexion par identifiant + mot de passe lus dans `ADMIN_USERNAME` / `ADMIN_PASSWORD` (comparaison en temps constant, 8 échecs max par 15 min et par IP). Session = cookie `mm_admin` HMAC-SHA256 (`<expiration>.<signature>`, 12 h) signé avec `BETTER_AUTH_SECRET` + mot de passe admin : changer le mot de passe révoque toutes les sessions.
+- Règles (`lib/game/rules.ts`) : par niveau `hatchSteps`, `healthyScoreThreshold`, `hungerPerHour`, `healthLossPerHourWhenStarving`, `moodLossPerHour`, `sickDaysBeforeDeath` ; communes `hungerDamageThreshold`, `tick.fullRateHoursCap`, `tick.slowRate`, `feeding.maxMealsPerDay`. Validation zod avec bornes, fusion sur les défauts (`DEFAULT_RULES` = constantes de `config.ts`).
+- Stockage : table `game_settings` (ligne `default`, jsonb des surcharges, migration 003). `getGameRules()` : cache React par requête + cache mémoire 60 s par instance ; table absente → défauts (l'app ne casse jamais).
+- Consommateurs : `applyTick(creature, now, rules)`, `hatchProgress`, `toCreatureView` (expose `sickDaysBeforeDeath`, `daysUntilDeath`, seuils), `mealEffects`, `feedCreature` (repas max/jour), `hatchEgg`, écran de choix d'œuf.
+- Tableau de bord : compteurs anonymes (comptes, œufs, vivantes, malades, cimetière, repas) et simulation « jamais nourrie » (`simulateNeglect`).
+- Accueil : `CareAlert` prévient quand la créature a faim, est affamée ou malade, avec le temps restant avant la mort.
+
 ## 4. Schéma de données
 
 Source de vérité : `db/init.sql` (idempotent) ⇄ `lib/db/schema.ts`. Colonnes en `snake_case`, horodatages en `timestamptz`.
@@ -135,6 +143,7 @@ Source de vérité : `db/init.sql` (idempotent) ⇄ `lib/db/schema.ts`. Colonnes
 | `purchases` | Achats Stripe | `stripe_session_id` unique (idempotence webhook), `item`, `amount_cents`, `status` |
 | `inventory` | Médicaments | PK `(user_id, item)`, `qty` |
 | `strava_connections` | Lien Strava | PK `user_id`, tokens, `expires_at`, `last_sync_at` |
+| `game_settings` | Règles admin | PK `id` (= `default`), `data` jsonb (surcharges), `updated_at`, `updated_by` (migration 003) |
 
 ## 5. API (`app/api/…`)
 
@@ -156,6 +165,10 @@ Phase 3 :
 - `POST /api/meals` (multipart `image`) — analyse + effets : `{ meal, analysis, effects, before, creature, mealsToday }` ; erreurs `meal_limit` (429), `duplicate_meal` (409), `not_food` (422), `creature_dead` (409), `ai_unavailable` (503).
 - `GET /api/meals` — `{ meals, stats }` (URLs presignées 1 h).
 - `POST /api/creatures/mourn` — accuse réception d'un décès.
+
+Phase 4 (admin) :
+- `POST /api/admin/login` / `POST /api/admin/logout` — cookie signé.
+- `GET /api/admin/settings` — `{ rules, stored }` ; `PUT /api/admin/settings { patch } | { reset: true }`.
 
 Phases suivantes (brief § 7) : `play`, `accessories`, `friends`, `shop/checkout`, `webhooks/stripe`, `inventory/use`, `strava/*`, `account`.
 
@@ -202,3 +215,6 @@ Phases suivantes (brief § 7) : `play`, `accessories`, `friends`, `shop/checkout
 | D24 | Limite « 5 repas / jour » et statistiques calculées en SQL sur la date Paris (`at time zone`) | Une seule source de vérité pour la journée, cohérente entre Neon et PGlite. |
 | D25 | Les niveaux moyen et difficile deviennent jouables avec 10 espèces chacun ; le tirage se replie sur une rareté inférieure tant que le roster n'est pas complet | Demande du propriétaire ; les 30 espèces restantes arrivent en phase 5. |
 | D26 | Écran de deuil bloquant (une fois), puis choix libre du niveau | Donne du poids à la mort sans punir ; `mourned_at` évite de le revoir. |
+| D27 | Admin par identifiants en variables Vercel + cookie HMAC, sans table ni Better Auth | Un seul administrateur, zéro configuration hors Vercel, révocation en changeant le mot de passe. |
+| D28 | Règles en une ligne jsonb de surcharges, fusionnées sur les défauts du code | Les défauts restent versionnés dans `config.ts` ; le jsonb ne stocke que ce qui change et survit aux ajouts de paramètres. |
+| D29 | Cache des règles 60 s par instance | Évite une lecture Neon à chaque tick ; un délai d'une minute est acceptable pour des réglages de jeu. |

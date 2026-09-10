@@ -8,6 +8,8 @@ import { getDb } from "@/lib/db";
 import { creatures, meals, type Creature, type Meal } from "@/lib/db/schema";
 import { FEEDING, GAME_TIMEZONE, HEALTH_STATE, type Tier } from "@/lib/game/config";
 import { mealEffects, type MealEffects } from "@/lib/game/meal-effects";
+import type { GameRules } from "@/lib/game/rules";
+import { getGameRules } from "@/lib/game/rules-service";
 import { gameDate, shiftDate } from "@/lib/game/time";
 import type { ObjectStorage } from "@/lib/storage/r2";
 import { mealImageKey } from "@/lib/storage/r2";
@@ -42,6 +44,7 @@ export type FeedInput = {
   analyzer: MealAnalyzer;
   storage: ObjectStorage;
   now?: Date;
+  rules?: GameRules;
 };
 
 export type FeedResult = {
@@ -61,8 +64,9 @@ export type FeedResult = {
 export async function feedCreature(input: FeedInput): Promise<FeedResult> {
   const now = input.now ?? new Date();
   const { userId, image, analyzer, storage } = input;
+  const rules = input.rules ?? (await getGameRules());
 
-  const creature = await getActiveCreatureTicked(userId, now);
+  const creature = await getActiveCreatureTicked(userId, now, rules);
   if (!creature || creature.status === "egg") {
     throw new DomainError("no_creature", "Tu n'as pas encore de créature à nourrir.", 409);
   }
@@ -72,12 +76,9 @@ export async function feedCreature(input: FeedInput): Promise<FeedResult> {
 
   const today = gameDate(now);
   const mealsToday = await countMealsToday(userId, today);
-  if (mealsToday >= FEEDING.maxMealsPerDay) {
-    throw new DomainError(
-      "meal_limit",
-      `${FEEDING.maxMealsPerDay} repas aujourd'hui, c'est déjà très bien. On se retrouve demain !`,
-      429,
-    );
+  const maxMeals = rules.feeding.maxMealsPerDay;
+  if (mealsToday >= maxMeals) {
+    throw new DomainError("meal_limit", `${maxMeals} repas aujourd'hui, c'est déjà très bien. On se retrouve demain !`, 429);
   }
 
   const hash = imageHash(image.bytes);
@@ -91,7 +92,7 @@ export async function feedCreature(input: FeedInput): Promise<FeedResult> {
     throw new DomainError("not_food", "Je ne reconnais pas de repas sur cette photo.", 422);
   }
 
-  const effects = mealEffects({ score: analysis.score, tier: creature.tier as Tier, hunger: creature.hunger });
+  const effects = mealEffects({ score: analysis.score, tier: creature.tier as Tier, hunger: creature.hunger, rules });
   const mealId = randomUUID();
   const key = mealImageKey(userId, mealId);
   await storage.put(key, image.bytes, image.mimeType);

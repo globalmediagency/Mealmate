@@ -1,4 +1,5 @@
-import { FEEDING, TIER_CONFIG, type Tier } from "./config";
+import { FEEDING, type Tier } from "./config";
+import { DEFAULT_RULES, type GameRules } from "./rules";
 
 export type MealEffects = {
   healthDelta: number;
@@ -14,8 +15,8 @@ export type MealEffects = {
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /** Effects of a meal on the creature (spec § 3.5). */
-export function mealEffects(input: { score: number; tier: Tier; hunger: number }): MealEffects {
-  const threshold = TIER_CONFIG[input.tier].healthyScoreThreshold;
+export function mealEffects(input: { score: number; tier: Tier; hunger: number; rules?: GameRules }): MealEffects {
+  const threshold = (input.rules ?? DEFAULT_RULES).tiers[input.tier].healthyScoreThreshold;
   const healthy = input.score >= threshold;
   const full = input.hunger < FEEDING.fullHungerThreshold;
   const raw = (input.score - threshold) / FEEDING.healthDeltaDivisor;

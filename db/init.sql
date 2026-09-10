@@ -219,6 +219,17 @@ CREATE TABLE IF NOT EXISTS inventory (
 );
 
 -- ---------------------------------------------------------------------------
+-- Admin: configurable game rules (single row id = 'default')
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS game_settings (
+  id         text PRIMARY KEY,
+  data       jsonb NOT NULL DEFAULT '{}'::jsonb,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  updated_by text
+);
+
+-- ---------------------------------------------------------------------------
 -- Strava
 -- ---------------------------------------------------------------------------
 
