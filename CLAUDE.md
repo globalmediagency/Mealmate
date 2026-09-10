@@ -31,12 +31,18 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 - Accessibilité : boutons ≥ 44 px, champs `text-base`, `aria-*` sur les icônes décoratives, animations coupées par `prefers-reduced-motion` (déjà global dans `globals.css`).
 - Textes utilisateur : ton bienveillant, tutoiement, jamais culpabilisant.
 
-## Ajouter une espèce (à partir de la phase 2)
+## Ajouter une espèce
 
-1. Ouvrir `lib/creatures/species/<tier>.ts` et ajouter un objet `Species` (`id`, `tier`, `rarity`, `name`, `tagline`, `palette`, `parts`, `anchors`). Respecter le quota par rareté (9 communs, 6 rares, 4 très rares, 1 légendaire par niveau).
-2. Si une nouvelle part est nécessaire, la créer dans `components/creatures/parts/` et l'enregistrer dans le registre de parts.
-3. Vérifier le rendu dans `/dev/creatures` (`NEXT_PUBLIC_DEV_GALLERY=true`) sur les 4 stades × 4 états.
-4. Lancer `npm test` : un test vérifie les quotas et l'unicité des identifiants.
+1. Ouvrir `lib/creatures/species/<tier>.ts` et ajouter un objet `Species` : `id` préfixé par le niveau (`facile-…`), `rarity`, `name` unique, `tagline` (une phrase, ton bienveillant), `palette` (`primary`, `secondary`, `accent`, `eye`), `parts` (`body`, `ears`, `eyes`, `mouth`, `tail`, `markings`, `extra`), `anchors` (`DEFAULT_ANCHORS[body]` sauf besoin particulier), `signature` (objet porté au stade Sage). Les `extra` (ailes, halo, cristaux, flammes, aura) sont réservés aux très rares / légendaires. Quota par niveau : 9 communs, 6 rares, 4 très rares, 1 légendaire.
+2. Si une nouvelle part est nécessaire : ajouter le type dans `lib/creatures/types.ts`, le dessin dans le fichier de `components/creatures/parts/` concerné (coordonnées relatives à l'ancre, viewBox 100×100, corps ancré sur la ligne de sol y≈92), et si besoin une nouvelle silhouette dans `components/creatures/layout.ts`.
+3. Vérifier dans `/dev/creatures?species=<id>` (`NEXT_PUBLIC_DEV_GALLERY=true`) sur les 4 stades × 4 états + silhouette. Les animations n'utilisent que `transform` avec `transform-box: fill-box`.
+4. Lancer `npm test` : `lib/creatures/species.test.ts` vérifie quotas, unicité et réservation des extras.
+
+## Pages de validation visuelle
+
+- `/dev/creatures` : galerie espèces × stades × états, œufs et décors.
+- `/dev/screens?screen=…` : écrans du jeu avec données factices (`egg`, `incubation`, `ready`, `reveal`, `home`, `home-sick`, `activity`).
+- Les deux sont gardées par `NEXT_PUBLIC_DEV_GALLERY=true` (lue au build : redéployer après l'avoir changée).
 
 ## Ajouter un accessoire (à partir de la phase 5)
 
@@ -47,6 +53,7 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 ## Points d'attention
 
 - Vercel Hobby : pas de WebSocket, pas de cron fiable → toute logique temporelle est calculée paresseusement à la lecture (`lib/game/tick.ts`).
+- Ne jamais lancer `pkill -f "next dev"` depuis une commande dont la ligne contient elle-même « next dev » (elle se tuerait) : utiliser un motif avec crochets (`"next de[v]"`) ou tuer par port.
 - Better Auth utilise un `baseURL` dynamique (`*.vercel.app` autorisé) : ne pas définir `BETTER_AUTH_URL`.
 - Neon HTTP ne supporte pas `db.transaction()` : utiliser `db.batch()` ou des mises à jour conditionnelles.
 - Les photos de repas sont privées : bucket R2 privé, presigned GET courts, jamais exposées aux amis.

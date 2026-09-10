@@ -138,6 +138,7 @@ CREATE TABLE IF NOT EXISTS step_entries (
   steps              integer NOT NULL,
   source             text NOT NULL,
   strava_activity_id bigint UNIQUE,
+  credited_steps     integer NOT NULL DEFAULT 0,
   created_at         timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT step_entries_source_check CHECK (source IN ('manual', 'strava', 'pedometer'))
 );

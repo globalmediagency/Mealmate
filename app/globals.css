@@ -133,3 +133,283 @@
     }
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Creature engine (SVG parts + CSS animations, transform only).
+   All origins use `transform-box: fill-box` so they work at any nesting level.
+--------------------------------------------------------------------------- */
+@layer components {
+  .mm-creature,
+  .mm-egg {
+    display: block;
+    overflow: visible;
+  }
+
+  .mm-lid {
+    transform-box: fill-box;
+    transform-origin: 50% 0%;
+    transform: scaleY(0);
+  }
+  .mm-anim .mm-lid {
+    animation: mm-blink var(--mm-blink-dur, 4s) linear infinite;
+    animation-delay: var(--mm-blink-delay, 0s);
+  }
+  .mm-lid-static,
+  .mm-anim .mm-lid-static {
+    animation: none;
+    transform: scaleY(0.42);
+  }
+  .mm-state-tired .mm-lid,
+  .mm-anim.mm-state-tired .mm-lid {
+    animation: none;
+    transform: scaleY(0.46);
+  }
+  .mm-state-sick .mm-lid,
+  .mm-anim.mm-state-sick .mm-lid {
+    animation: none;
+    transform: scaleY(0.56);
+  }
+
+  .mm-breathe {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+  }
+  .mm-anim .mm-breathe {
+    animation: mm-breathe 3s ease-in-out infinite;
+  }
+  .mm-anim.mm-state-tired .mm-breathe {
+    animation-duration: 4.6s;
+  }
+  .mm-anim.mm-state-sick .mm-breathe {
+    animation-duration: 2.2s;
+  }
+  .mm-anim .mm-breathe.mm-ghost {
+    animation: mm-ghost-float 3.4s ease-in-out infinite;
+  }
+  .mm-anim .mm-breathe.mm-tremble .mm-root {
+    animation: mm-tremble 0.16s linear infinite;
+  }
+
+  .mm-tail {
+    transform-box: fill-box;
+    transform-origin: 10% 90%;
+  }
+  .mm-anim .mm-tail {
+    animation: mm-tail 2.6s ease-in-out infinite;
+  }
+
+  .mm-float {
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+  }
+  .mm-anim .mm-float {
+    animation: mm-float-soft 3s ease-in-out infinite;
+  }
+
+  .mm-twinkle {
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+  }
+  .mm-anim .mm-twinkle {
+    animation: mm-twinkle 2.2s ease-in-out infinite;
+  }
+
+  .mm-anim .mm-pulse-soft {
+    animation: mm-pulse-soft 2.6s ease-in-out infinite;
+  }
+
+  .mm-flap {
+    transform-box: fill-box;
+    transform-origin: 0% 90%;
+  }
+  .mm-anim .mm-flap {
+    animation: mm-flap 1.6s ease-in-out infinite;
+  }
+
+  .mm-flicker {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+  }
+  .mm-anim .mm-flicker {
+    animation: mm-flicker 0.45s ease-in-out infinite alternate;
+  }
+
+  .mm-anim .mm-drip {
+    animation: mm-drip 1.8s ease-in infinite;
+  }
+
+  .mm-spin-slow {
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+  }
+  .mm-anim .mm-spin-slow {
+    animation: mm-spin 24s linear infinite;
+  }
+
+  /* Reactions (one shot, driven by the `reaction` prop). */
+  .mm-root {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+  }
+  .mm-react-eat .mm-root,
+  .mm-react-tap .mm-root {
+    animation: mm-bounce 0.55s cubic-bezier(0.3, 1.4, 0.5, 1) 2;
+  }
+  .mm-react-play .mm-root {
+    animation: mm-jump 0.8s cubic-bezier(0.3, 1.2, 0.5, 1) 1;
+  }
+  .mm-react-heal .mm-root {
+    animation: mm-heal 0.9s ease-out 1;
+  }
+  .mm-react-disgust .mm-root {
+    animation: mm-recoil 0.7s ease-out 1;
+  }
+  .mm-fx-rise {
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+    animation: mm-fx-rise 1.3s ease-out forwards;
+  }
+  .mm-fx-puff {
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+    animation: mm-fx-puff 1.1s ease-out forwards;
+  }
+
+  /* Egg */
+  .mm-egg-body {
+    transform-box: fill-box;
+    transform-origin: 50% 95%;
+  }
+  .mm-anim .mm-egg-body {
+    animation: mm-egg-wobble 5s ease-in-out infinite;
+  }
+  .mm-egg.mm-egg-shake .mm-egg-body {
+    animation: mm-egg-shake 0.5s ease-in-out infinite;
+  }
+  .mm-egg.mm-egg-burst .mm-egg-body {
+    animation: mm-egg-burst 0.55s ease-in forwards;
+  }
+  .mm-pop-in {
+    animation: mm-pop-in 0.7s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+  }
+
+  @keyframes mm-blink {
+    0%, 91% { transform: scaleY(0); }
+    94% { transform: scaleY(1); }
+    97%, 100% { transform: scaleY(0); }
+  }
+  @keyframes mm-breathe {
+    0%, 100% { transform: scale(1, 1); }
+    50% { transform: scale(1.025, 0.98); }
+  }
+  @keyframes mm-ghost-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+  }
+  @keyframes mm-tremble {
+    0% { transform: translateX(-0.6px); }
+    50% { transform: translateX(0.6px); }
+    100% { transform: translateX(-0.6px); }
+  }
+  @keyframes mm-tail {
+    0%, 100% { transform: rotate(-9deg); }
+    50% { transform: rotate(9deg); }
+  }
+  @keyframes mm-float-soft {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-2.5px); }
+  }
+  @keyframes mm-twinkle {
+    0%, 100% { opacity: 0.35; transform: scale(0.7) rotate(0deg); }
+    50% { opacity: 1; transform: scale(1.15) rotate(45deg); }
+  }
+  @keyframes mm-flap {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(-9deg); }
+  }
+  @keyframes mm-flicker {
+    from { transform: scale(1, 1); }
+    to { transform: scale(1.12, 0.88); }
+  }
+  @keyframes mm-drip {
+    0% { transform: translateY(0); opacity: 0; }
+    20% { opacity: 1; }
+    80% { transform: translateY(6px); opacity: 1; }
+    100% { transform: translateY(8px); opacity: 0; }
+  }
+  @keyframes mm-spin {
+    to { transform: rotate(360deg); }
+  }
+  @keyframes mm-bounce {
+    0%, 100% { transform: translateY(0) scale(1, 1); }
+    35% { transform: translateY(-9px) scale(0.96, 1.06); }
+    70% { transform: translateY(0) scale(1.05, 0.94); }
+  }
+  @keyframes mm-jump {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    40% { transform: translateY(-16px) rotate(-6deg); }
+    60% { transform: translateY(-14px) rotate(6deg); }
+  }
+  @keyframes mm-heal {
+    0%, 100% { transform: scale(1); }
+    40% { transform: scale(1.08); }
+  }
+  @keyframes mm-recoil {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-4px) rotate(-3deg); }
+    45% { transform: translateX(3px) rotate(2deg); }
+    70% { transform: translateX(-2px); }
+  }
+  @keyframes mm-fx-rise {
+    0% { opacity: 0; transform: translateY(4px) scale(0.6); }
+    25% { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-22px) scale(1.15); }
+  }
+  @keyframes mm-fx-puff {
+    0% { opacity: 0; transform: scale(0.5); }
+    30% { opacity: 1; }
+    100% { opacity: 0; transform: translate(8px, -10px) scale(1.4); }
+  }
+  @keyframes mm-egg-wobble {
+    0%, 60%, 100% { transform: rotate(0deg); }
+    65% { transform: rotate(-3deg); }
+    72% { transform: rotate(3deg); }
+    80% { transform: rotate(-2deg); }
+    86% { transform: rotate(0deg); }
+  }
+  @keyframes mm-egg-shake {
+    0%, 100% { transform: rotate(0deg) translateY(0); }
+    25% { transform: rotate(-7deg) translateY(-2px); }
+    50% { transform: rotate(0deg) translateY(0); }
+    75% { transform: rotate(7deg) translateY(-2px); }
+  }
+  @keyframes mm-egg-burst {
+    0% { transform: scale(1); opacity: 1; }
+    60% { transform: scale(1.18); opacity: 0.9; }
+    100% { transform: scale(1.4); opacity: 0; }
+  }
+  @keyframes mm-pop-in {
+    0% { transform: scale(0.2); opacity: 0; }
+    70% { transform: scale(1.08); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+}
+
+/* Hatch reveal effects */
+@layer components {
+  .mm-rays {
+    transform-origin: 50% 45%;
+    animation: mm-spin 30s linear infinite;
+    opacity: 0.8;
+  }
+  .mm-confetti {
+    animation-name: mm-confetti-fall;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+  }
+  @keyframes mm-confetti-fall {
+    0% { transform: translateY(-10px) rotate(0deg); opacity: 0; }
+    10% { opacity: 1; }
+    100% { transform: translateY(320px) rotate(540deg); opacity: 0; }
+  }
+}

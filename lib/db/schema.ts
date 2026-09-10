@@ -198,6 +198,8 @@ export const stepEntries = pgTable(
     steps: integer("steps").notNull(),
     source: text("source", { enum: ["manual", "strava", "pedometer"] }).notNull(),
     stravaActivityId: bigint("strava_activity_id", { mode: "number" }).unique(),
+    /** Steps of the day already converted into creature effects. */
+    creditedSteps: integer("credited_steps").notNull().default(0),
     createdAt: timestamptz("created_at").notNull().defaultNow(),
   },
   (table) => [

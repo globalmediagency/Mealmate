@@ -62,6 +62,12 @@ Diagnostic rapide : `https://TON-URL/api/health` renvoie les services configuré
 
 ---
 
+### Étape E — Migration de la phase 2
+
+Si tu avais déjà exécuté `db/init.sql` **avant** la phase 2, colle aussi
+[`db/migrations/001_step_entries_credited_steps.sql`](./db/migrations/001_step_entries_credited_steps.sql)
+dans **Neon → SQL Editor** → **Run**. (Un `init.sql` exécuté après la phase 2 contient déjà cette colonne.)
+
 ## 2. Cycle de travail
 
 1. Chaque phase arrive dans une **pull request** sur GitHub, avec sa checklist d'actions manuelles.
@@ -117,10 +123,14 @@ Diagnostic rapide : `https://TON-URL/api/health` renvoie les services configuré
    **Authorization Callback Domain** = ton domaine sans `https://` (ex. `mealmate.vercel.app`).
 2. Copie **Client ID** et **Client Secret** → Vercel `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET` → Redeploy.
 
-### Galerie de design des créatures (phase 2)
+### Galeries de design (phase 2)
 
-Vercel → `NEXT_PUBLIC_DEV_GALLERY=true` (Preview uniquement, par exemple) → la page `/dev/creatures`
-affiche toutes les espèces × stades × états.
+Vercel → `NEXT_PUBLIC_DEV_GALLERY=true` (sur Preview et/ou Production) → Redeploy. Deux pages
+apparaissent alors, sans connexion nécessaire :
+
+- `/dev/creatures` : toutes les espèces × 4 stades × 4 états (+ silhouettes, œufs, décors).
+- `/dev/screens?screen=egg|incubation|ready|reveal|home|home-sick|activity` : les écrans du jeu
+  avec des données factices, pour valider le design depuis un téléphone.
 
 ---
 

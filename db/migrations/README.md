@@ -7,4 +7,8 @@ Chaque évolution ultérieure du schéma est livrée ici sous la forme
 (`ADD COLUMN IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, …). À coller dans
 l'éditeur SQL de Neon dans l'ordre des numéros.
 
-Aucune migration pour l'instant : `init.sql` suffit.
+| Fichier | Phase | Contenu |
+|---|---|---|
+| `001_step_entries_credited_steps.sql` | 2 | `step_entries.credited_steps` (pas déjà convertis en effets) |
+
+Un `init.sql` fraîchement exécuté contient déjà toutes ces évolutions.
