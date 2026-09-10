@@ -244,7 +244,8 @@ apparaissent alors, sans connexion nécessaire :
 ## 4. Tester l'application en dix minutes
 
 1. **Compte** : inscription email + mot de passe (ou Google), choix du pseudo, code ami affiché dans Plus.
-2. **Œuf** : choisis un niveau, saisis 15 000 pas dans Activité (ou moins, plusieurs jours), appuie sur
+2. **Œuf** : choisis un niveau, ajoute des pas dans Activité (chaque saisie s'ajoute au total du jour ; 15 000 en
+   tout, sur un ou plusieurs jours), appuie sur
    **Faire éclore** dès que la jauge est pleine, nomme la créature.
 3. **Nourrir** : photographie un repas (R2 + Gemini configurés) ; la note, les aliments reconnus et
    l'effet sur la santé s'affichent. Trois repas par jour maximum (réglable dans `/admin`).

@@ -13,6 +13,8 @@ export const dynamic = "force-dynamic";
 
 const saveSchema = z.object({
   steps: z.coerce.number().int().min(0).max(STEPS.maxManualPerDay),
+  /** "add" (default) stacks on today's total; "set" replaces it to fix a mistake. */
+  mode: z.enum(["add", "set"]).default("add"),
 });
 
 /** GET /api/steps?days=14 → { today, history } */
@@ -32,7 +34,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/** POST /api/steps { steps } → saves today's manual entry and applies effects. */
+/** POST /api/steps { steps, mode? } → adds to (or sets) today's manual entry and applies effects. */
 export async function POST(request: Request) {
   try {
     const session = await getSession();
@@ -42,7 +44,7 @@ export async function POST(request: Request) {
 
     const rules = await getGameRules();
     const creature = await getActiveCreatureTicked(userId, new Date(), rules);
-    const { entry, gains } = await saveManualSteps(userId, body.steps, creature);
+    const { entry, gains, added } = await saveManualSteps(userId, body.steps, creature, gameDate(), body.mode);
     let updated = creature;
     if (creature?.status === "egg") updated = await refreshEggSteps(creature);
     else if (creature?.status === "alive") updated = await applyStepGains(creature, gains);
@@ -50,6 +52,7 @@ export async function POST(request: Request) {
     return ok({
       date: entry.date,
       today: entry.steps,
+      added,
       gains,
       creature: updated ? toCreatureView(updated, new Date(), rules) : null,
     });

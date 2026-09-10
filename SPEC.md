@@ -100,7 +100,7 @@ public/sw.js, icons/    Service worker et icônes
 
 ### 3.7 Œuf, pas et éclosion (phase 2)
 - `POST /api/creatures { tier }` crée l'œuf (index unique partiel : un seul œuf/créature vivante). Les niveaux sans espèce sont verrouillés (`tier_unavailable`).
-- Pas manuels : une entrée par jour Europe/Paris (`step_entries`, upsert sur l'index partiel `manual`), plafonnée à 40 000. `egg_steps` = somme des pas depuis le jour du choix de l'œuf (recalculée à chaque lecture, donc l'édition d'une saisie est prise en compte).
+- Pas manuels : une entrée par jour Europe/Paris (`step_entries`, upsert sur l'index partiel `manual`), plafonnée à 40 000. Chaque saisie **s'ajoute** au total du jour (`POST /api/steps { steps, mode: "add" }`, défaut) ; « Corriger le total » envoie `mode: "set"` pour remplacer la valeur du jour. `egg_steps` = somme des pas depuis le jour du choix de l'œuf (recalculée à chaque lecture, donc une correction est prise en compte).
 - Créature vivante : `stepCredit(total, credited)` convertit uniquement les nouveaux milliers de pas (+1 santé/1 000, max +10/jour ; +2 XP/1 000) et mémorise `credited_steps` pour ne jamais créditer deux fois.
 - Éclosion : `POST /api/creatures/hatch` vérifie le seuil, tire l'espèce (`drawSpecies`, `crypto.randomInt`, repli sur une rareté inférieure si le niveau est incomplet), passe en `alive` avec stats pleines ; `POST /api/creatures/name` fixe le nom une seule fois (2–20 caractères).
 - Accueil : machine à états serveur dans `app/(app)/home/page.tsx` → choix d'œuf, incubation, révélation/nommage, ou accueil créature (décor, jauges, bulle contextuelle `lib/game/dialogue.ts`, actions).
@@ -298,3 +298,4 @@ Phase 9 :
 | D46 | Suppression de compte via `deleteUser` de Better Auth + hook `beforeDelete` | Better Auth vérifie déjà le mot de passe (ou la fraîcheur de session) et nettoie sessions et cookies ; le hook ne s'occupe que de ce que la cascade SQL ne voit pas (R2, Strava). |
 | D47 | Export JSON brut, sans photos | Les photos se retéléchargent depuis l'écran Repas (URL signées) ; un export avec binaires dépasserait la limite de réponse Vercel et exposerait des clés de stockage. |
 | D48 | En-têtes de sécurité posés dans `next.config.ts`, pas de CSP stricte | Une CSP fine casserait Stripe / Google sans bénéfice immédiat sur un prototype ; `nosniff`, `DENY`, `Referrer-Policy` et `Permissions-Policy` couvrent l'essentiel sans risque. |
+| D49 | Saisie de pas additive par défaut, remplacement uniquement via « Corriger le total » | Le geste naturel est d'ajouter la balade de l'après-midi à celle du matin ; le remplacement reste disponible pour une faute de frappe. Le crédit à la créature reste calculé sur le total du jour, donc aucun double comptage. |

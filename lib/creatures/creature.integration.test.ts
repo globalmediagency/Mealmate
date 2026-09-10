@@ -94,4 +94,19 @@ describe("egg lifecycle", () => {
     expect(history[13].steps).toBe(16_500);
     expect(history[0].steps).toBe(0);
   });
+
+  it("stacks entries on the day's total in add mode and clamps at the daily maximum", async () => {
+    const creature = (await getActiveCreature(userId))!;
+    const added = await saveManualSteps(userId, 1_500, creature, gameDate(), "add");
+    expect(added.added).toBe(1_500);
+    expect(added.entry.steps).toBe(18_000);
+    expect(added.gains).toEqual({ healthGain: 0, xpGain: 4 });
+    const capped = await saveManualSteps(userId, 50_000, creature, gameDate(), "add");
+    expect(capped.entry.steps).toBe(40_000);
+    expect(capped.added).toBe(22_000);
+    const corrected = await saveManualSteps(userId, 20_000, creature, gameDate(), "set");
+    expect(corrected.entry.steps).toBe(20_000);
+    expect(corrected.added).toBe(-20_000);
+    expect(corrected.gains).toEqual({ healthGain: 0, xpGain: 0 });
+  });
 });

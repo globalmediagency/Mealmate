@@ -48,7 +48,12 @@ export async function getStepHistory(userId: string, days: number, today = gameD
 export type SaveStepsResult = {
   entry: StepEntry;
   gains: { healthGain: number; xpGain: number };
+  /** Steps actually added to the day (0 or negative when the total was corrected downwards). */
+  added: number;
 };
+
+/** "add" stacks the value on today's total (default in the app); "set" replaces it (correction). */
+export type SaveStepsMode = "add" | "set";
 
 /**
  * Creates or updates today's manual entry, then converts any newly walked
@@ -59,9 +64,11 @@ export async function saveManualSteps(
   rawSteps: number,
   creature: Creature | null,
   today = gameDate(),
+  mode: SaveStepsMode = "set",
 ): Promise<SaveStepsResult> {
-  const steps = clampManualSteps(rawSteps);
   const previous = await getManualEntry(userId, today);
+  const steps = clampManualSteps(mode === "add" ? (previous?.steps ?? 0) + Math.max(0, rawSteps) : rawSteps);
+  const added = steps - (previous?.steps ?? 0);
   const rows = await getDb()
     .insert(stepEntries)
     .values({ userId, date: today, steps, source: "manual" })
@@ -86,5 +93,5 @@ export async function saveManualSteps(
       entry = updated[0] ?? entry;
     }
   }
-  return { entry, gains };
+  return { entry, gains, added };
 }
