@@ -10,5 +10,8 @@ export default defineConfig({
   test: {
     include: ["lib/**/*.test.ts"],
     environment: "node",
+    // Several embedded Postgres (PGlite) instances boot in parallel: give hooks room.
+    hookTimeout: 60_000,
+    testTimeout: 30_000,
   },
 });

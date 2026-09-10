@@ -13,7 +13,9 @@ const ITEMS = [
   { href: "/more", label: "Plus", icon: Ellipsis },
 ] as const;
 
-export function BottomNav() {
+type BottomNavProps = { badges?: Partial<Record<string, number>> };
+
+export function BottomNav({ badges = {} }: BottomNavProps) {
   const pathname = usePathname();
   return (
     <nav
@@ -23,6 +25,7 @@ export function BottomNav() {
       <ul className="mx-auto flex w-full max-w-md items-stretch justify-between px-2">
         {ITEMS.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);
+          const badge = badges[href] ?? 0;
           return (
             <li key={href} className="flex-1">
               <Link
@@ -35,11 +38,16 @@ export function BottomNav() {
               >
                 <span
                   className={cn(
-                    "flex h-8 w-12 items-center justify-center rounded-full transition-colors",
+                    "relative flex h-8 w-12 items-center justify-center rounded-full transition-colors",
                     active && "bg-sage-500/15",
                   )}
                 >
                   <Icon className="h-5 w-5" strokeWidth={active ? 2.4 : 2} aria-hidden="true" />
+                  {badge > 0 ? (
+                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brass-400 px-1 text-[10px] font-bold text-ink-950" aria-label={`${badge} demande${badge > 1 ? "s" : ""} en attente`}>
+                      {badge}
+                    </span>
+                  ) : null}
                 </span>
                 {label}
               </Link>

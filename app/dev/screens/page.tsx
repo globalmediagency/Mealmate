@@ -17,6 +17,7 @@ import { Wardrobe } from "@/components/game/wardrobe";
 import { ChestOpener } from "@/components/game/chest-reveal";
 import { ACCESSORIES } from "@/lib/accessories/catalog";
 import { CollectionGrid } from "@/components/game/collection-grid";
+import { FriendsPanel } from "@/components/game/friends-panel";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { Card, CardTitle } from "@/components/ui/card";
 import { playableTiers, speciesByTierAll, toSpeciesSummary, getSpecies } from "@/lib/creatures";
@@ -29,7 +30,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -170,6 +171,24 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
         />
       );
       break;
+    case "friends": {
+      const now = new Date().toISOString();
+      content = (
+        <FriendsPanel
+          me={{ username: "Chabond_42", friendCode: "MM-7K3Q2X" }}
+          incoming={[{ id: "11111111-1111-4111-8111-111111111111", user: { userId: "u9", username: "Lina" }, createdAt: now }]}
+          outgoing={[{ id: "22222222-2222-4222-8222-222222222222", user: { userId: "u8", username: "Tom_92" }, createdAt: now }]}
+          friends={[
+            { friendshipId: "a", since: now, user: { userId: "u1", username: "Marion" }, creature: { status: "alive", tier: "moyen", name: "Roux", species: toSpeciesSummary(getSpecies("moyen-renard-malin")!), rarity: "commun", stage: "adulte", state: "healthy", health: 92, ageDays: 12, accessories: [{ slot: "head", id: "beret" }] } },
+            { friendshipId: "b", since: now, user: { userId: "u2", username: "Karim" }, creature: { status: "alive", tier: "difficile", name: "Azur", species: toSpeciesSummary(getSpecies("difficile-dragon-celeste")!), rarity: "legendaire", stage: "enfant", state: "sick", health: 24, ageDays: 3, accessories: [] } },
+            { friendshipId: "c", since: now, user: { userId: "u3", username: "Sophie" }, creature: { status: "egg", tier: "facile", hatchProgress: 0.62 } },
+            { friendshipId: "d", since: now, user: { userId: "u4", username: "Jules" }, creature: { status: "dead", tier: "facile", name: "Miso", species: toSpeciesSummary(getSpecies("facile-chat-rond")!), rarity: "commun", lifespanDays: 9 } },
+            { friendshipId: "e", since: now, user: { userId: "u5", username: "Nour" }, creature: { status: "none" } },
+          ]}
+        />
+      );
+      break;
+    }
     case "collection":
       content = <CollectionGrid obtained={new Set(["facile-chat-rond", "facile-lapin-doux", "moyen-renard-malin", "difficile-phenix"])} />;
       break;

@@ -90,6 +90,12 @@ Rien à configurer : après la migration 004, l'accueil propose **Jouer** (3 par
 **Habiller** (garde-robe). Chaque tranche de 5 000 pas depuis l'éclosion donne un coffre à ouvrir dans l'onglet
 **Activité**. La **Collection** (60 créatures) est dans l'onglet Plus.
 
+### Étape I — Amis (phase 6)
+
+Rien à configurer. Onglet **Amis** : ton code ami (`MM-XXXXXX`) et ton pseudo, un champ pour ajouter un proche par
+code ou pseudo exact, les demandes reçues / envoyées, puis les cartes de tes amis avec leur créature animée.
+Une pastille sur l'onglet indique les demandes reçues.
+
 ### Étape G — Espace admin (phase 4)
 
 1. Vercel → **Environment Variables** : `ADMIN_USERNAME` (ex. `chef`) et `ADMIN_PASSWORD` (long et unique) → Redeploy.
@@ -169,7 +175,7 @@ Vercel → `NEXT_PUBLIC_DEV_GALLERY=true` (sur Preview et/ou Production) → Red
 apparaissent alors, sans connexion nécessaire :
 
 - `/dev/creatures` : toutes les espèces × 4 stades × 4 états (+ silhouettes, œufs, décors).
-- `/dev/screens?screen=egg|incubation|ready|reveal|home|home-sick|home-hungry|activity|feed|meal-result|meals|mourning|admin|play|wardrobe|chest|collection` :
+- `/dev/screens?screen=egg|incubation|ready|reveal|home|home-sick|home-hungry|activity|feed|meal-result|meals|mourning|admin|play|wardrobe|chest|collection|friends` :
   les écrans du jeu avec des données factices, pour valider le design depuis un téléphone.
 - `/dev/creatures?compact=1` : vue d'ensemble des 60 espèces (adulte, en forme) ; la page complète montre aussi les 30 accessoires.
 - `/dev/gemini` : modèles Gemini visibles avec ta clé.

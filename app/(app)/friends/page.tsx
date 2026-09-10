@@ -1,19 +1,18 @@
 import type { Metadata } from "next";
-import { Users } from "lucide-react";
-import { ComingSoon } from "@/components/layout/coming-soon";
+import { FriendsPanel } from "@/components/game/friends-panel";
 import { PageHeader } from "@/components/layout/page-header";
+import { requireViewer } from "@/lib/auth/session";
+import { listFriends, listRequests } from "@/lib/friends/service";
 
 export const metadata: Metadata = { title: "Amis" };
 
-export default function FriendsPage() {
+export default async function FriendsPage() {
+  const { session, profile } = await requireViewer();
+  const [friends, requests] = await Promise.all([listFriends(session.user.id), listRequests(session.user.id)]);
   return (
     <div className="space-y-5">
       <PageHeader title="Amis" subtitle="Découvre les créatures de tes proches." />
-      <ComingSoon
-        icon={Users}
-        title="Bientôt entre amis"
-        description="Ton code ami est déjà prêt dans l'onglet Plus. L'ajout d'amis et l'affichage de leurs créatures arrivent prochainement."
-      />
+      <FriendsPanel me={{ username: profile.username, friendCode: profile.friendCode }} friends={friends} incoming={requests.incoming} outgoing={requests.outgoing} />
     </div>
   );
 }

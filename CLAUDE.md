@@ -42,7 +42,7 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 ## Pages de validation visuelle
 
 - `/dev/creatures` : galerie espèces × stades × états, œufs et décors.
-- `/dev/screens?screen=…` : écrans du jeu avec données factices (`egg`, `incubation`, `ready`, `reveal`, `home`, `home-sick`, `home-hungry`, `activity`, `feed`, `meal-result`, `meals`, `mourning`, `admin`, `play`, `wardrobe`, `chest`, `collection`).
+- `/dev/screens?screen=…` : écrans du jeu avec données factices (`egg`, `incubation`, `ready`, `reveal`, `home`, `home-sick`, `home-hungry`, `activity`, `feed`, `meal-result`, `meals`, `mourning`, `admin`, `play`, `wardrobe`, `chest`, `collection`, `friends`).
 - `/dev/creatures?compact=1` : les 60 espèces en un coup d'œil ; la page complète montre les 30 accessoires. `/dev/gemini` : modèles Gemini visibles avec la clé.
 - `/admin` (hors galerie) : espace d'administration protégé par `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
 - Les deux sont gardées par `NEXT_PUBLIC_DEV_GALLERY=true` (lue au build : redéployer après l'avoir changée).
@@ -58,6 +58,11 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 - Le jeu (`components/game/food-catch-game.tsx`) ne passe pas par l'état React à chaque frame : positions écrites directement dans `style.transform` depuis `requestAnimationFrame`, éléments recyclés (pool). Garder cette discipline pour rester à 60 fps sur mobile.
 - Le serveur recalcule le score (`computePlayScore`) à partir des compteurs bruts : ne jamais faire confiance à un score client.
 - Coffres : `getChestStatus(creature)` (somme des pas depuis l'éclosion − `accessory_drops`), `openChest()` réserve le coffre par `UPDATE` conditionnel avant le tirage.
+
+## Amis
+
+- Tout ce qu'un ami peut voir passe par `FriendCreatureView` (`lib/friends/service.ts`) : ne jamais renvoyer une `CreatureView` complète ni un profil complet (code ami, email) à un autre utilisateur.
+- Les lectures de créatures d'amis appliquent le tick (`tickCreature`) : c'est voulu, l'état affiché doit être le vrai.
 
 ## Nourrissage et IA
 

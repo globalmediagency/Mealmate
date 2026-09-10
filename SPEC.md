@@ -133,6 +133,12 @@ public/sw.js, icons/    Service worker et icônes
 - Collection (`/collection`) : 60 espèces par niveau, obtenues (vivantes ou mortes) en couleur, sinon silhouettes avec liseré de rareté.
 - 60 espèces : 20 par niveau avec quotas exacts 9 / 6 / 4 / 1, vérifiés par test.
 
+### 3.12 Amis (phase 6)
+- Ajout par **code ami** (`MM-XXXXXX`, saisie tolérante) ou **pseudo exact** (insensible à la casse) : `POST /api/friends { query }`. Une demande réciproque en attente est acceptée automatiquement ; 20 demandes sortantes en attente maximum ; pas d'auto-ajout ni de doublon (index unique sur la paire).
+- Acceptation par le destinataire seul (`POST /api/friends/:id/accept`) ; refus, annulation ou retrait par l'une ou l'autre partie (`DELETE /api/friends/:id`).
+- Page Amis : mon code + pseudo (copie), formulaire d'ajout, demandes reçues (accepter / refuser) et envoyées (annuler), cartes d'amis triées vivantes par santé décroissante → œufs → cimetière → sans créature. Pastille sur l'onglet Amis avec le nombre de demandes reçues.
+- Visibilité (`FriendCreatureView`) : uniquement pour les amis acceptés, et seulement créature vivante animée (nom, espèce, état de santé, âge, stade, niveau, rareté, tenue), « œuf en incubation (x %) » ou « au cimetière ». Jamais la faim, l'humeur, les repas ni les photos. Le tick paresseux s'applique aussi à la lecture par un ami.
+
 ## 4. Schéma de données
 
 Source de vérité : `db/init.sql` (idempotent) ⇄ `lib/db/schema.ts`. Colonnes en `snake_case`, horodatages en `timestamptz`.
@@ -179,11 +185,15 @@ Phase 5 :
 - `GET /api/accessories` — `{ owned, outfit, chest }` ; `POST /api/accessories { slot, accessoryId | null }` — équiper / retirer.
 - `POST /api/accessories/open` — ouvre un coffre gagné.
 
+Phase 6 :
+- `GET /api/friends` — `{ me, friends, incoming, outgoing }` ; `POST /api/friends { query }` — demande par code ou pseudo.
+- `POST /api/friends/:id/accept`, `DELETE /api/friends/:id`.
+
 Phase 4 (admin) :
 - `POST /api/admin/login` / `POST /api/admin/logout` — cookie signé.
 - `GET /api/admin/settings` — `{ rules, stored }` ; `PUT /api/admin/settings { patch } | { reset: true }`.
 
-Phases suivantes (brief § 7) : `friends`, `shop/checkout`, `webhooks/stripe`, `inventory/use`, `strava/*`, `account`.
+Phases suivantes (brief § 7) : `shop/checkout`, `webhooks/stripe`, `inventory/use`, `strava/*`, `account`.
 
 ## 6. Design
 
@@ -236,3 +246,5 @@ Phases suivantes (brief § 7) : `friends`, `shop/checkout`, `webhooks/stripe`, `
 | D31 | Le serveur recalcule le score à partir des compteurs bruts et borne tout | Les effets étant fixes (+15 humeur), tricher n'apporte que le bonus « parfait » ; pas de simulation serveur nécessaire. |
 | D32 | Coffres comptés par `accessory_drops` sur la créature + somme des pas depuis l'éclosion | Aucune table supplémentaire ; l'édition d'une saisie de pas reste cohérente ; réservation atomique par `UPDATE` conditionnel. |
 | D33 | Accessoires portés rendus dans les groupes tête / visage / corps du SVG | Ils suivent automatiquement les proportions du stade sans calcul d'ancre supplémentaire. |
+| D34 | Demande réciproque acceptée automatiquement | Évite deux demandes croisées en attente ; l'intention des deux côtés est explicite. |
+| D35 | Une seule ligne `friendships` par paire, dans un sens ou l'autre, lue avec `OR` | Plus simple qu'une paire ordonnée dupliquée ; l'index unique du brief reste respecté. |
