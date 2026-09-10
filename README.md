@@ -33,7 +33,7 @@ Sans variable, le build passe et chaque écran explique ce qui manque au lieu de
 
 Migrations à coller dans **Neon → SQL Editor**, dans l'ordre, si `db/init.sql` a été exécuté avant la
 phase correspondante (un `init.sql` récent les contient déjà) : `001` pas crédités, `002` deuil,
-`003` règles admin, `004` coffres, `005` cadeaux et trocs, `006` prénom Strava.
+`003` règles admin, `004` coffres, `005` cadeaux et trocs, `006` prénom Strava, `007` origine des photos.
 
 ## 1. Mise en route (phase 1 : compte et connexion)
 
@@ -95,6 +95,7 @@ Si tu avais déjà exécuté `db/init.sql` avant une phase, colle ses migrations
 - phase 5 : [`db/migrations/004_creatures_accessory_drops.sql`](./db/migrations/004_creatures_accessory_drops.sql)
 - phase 7 : [`db/migrations/005_gifts_trades.sql`](./db/migrations/005_gifts_trades.sql)
 - phase 8 : [`db/migrations/006_strava_athlete_name.sql`](./db/migrations/006_strava_athlete_name.sql)
+- anti-triche photo : [`db/migrations/007_meals_photo_source.sql`](./db/migrations/007_meals_photo_source.sql)
 
 Un `init.sql` fraîchement exécuté contient déjà toutes ces colonnes.
 
@@ -247,8 +248,10 @@ apparaissent alors, sans connexion nécessaire :
 2. **Œuf** : choisis un niveau, ajoute des pas dans Activité (chaque saisie s'ajoute au total du jour ; 15 000 en
    tout, sur un ou plusieurs jours), appuie sur
    **Faire éclore** dès que la jauge est pleine, nomme la créature.
-3. **Nourrir** : photographie un repas (R2 + Gemini configurés) ; la note, les aliments reconnus et
-   l'effet sur la santé s'affichent. Trois repas par jour maximum (réglable dans `/admin`).
+3. **Nourrir** : photographie un repas avec la caméra (R2 + Gemini configurés ; plus de bouton « galerie »
+   sur téléphone, un sélecteur de fichiers reste visible sur ordinateur) ; la note, les aliments reconnus et l'effet sur la santé s'affichent. Cinq repas par jour
+   maximum (réglable dans `/admin`). Une photo prise d'un écran ou d'une image imprimée est repérée par
+   l'IA : avertissement par défaut, refus si tu coches l'option dans `/admin`.
 4. **Vie** : laisse passer quelques heures sans nourrir : la faim monte, puis la santé baisse, la
    créature devient fatiguée puis malade ; l'accueil affiche le nombre de jours restants. Un repas
    sain ou un soin la remet d'aplomb ; sinon elle meurt et rejoint le cimetière.

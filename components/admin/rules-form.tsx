@@ -32,6 +32,7 @@ type Draft = {
   fullRateHoursCap: string;
   slowRatePercent: string;
   maxMealsPerDay: string;
+  rejectScreenPhotos: boolean;
 };
 
 function toDraft(rules: GameRules): Draft {
@@ -43,6 +44,7 @@ function toDraft(rules: GameRules): Draft {
     fullRateHoursCap: String(rules.tick.fullRateHoursCap),
     slowRatePercent: String(Math.round(rules.tick.slowRate * 100)),
     maxMealsPerDay: String(rules.feeding.maxMealsPerDay),
+    rejectScreenPhotos: rules.feeding.rejectScreenPhotos,
   };
 }
 
@@ -54,7 +56,7 @@ function toPatch(draft: Draft): GameRulesPatch {
     ) as GameRulesPatch["tiers"],
     hungerDamageThreshold: num(draft.hungerDamageThreshold),
     tick: { fullRateHoursCap: num(draft.fullRateHoursCap), slowRate: num(draft.slowRatePercent) / 100 },
-    feeding: { maxMealsPerDay: num(draft.maxMealsPerDay) },
+    feeding: { maxMealsPerDay: num(draft.maxMealsPerDay), rejectScreenPhotos: draft.rejectScreenPhotos },
   };
 }
 
@@ -188,6 +190,21 @@ export function RulesForm({ initialRules, storedPatch, updatedAt, updatedBy }: R
           <span className="text-cream-100">Repas maximum par jour</span>
           <input type="text" inputMode="numeric" value={draft.maxMealsPerDay} onChange={(e) => setDraft((d) => ({ ...d, maxMealsPerDay: e.target.value }))} className={inputClass} />
           <span className="block text-[11px] text-cream-700">défaut {DEFAULT_RULES.feeding.maxMealsPerDay}</span>
+        </label>
+        <label className="flex items-start gap-3 text-sm sm:col-span-2">
+          <input
+            type="checkbox"
+            checked={draft.rejectScreenPhotos}
+            onChange={(e) => setDraft((d) => ({ ...d, rejectScreenPhotos: e.target.checked }))}
+            className="mt-0.5 h-5 w-5 shrink-0 accent-sage-500"
+          />
+          <span>
+            <span className="text-cream-100">Refuser les photos d&apos;écran ou d&apos;images imprimées</span>
+            <span className="block text-[11px] text-cream-700">
+              L&apos;IA repère les photos prises d&apos;un écran ou d&apos;une image imprimée. Décoché : le repas compte, avec un avertissement.
+              Coché : le repas est refusé et il faut photographier la vraie assiette. Défaut : {DEFAULT_RULES.feeding.rejectScreenPhotos ? "refusé" : "avertissement"}.
+            </span>
+          </span>
         </label>
         <label className="space-y-1 text-sm">
           <span className="text-cream-100">Heures à plein régime après une absence</span>

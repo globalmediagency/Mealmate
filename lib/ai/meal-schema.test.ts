@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseMealAnalysis, verdictFromScore } from "./meal-schema";
+import { isSuspiciousPhoto, parseMealAnalysis, verdictFromScore } from "./meal-schema";
 
 const VALID = {
   is_food: true,
@@ -31,6 +31,19 @@ describe("parseMealAnalysis", () => {
     const parsed = parseMealAnalysis(JSON.stringify({ ...VALID, verdict: "Peu sain", portion: "Légère" }));
     expect(parsed?.verdict).toBe("peu_sain");
     expect(parsed?.portion).toBe("legere");
+  });
+
+  it("normalises photo_source and never blocks on a missing value", () => {
+    expect(parseMealAnalysis(JSON.stringify(VALID))?.photo_source).toBe("unknown");
+    expect(parseMealAnalysis(JSON.stringify({ ...VALID, photo_source: "screen" }))?.photo_source).toBe("screen");
+    expect(parseMealAnalysis(JSON.stringify({ ...VALID, photo_source: "Photo d'écran" }))?.photo_source).toBe("screen");
+    expect(parseMealAnalysis(JSON.stringify({ ...VALID, photo_source: "image imprimée" }))?.photo_source).toBe("printed");
+    expect(parseMealAnalysis(JSON.stringify({ ...VALID, photo_source: "real" }))?.photo_source).toBe("real");
+    expect(parseMealAnalysis(JSON.stringify({ ...VALID, photo_source: 42 }))?.photo_source).toBe("unknown");
+    expect(isSuspiciousPhoto("screen")).toBe(true);
+    expect(isSuspiciousPhoto("printed")).toBe(true);
+    expect(isSuspiciousPhoto("real")).toBe(false);
+    expect(isSuspiciousPhoto("unknown")).toBe(false);
   });
 
   it("returns null for garbage or missing required fields", () => {

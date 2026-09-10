@@ -124,7 +124,8 @@ CREATE TABLE IF NOT EXISTS meals (
   comment       text,
   creature_line text,
   health_delta  double precision NOT NULL DEFAULT 0,
-  created_at    timestamptz NOT NULL DEFAULT now()
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  photo_source  text NOT NULL DEFAULT 'real'
 );
 CREATE INDEX IF NOT EXISTS meals_user_created_idx     ON meals (user_id, created_at);
 CREATE INDEX IF NOT EXISTS meals_creature_created_idx ON meals (creature_id, created_at);

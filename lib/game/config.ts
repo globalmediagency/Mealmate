@@ -123,6 +123,8 @@ export const TICK = {
 
 /** Feeding rules (spec § 3.5). */
 export const FEEDING = {
+  /** Refuse photos of a screen or a printed picture (admin-tunable; off = warn only). */
+  rejectScreenPhotos: false,
   maxMealsPerDay: 5,
   duplicateWindowHours: 24,
   healthDeltaDivisor: 4,

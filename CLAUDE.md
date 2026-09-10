@@ -92,7 +92,8 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 
 - Toute lecture d'une créature vivante passe par `getActiveCreatureTicked()` (tick paresseux). Ne jamais lire `creatures` directement pour afficher des stats.
 - `feedCreature()` reçoit `analyzer` et `storage` injectés : les tests utilisent un faux analyseur et un stockage en mémoire (`lib/meals/meals.integration.test.ts`). Le vrai couple est `analyzeMealWithGemini` + `r2Storage`.
-- Le prompt Gemini vit dans `lib/ai/meal-prompt.ts` ; le contrat JSON dans `lib/ai/meal-schema.ts` (zod, normalisation tolérante). Toujours garder les deux alignés.
+- Le prompt Gemini vit dans `lib/ai/meal-prompt.ts` ; le contrat JSON dans `lib/ai/meal-schema.ts` (zod, normalisation tolérante). Toujours garder les deux alignés (y compris `photo_source`, qui alimente `meals.photo_source` et la règle admin `feeding.rejectScreenPhotos`).
+- Prise de photo : un seul `<input capture="environment">`, pas de bouton « galerie » (friction anti-triche voulue ; sur ordinateur le navigateur affiche quand même un sélecteur de fichiers, la vraie protection est `photo_source` + la règle admin).
 - Les photos ne sont jamais servies en direct : `signedUrl()` (1 h) à chaque lecture.
 
 ## Points d'attention

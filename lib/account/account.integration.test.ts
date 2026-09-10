@@ -63,6 +63,7 @@ const analysis: MealAnalysis = {
   portion: "raisonnable",
   comment: "Bien.",
   creature_line: "Miam.",
+  photo_source: "real",
 };
 
 async function hatchFor(userId: string, name: string) {

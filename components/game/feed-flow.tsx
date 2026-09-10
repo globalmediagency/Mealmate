@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, ImagePlus, RotateCcw, Sparkles, UtensilsCrossed } from "lucide-react";
+import { Camera, RotateCcw, Sparkles, UtensilsCrossed } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -9,6 +9,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button, LinkButton } from "@/components/ui/button";
 import { getSpecies } from "@/lib/creatures";
 import { FEEDING } from "@/lib/game/config";
+import { isSuspiciousPhoto } from "@/lib/ai/meal-schema";
 import type { CreatureView } from "@/lib/game/creature-view";
 import type { MealEffects } from "@/lib/game/meal-effects";
 import { prepareMealImage } from "@/lib/images/resize-client";
@@ -38,7 +39,6 @@ export function FeedFlow({ creature: initial, mealsToday: initialCount }: FeedFl
   const [creature, setCreature] = useState(initial);
   const [mealsToday, setMealsToday] = useState(initialCount);
   const cameraInput = useRef<HTMLInputElement>(null);
-  const galleryInput = useRef<HTMLInputElement>(null);
   const species = creature.species ? getSpecies(creature.species.id) : undefined;
   const remaining = Math.max(0, FEEDING.maxMealsPerDay - mealsToday);
 
@@ -80,11 +80,9 @@ export function FeedFlow({ creature: initial, mealsToday: initialCount }: FeedFl
     }
   }
 
+  // Camera only: `capture` opens the camera directly on phones, no gallery picker (the easy way to cheat).
   const inputs = (
-    <>
-      <input ref={cameraInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onFile(e.target.files?.[0] ?? null)} />
-      <input ref={galleryInput} type="file" accept="image/*" className="hidden" onChange={(e) => onFile(e.target.files?.[0] ?? null)} />
-    </>
+    <input ref={cameraInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onFile(e.target.files?.[0] ?? null)} />
   );
 
   if (state.step === "result") {
@@ -92,6 +90,11 @@ export function FeedFlow({ creature: initial, mealsToday: initialCount }: FeedFl
     const reaction = data.effects.healthy ? "eat" : data.effects.healthDelta < 0 ? "disgust" : "eat";
     return (
       <div className="space-y-5 animate-rise">
+        {isSuspiciousPhoto(data.meal.photoSource) ? (
+          <Alert tone="warning" title={data.meal.photoSource === "printed" ? "Hmm, on dirait une image imprimée" : "Hmm, on dirait une photo d'écran"}>
+            Cette image ressemble à {data.meal.photoSource === "printed" ? "une image imprimée" : "une photo prise sur un écran"}. Le repas est compté pour cette fois, mais bientôt seules les vraies assiettes seront acceptées.
+          </Alert>
+        ) : null}
         <section className="rounded-3xl border border-ink-600/80 bg-ink-800/90 p-4 shadow-card">
           <div className="flex items-center gap-3">
             {species ? (
@@ -181,7 +184,7 @@ export function FeedFlow({ creature: initial, mealsToday: initialCount }: FeedFl
       </header>
 
       {state.step === "error" ? (
-        <Alert tone={state.code === "not_food" || state.code === "meal_limit" ? "warning" : "danger"}>{state.message}</Alert>
+        <Alert tone={state.code === "not_food" || state.code === "meal_limit" || state.code === "screen_photo" ? "warning" : "danger"}>{state.message}</Alert>
       ) : null}
 
       {state.step === "preview" || (state.step === "error" && state.url) ? (
@@ -220,12 +223,8 @@ export function FeedFlow({ creature: initial, mealsToday: initialCount }: FeedFl
             <Camera className="h-5 w-5" aria-hidden="true" />
             Prendre une photo
           </Button>
-          <Button variant="secondary" onClick={() => galleryInput.current?.click()} disabled={remaining === 0}>
-            <ImagePlus className="h-5 w-5" aria-hidden="true" />
-            Choisir dans la galerie
-          </Button>
           <p className="text-xs text-cream-700">
-            Photo redimensionnée sur ton téléphone avant envoi, visible par toi seul·e.{" "}
+            Prends la photo sur le moment : elle est redimensionnée sur ton appareil avant envoi et visible par toi seul·e.{" "}
             <Link href="/privacy" className="underline">
               Confidentialité
             </Link>

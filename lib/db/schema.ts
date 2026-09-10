@@ -184,6 +184,10 @@ export const meals = pgTable(
     creatureLine: text("creature_line"),
     healthDelta: doublePrecision("health_delta").notNull().default(0),
     createdAt: timestamptz("created_at").notNull().defaultNow(),
+    /** Origin of the picture as judged by the AI (migration 007). */
+    photoSource: text("photo_source", { enum: ["real", "screen", "printed", "unknown"] })
+      .notNull()
+      .default("real"),
   },
   (table) => [
     index("meals_user_created_idx").on(table.userId, table.createdAt),

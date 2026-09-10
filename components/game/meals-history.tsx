@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { VERDICT_LABELS, type Verdict } from "@/lib/ai/meal-schema";
+import { isSuspiciousPhoto, PHOTO_SOURCE_LABELS, VERDICT_LABELS, type Verdict } from "@/lib/ai/meal-schema";
 import { TIER_CONFIG, type Tier } from "@/lib/game/config";
 import { formatDayLabel, shortDayLabel } from "@/lib/game/time";
 import type { MealStats, MealView } from "@/lib/meals/service";
@@ -107,8 +107,13 @@ export function MealsHistory({ meals, stats, tier }: MealsHistoryProps) {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-cream-50">{meal.foods.slice(0, 3).join(", ") || VERDICT_LABELS[meal.verdict as Verdict]}</p>
                     <p className="text-xs text-cream-500">{timeFormat.format(new Date(meal.createdAt))}</p>
-                    <div className="mt-1">
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       <HealthDeltaBadge delta={meal.healthDelta} />
+                      {isSuspiciousPhoto(meal.photoSource) ? (
+                        <span className="inline-flex items-center rounded-full border border-brass-400/50 bg-brass-500/15 px-2.5 py-1 text-xs font-semibold text-brass-200">
+                          {PHOTO_SOURCE_LABELS[meal.photoSource]} ?<span className="sr-only"> (repérée par l&apos;IA, le repas reste compté)</span>
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                   <span className="shrink-0 font-display text-2xl font-semibold tabular-nums" style={{ color: scoreColor(meal.score) }}>

@@ -27,6 +27,12 @@ Champs :
 - portion : "raisonnable", "copieuse" ou "legere".
 - comment : UNE phrase pour l'utilisateur, ton chaleureux et encourageant, jamais culpabilisant, jamais médical. Si le repas est peu sain, propose un petit conseil positif.
 - creature_line : UNE phrase courte à la première personne, dans la voix d'une petite créature attachante qui vient de manger ce repas (ex. « Miam, du saumon ! Je me sens plus fort. » ou « Ouh, c'est lourd… un peu de verdure la prochaine fois ? »).
+- photo_source : d'où vient l'image, indépendamment de son contenu.
+  - "real" : une vraie assiette, un vrai plat ou un vrai aliment photographié directement.
+  - "screen" : la photo montre un ÉCRAN (ordinateur, téléphone, tablette, télévision) qui affiche de la nourriture. Indices concrets : bord ou cadre d'écran, reflets et brillance d'une dalle, grille de pixels ou moiré, éléments d'interface (curseur, barre de navigateur, icônes, boutons, texte ou logo d'un site ou d'une application), image trop parfaite de type photo de stock encadrée par un autre objet.
+  - "printed" : une image imprimée (magazine, carte de restaurant, emballage, affiche, écran de menu) plutôt que le plat lui-même.
+  - "unknown" : impossible de trancher.
+  Sans indice concret, réponds "real". Ce champ ne change pas la notation : analyse la nourriture normalement dans tous les cas.
 
 Écris en français, tutoie l'utilisateur, reste concis.`;
 
@@ -56,6 +62,7 @@ export const MEAL_RESPONSE_SCHEMA = {
     portion: { type: "STRING", enum: ["raisonnable", "copieuse", "legere"] },
     comment: { type: "STRING" },
     creature_line: { type: "STRING" },
+    photo_source: { type: "STRING", enum: ["real", "screen", "printed", "unknown"] },
   },
-  required: ["is_food", "score", "verdict", "foods", "macros", "portion", "comment", "creature_line"],
+  required: ["is_food", "score", "verdict", "foods", "macros", "portion", "comment", "creature_line", "photo_source"],
 } as const;

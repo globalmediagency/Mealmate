@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { isSuspiciousPhoto, type PhotoSource } from "@/lib/ai/meal-schema";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import type { MealAnalyzer } from "@/lib/ai/gemini";
 import type { MealAnalysis } from "@/lib/ai/meal-schema";
@@ -91,6 +92,10 @@ export async function feedCreature(input: FeedInput): Promise<FeedResult> {
   if (!analysis.is_food) {
     throw new DomainError("not_food", "Je ne reconnais pas de repas sur cette photo.", 422);
   }
+  // Screen / printed pictures: flagged on the meal; refused outright when the admin rule is on.
+  if (isSuspiciousPhoto(analysis.photo_source) && rules.feeding.rejectScreenPhotos) {
+    throw new DomainError("screen_photo", "Cette photo semble prise depuis un écran ou une image imprimée. Photographie ta vraie assiette !", 422);
+  }
 
   const effects = mealEffects({ score: analysis.score, tier: creature.tier as Tier, hunger: creature.hunger, rules });
   const mealId = randomUUID();
@@ -115,6 +120,7 @@ export async function feedCreature(input: FeedInput): Promise<FeedResult> {
       creatureLine: analysis.creature_line,
       healthDelta: effects.healthDelta,
       createdAt: now,
+      photoSource: analysis.photo_source,
     })
     .returning();
 
@@ -154,6 +160,7 @@ export type MealView = {
   creatureLine: string | null;
   healthDelta: number;
   createdAt: string;
+  photoSource: PhotoSource;
 };
 
 export async function toMealView(meal: Meal, storage: ObjectStorage): Promise<MealView> {
@@ -169,6 +176,7 @@ export async function toMealView(meal: Meal, storage: ObjectStorage): Promise<Me
     creatureLine: meal.creatureLine,
     healthDelta: meal.healthDelta,
     createdAt: meal.createdAt.toISOString(),
+    photoSource: meal.photoSource as PhotoSource,
   };
 }
 

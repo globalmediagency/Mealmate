@@ -4,6 +4,9 @@ export const VERDICTS = ["sain", "correct", "peu_sain"] as const;
 export type Verdict = (typeof VERDICTS)[number];
 export const PORTIONS = ["raisonnable", "copieuse", "legere"] as const;
 export type Portion = (typeof PORTIONS)[number];
+/** Where the picture comes from: a real plate, a screen showing food, a printed picture, or unclear. */
+export const PHOTO_SOURCES = ["real", "screen", "printed", "unknown"] as const;
+export type PhotoSource = (typeof PHOTO_SOURCES)[number];
 
 const note = z.coerce.number().transform((n) => Math.max(1, Math.min(5, Math.round(n))));
 const shortText = z.string().trim().max(400).catch("");
@@ -25,6 +28,8 @@ export const mealAnalysisSchema = z.object({
   portion: z.string().transform((p) => normalisePortion(p)),
   comment: shortText,
   creature_line: shortText,
+  // Missing or odd value → "unknown": an older analyzer never blocks a meal.
+  photo_source: z.string().transform((v) => normalisePhotoSource(v)).catch("unknown" as PhotoSource),
 });
 
 export type MealAnalysis = z.infer<typeof mealAnalysisSchema>;
@@ -55,6 +60,26 @@ function normalisePortion(value: string): Portion {
   if (v.startsWith("leg")) return "legere";
   return "raisonnable";
 }
+
+function normalisePhotoSource(value: string): PhotoSource {
+  const v = value.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  if (/screen|ecran|monitor|display|phone|tablet|\btv\b|television/.test(v)) return "screen";
+  if (/print|imprim|paper|papier|magazine|menu|packag|emballage|poster|affiche/.test(v)) return "printed";
+  if (/real|reel|plate|assiette|direct|photo/.test(v)) return "real";
+  return "unknown";
+}
+
+/** Screen and printed pictures are the easy way to cheat: flagged, and refusable from /admin. */
+export function isSuspiciousPhoto(source: PhotoSource | string | null | undefined): boolean {
+  return source === "screen" || source === "printed";
+}
+
+export const PHOTO_SOURCE_LABELS: Record<PhotoSource, string> = {
+  real: "Vraie assiette",
+  screen: "Photo d'écran",
+  printed: "Image imprimée",
+  unknown: "Origine incertaine",
+};
 
 /** Verdict consistent with the score when the model contradicts itself. */
 export function verdictFromScore(score: number): Verdict {

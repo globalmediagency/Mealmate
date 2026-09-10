@@ -17,7 +17,7 @@ export type GameRules = {
   /** Hunger above which health starts dropping. */
   hungerDamageThreshold: number;
   tick: { fullRateHoursCap: number; slowRate: number };
-  feeding: { maxMealsPerDay: number };
+  feeding: { maxMealsPerDay: number; rejectScreenPhotos: boolean };
 };
 
 const pickTier = (config: TierConfig): TierRules => ({
@@ -38,7 +38,7 @@ export const DEFAULT_RULES: GameRules = {
   },
   hungerDamageThreshold: HUNGER_DAMAGE_THRESHOLD,
   tick: { fullRateHoursCap: TICK.fullRateHoursCap, slowRate: TICK.slowRate },
-  feeding: { maxMealsPerDay: FEEDING.maxMealsPerDay },
+  feeding: { maxMealsPerDay: FEEDING.maxMealsPerDay, rejectScreenPhotos: FEEDING.rejectScreenPhotos },
 };
 
 const tierRulesSchema = z
@@ -60,7 +60,7 @@ export const gameRulesPatchSchema = z
       .partial(),
     hungerDamageThreshold: z.coerce.number().min(0).max(100),
     tick: z.object({ fullRateHoursCap: z.coerce.number().min(1).max(8760), slowRate: z.coerce.number().min(0).max(1) }).partial(),
-    feeding: z.object({ maxMealsPerDay: z.coerce.number().int().min(1).max(20) }).partial(),
+    feeding: z.object({ maxMealsPerDay: z.coerce.number().int().min(1).max(20), rejectScreenPhotos: z.boolean() }).partial(),
   })
   .partial();
 

@@ -6,6 +6,7 @@ import { getDb } from "@/lib/db";
 import { creatures } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import type { ObjectStorage } from "@/lib/storage/r2";
+import { getGameRules } from "@/lib/game/rules-service";
 import { saveManualSteps } from "@/lib/steps/service";
 import { createTestDatabase, insertTestUser, type TestDatabase } from "@/lib/test/pglite";
 import { countMealsToday, feedCreature, listMeals, mealStats } from "./service";
@@ -41,6 +42,7 @@ function analysis(overrides: Partial<MealAnalysis> = {}): MealAnalysis {
     portion: "raisonnable",
     comment: "Bravo !",
     creature_line: "Miam !",
+    photo_source: "real",
     ...overrides,
   };
 }
@@ -139,5 +141,22 @@ describe("feedCreature", () => {
     ).rejects.toMatchObject({ code: "ai_unavailable", status: 503 });
     expect(stored.size).toBe(sizeBefore);
     expect(await countMealsToday(other)).toBe(0);
+  });
+  it("flags screen photos, and refuses them when the admin rule is on", async () => {
+    // A different day so today's meal limit and duplicate window are untouched.
+    const now = new Date(Date.now() - 60 * 86_400_000);
+    const rules = await getGameRules();
+    const flagged = await feedCreature({ userId, image: image("screen-1"), analyzer: async () => analysis({ photo_source: "screen" }), storage, now, rules });
+    expect(flagged.meal.photoSource).toBe("screen");
+    expect(flagged.meal.score).toBe(82);
+
+    const strict = { ...rules, feeding: { ...rules.feeding, rejectScreenPhotos: true } };
+    const sizeBefore = stored.size;
+    await expect(
+      feedCreature({ userId, image: image("screen-2"), analyzer: async () => analysis({ photo_source: "printed" }), storage, now, rules: strict }),
+    ).rejects.toMatchObject({ code: "screen_photo", status: 422 });
+    expect(stored.size).toBe(sizeBefore);
+    const real = await feedCreature({ userId, image: image("screen-3"), analyzer: async () => analysis({ photo_source: "real" }), storage, now, rules: strict });
+    expect(real.meal.photoSource).toBe("real");
   });
 });
