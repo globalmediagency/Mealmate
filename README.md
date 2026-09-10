@@ -123,6 +123,8 @@ puis mourir si elle n'est jamais nourrie (voir `SPEC.md` § 3.8).
 Prérequis : la migration `db/migrations/003_game_settings.sql` (voir étape E). Sans elle, l'app continue avec les
 valeurs par défaut et l'admin affiche une erreur à l'enregistrement.
 
+Astuce : les mêmes identifiants fonctionnent depuis la page de connexion normale de l'app (champ Email = `ADMIN_USERNAME`) et mènent directement à `/admin`. Aucun joueur ne peut créer un compte ou un pseudo avec cet identifiant.
+
 ### Étape H — Jouer et accessoires (phase 5)
 
 Rien à configurer : après la migration 004, l'accueil propose **Jouer** (3 parties par jour, 20 secondes) et

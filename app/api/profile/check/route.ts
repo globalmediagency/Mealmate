@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { handleRouteError, ok } from "@/lib/api/respond";
 import { isUsernameAvailable } from "@/lib/profile/service";
+import { isAdminIdentifier } from "@/lib/admin/auth";
 import { validateUsername } from "@/lib/profile/username";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,7 @@ export async function GET(request: NextRequest) {
     if (!validation.ok) {
       return ok({ valid: false, available: false, message: validation.message });
     }
+    if (isAdminIdentifier(validation.username)) return ok({ valid: false, available: false, message: "Ce pseudo est réservé." });
     const available = await isUsernameAvailable(validation.username);
     return ok({
       valid: true,

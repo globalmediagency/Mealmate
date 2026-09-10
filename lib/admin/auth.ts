@@ -11,6 +11,18 @@ export function isAdminConfigured(): boolean {
   return Boolean(optionalEnv("ADMIN_USERNAME") && optionalEnv("ADMIN_PASSWORD"));
 }
 
+/**
+ * True when `value` is the admin login (case-insensitive), so that no player
+ * can register that pseudo or email. Never exposes the value itself.
+ */
+export function isAdminIdentifier(value: string | null | undefined): boolean {
+  const admin = optionalEnv("ADMIN_USERNAME");
+  if (!admin || !value) return false;
+  const a = admin.trim().toLowerCase();
+  const v = value.trim().toLowerCase();
+  return v === a || v === a.split("@")[0] || v.split("@")[0] === a;
+}
+
 function safeEqual(a: string, b: string): boolean {
   const left = Buffer.from(a);
   const right = Buffer.from(b);

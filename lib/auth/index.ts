@@ -1,9 +1,11 @@
 import { betterAuth, type BetterAuthOptions } from "better-auth";
+import { APIError } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { getDb, type Db } from "@/lib/db";
 import { account, session, user, verification } from "@/lib/db/schema";
 import { purgeExternalData } from "@/lib/account/service";
+import { isAdminIdentifier } from "@/lib/admin/auth";
 import { optionalEnv, requireEnv } from "@/lib/env";
 import { tryCreateProfileFromName } from "@/lib/profile/service";
 import { r2Storage } from "@/lib/storage/r2";
@@ -76,6 +78,12 @@ export function createAuth(db?: Db) {
     databaseHooks: {
       user: {
         create: {
+          // The admin login is reserved: no player account may use it as email or pseudo.
+          before: async (newUser) => {
+            if (isAdminIdentifier(newUser.email) || isAdminIdentifier(newUser.name)) {
+              throw new APIError("BAD_REQUEST", { message: "Cet identifiant est réservé." });
+            }
+          },
           after: async (createdUser) => {
             await tryCreateProfileFromName(createdUser.id, createdUser.name);
           },

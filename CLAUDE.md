@@ -44,7 +44,7 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 - `/dev/creatures` : galerie espèces × stades × états, œufs et décors.
 - `/dev/screens?screen=…` : écrans du jeu avec données factices (`egg`, `incubation`, `ready`, `reveal`, `home`, `home-sick`, `home-hungry`, `activity`, `feed`, `meal-result`, `meals`, `mourning`, `admin`, `play`, `wardrobe`, `chest`, `collection`, `friends`, `shop`, `home-protected`, `account`).
 - `/dev/creatures?compact=1` : les 60 espèces en un coup d'œil ; la page complète montre les 30 accessoires. `/dev/gemini` : modèles Gemini visibles avec la clé.
-- `/admin` (hors galerie) : espace d'administration protégé par `ADMIN_USERNAME` / `ADMIN_PASSWORD`, avec les onglets Règles de jeu, Créatures (`/admin/creatures`, filtres niveau / rareté, fiche stades × états) et Accessoires (`/admin/accessoires`, par emplacement, aperçu porté à chaque stade).
+- `/admin` (hors galerie) : espace d'administration protégé par `ADMIN_USERNAME` / `ADMIN_PASSWORD` (aussi acceptés sur la page de connexion normale ; l'identifiant est réservé via `isAdminIdentifier()`), avec les onglets Règles de jeu, Créatures (`/admin/creatures`, filtres niveau / rareté, fiche stades × états) et Accessoires (`/admin/accessoires`, par emplacement, aperçu porté à chaque stade).
 - Les deux sont gardées par `NEXT_PUBLIC_DEV_GALLERY=true` (lue au build : redéployer après l'avoir changée).
 
 ## Ajouter un accessoire

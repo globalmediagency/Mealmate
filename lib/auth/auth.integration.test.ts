@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getDb, schema, setDbForTests, type Db } from "@/lib/db";
-import { createProfile, getProfile, UsernameTakenError } from "@/lib/profile/service";
+import { createProfile, getProfile, isUsernameAvailable, UsernameTakenError } from "@/lib/profile/service";
 import { createAuth, resetAuthForTests, type Auth } from "./index";
 
 const HOST_HEADERS = { host: "localhost:3000", origin: "http://localhost:3000" };
@@ -145,6 +145,31 @@ describe("sign-up with a name that is not a valid pseudo (Google-like)", () => {
       UsernameTakenError,
     );
     expect(await getProfile(result.user.id)).toBeNull();
+  });
+});
+
+describe("the admin login is reserved", () => {
+  it("refuses the admin pseudo and email at sign-up and in profile creation", async () => {
+    process.env.ADMIN_USERNAME = "chef";
+    try {
+      expect(await isUsernameAvailable("Chef")).toBe(false);
+      const asPseudo = await auth.api.signUpEmail({
+        body: { name: "chef", email: "chef-tries@example.com", password: "motdepasse-8" },
+        headers: HOST_HEADERS,
+      });
+      expect(asPseudo.user).toBeUndefined();
+    } catch (error) {
+      expect(String(error)).toMatch(/réservé/);
+    }
+    // A pseudo differing only by case is reserved too, at onboarding.
+    const other = await auth.api.signUpEmail({ body: { name: "Quelqu_un", email: "someone@example.com", password: "motdepasse-8" }, headers: HOST_HEADERS });
+    await expect(createProfile(other.user.id, "CHEF")).rejects.toMatchObject({ code: "username_reserved" });
+
+    process.env.ADMIN_USERNAME = "chef@mealmate.test";
+    await expect(
+      auth.api.signUpEmail({ body: { name: "Autre_joueur", email: "chef@mealmate.test", password: "motdepasse-8" }, headers: HOST_HEADERS }),
+    ).rejects.toMatchObject({ message: expect.stringContaining("réservé") });
+    delete process.env.ADMIN_USERNAME;
   });
 });
 

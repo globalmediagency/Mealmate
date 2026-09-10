@@ -3,6 +3,7 @@ import { fail, handleRouteError, ok } from "@/lib/api/respond";
 import { getSession } from "@/lib/auth/session";
 import {
   createProfile,
+  UsernameReservedError,
   getProfile,
   UsernameTakenError,
 } from "@/lib/profile/service";
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
       const profile = await createProfile(session.user.id, body.username);
       return ok({ profile }, { status: 201 });
     } catch (error) {
-      if (error instanceof UsernameTakenError) {
+      if (error instanceof UsernameTakenError || error instanceof UsernameReservedError) {
         return fail(error.code, error.message, 409);
       }
       throw error;

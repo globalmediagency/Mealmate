@@ -2,6 +2,7 @@ import { eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { profiles, type Profile } from "@/lib/db/schema";
 import { generateFriendCode } from "./friend-code";
+import { isAdminIdentifier } from "@/lib/admin/auth";
 import { validateUsername } from "./username";
 
 export async function getProfile(userId: string): Promise<Profile | null> {
@@ -15,6 +16,7 @@ export async function getProfile(userId: string): Promise<Profile | null> {
 }
 
 export async function isUsernameAvailable(username: string): Promise<boolean> {
+  if (isAdminIdentifier(username)) return false;
   const db = getDb();
   const rows = await db
     .select({ userId: profiles.userId })
@@ -22,6 +24,14 @@ export async function isUsernameAvailable(username: string): Promise<boolean> {
     .where(sql`lower(${profiles.username}) = lower(${username})`)
     .limit(1);
   return rows.length === 0;
+}
+
+export class UsernameReservedError extends Error {
+  readonly code = "username_reserved" as const;
+  constructor() {
+    super("Ce pseudo est réservé.");
+    this.name = "UsernameReservedError";
+  }
 }
 
 export class UsernameTakenError extends Error {
@@ -58,6 +68,7 @@ export async function createProfile(
   userId: string,
   username: string,
 ): Promise<Profile> {
+  if (isAdminIdentifier(username)) throw new UsernameReservedError();
   const db = getDb();
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
@@ -95,7 +106,7 @@ export async function tryCreateProfileFromName(
     if (!(await isUsernameAvailable(validation.username))) return null;
     return await createProfile(userId, validation.username);
   } catch (error) {
-    if (error instanceof UsernameTakenError) return null;
+    if (error instanceof UsernameTakenError || error instanceof UsernameReservedError) return null;
     console.error("[profile] failed to create profile after sign-up", error);
     return null;
   }

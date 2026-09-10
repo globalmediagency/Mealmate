@@ -20,12 +20,51 @@ export function LoginForm({ googleEnabled, next, initialError = null }: LoginFor
   const [error, setError] = useState<string | null>(initialError);
   const [pending, setPending] = useState(false);
 
+  /** The admin login (ADMIN_USERNAME / ADMIN_PASSWORD) works from this form too and leads to /admin. */
+  async function tryAdmin(identifier: string): Promise<"ok" | "no" | string> {
+    try {
+      const response = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: identifier, password }),
+      });
+      if (response.ok) return "ok";
+      if (response.status === 429) return "Trop de tentatives. Patiente quelques minutes puis réessaie.";
+      return "no";
+    } catch {
+      return "no";
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setPending(true);
-    const result = await signIn.email({ email: email.trim(), password });
+    const identifier = email.trim();
+    const looksLikeEmail = identifier.includes("@");
+
+    // An identifier without "@" cannot be a player account: check the admin login first.
+    if (!looksLikeEmail) {
+      const admin = await tryAdmin(identifier);
+      if (admin === "ok") {
+        router.push("/admin");
+        router.refresh();
+        return;
+      }
+      setError(admin === "no" ? "Identifiant ou mot de passe incorrect." : admin);
+      setPending(false);
+      return;
+    }
+
+    const result = await signIn.email({ email: identifier, password });
     if (result.error) {
+      // The admin login may also be an email address: give it a chance before showing the error.
+      const admin = await tryAdmin(identifier);
+      if (admin === "ok") {
+        router.push("/admin");
+        router.refresh();
+        return;
+      }
       setError(authErrorMessage(result.error));
       setPending(false);
       return;
@@ -41,9 +80,9 @@ export function LoginForm({ googleEnabled, next, initialError = null }: LoginFor
         <Input
           id="email"
           name="email"
-          type="email"
+          type="text"
           inputMode="email"
-          autoComplete="email"
+          autoComplete="username"
           autoCapitalize="none"
           required
           value={email}
