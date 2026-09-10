@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DomainError } from "@/lib/api/errors";
+import type { Tier } from "@/lib/game/config";
 import { toCreatureView } from "@/lib/game/creature-view";
 import { gameDate } from "@/lib/game/time";
 import { getStepHistory, saveManualSteps, sumStepsSince } from "@/lib/steps/service";
@@ -32,7 +33,7 @@ describe("egg lifecycle", () => {
   });
 
   it("refuses a tier without species", async () => {
-    await expect(createEgg(userId, "difficile")).rejects.toBeInstanceOf(DomainError);
+    await expect(createEgg(userId, "inconnu" as Tier)).rejects.toBeInstanceOf(DomainError);
   });
 
   it("creates an easy egg and refuses a second one", async () => {

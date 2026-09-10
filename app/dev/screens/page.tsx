@@ -6,6 +6,11 @@ import { EggChoice } from "@/components/game/egg-choice";
 import { HatchReveal } from "@/components/game/hatch-reveal";
 import { Incubation } from "@/components/game/incubation";
 import { StepsHistory } from "@/components/game/steps-history";
+import { FeedFlow } from "@/components/game/feed-flow";
+import { MealResult } from "@/components/game/meal-result";
+import { MealsHistory } from "@/components/game/meals-history";
+import { Mourning } from "@/components/game/mourning";
+import type { MealStats, MealView } from "@/lib/meals/service";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { Card, CardTitle } from "@/components/ui/card";
 import { playableTiers, speciesByTierAll, toSpeciesSummary, getSpecies } from "@/lib/creatures";
@@ -17,7 +22,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "activity"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "activity", "feed", "meal-result", "meals", "mourning"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -96,6 +101,45 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
       );
       break;
     }
+    case "feed":
+      content = <FeedFlow creature={mockCreature({ hunger: 65 })} mealsToday={2} />;
+      break;
+    case "meal-result":
+      content = (
+        <Card>
+          <MealResult
+            creatureName="Miso"
+            data={{
+              score: 82,
+              verdict: "sain",
+              foods: ["saumon grillé", "quinoa", "avocat", "brocoli"],
+              macros: { proteins: 4, fibers: 4, carbs: 3, fats: 3, sugars: 1, ultra_processed: 1 },
+              portion: "raisonnable",
+              comment: "Une assiette équilibrée, riche en bons gras. Bravo !",
+              creatureLine: "Miam, du saumon ! Je me sens plus fort.",
+              healthDelta: 10.5,
+            }}
+          />
+        </Card>
+      );
+      break;
+    case "meals": {
+      const today = gameDate();
+      const scores = [72, null, 55, 81, 90, 40, 66, 78, null, 35, 88, 61, 70, 84, 79, null, 52, 91, 68, 74, 60, 83, 77, 45, 86, 69, 73, 80, 64, 82];
+      const daily = scores.map((score, i) => ({ date: shiftDate(today, i - 29), average: score, count: score === null ? 0 : 1 + (i % 2) }));
+      const stats: MealStats = { daily, weekAverage: 73, monthAverage: 70, weekCount: 9, todayCount: 2 };
+      const img = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#5e7053"/><circle cx="32" cy="32" r="18" fill="#e8c36a"/></svg>');
+      const meals: MealView[] = [
+        { id: "m1", imageUrl: img, score: 82, verdict: "sain", foods: ["saumon grillé", "quinoa", "avocat"], macros: { proteins: 4, fibers: 4, carbs: 3, fats: 3, sugars: 1, ultra_processed: 1 }, portion: "raisonnable", comment: "Une assiette équilibrée. Bravo !", creatureLine: "Miam, du saumon !", healthDelta: 10.5, createdAt: new Date().toISOString() },
+        { id: "m2", imageUrl: img, score: 38, verdict: "peu_sain", foods: ["burger", "frites"], macros: { proteins: 3, fibers: 1, carbs: 4, fats: 2, sugars: 2, ultra_processed: 4 }, portion: "copieuse", comment: "Un plaisir de temps en temps ; un peu de verdure à côté la prochaine fois ?", creatureLine: "Ouh, c'est lourd…", healthDelta: -0.5, createdAt: new Date(Date.now() - 86_400_000).toISOString() },
+        { id: "m3", imageUrl: img, score: 64, verdict: "correct", foods: ["pâtes", "tomates", "parmesan"], macros: { proteins: 2, fibers: 2, carbs: 4, fats: 2, sugars: 1, ultra_processed: 2 }, portion: "raisonnable", comment: "Correct ! Des légumes en plus et c'est parfait.", creatureLine: "Des pâtes, chouette.", healthDelta: 6, createdAt: new Date(Date.now() - 2 * 86_400_000).toISOString() },
+      ];
+      content = <MealsHistory meals={meals} stats={stats} tier="facile" />;
+      break;
+    }
+    case "mourning":
+      content = <Mourning creature={mockCreature({ status: "dead", state: "dead", health: 0, hunger: 100, mood: 5, ageDays: 9, lifespanDays: 9, diedAt: new Date().toISOString() })} />;
+      break;
     default: {
       const c = mockCreature({});
       content = <CreatureHome creature={c} line={creatureLine(c)} />;

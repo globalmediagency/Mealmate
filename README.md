@@ -62,11 +62,25 @@ Diagnostic rapide : `https://TON-URL/api/health` renvoie les services configuré
 
 ---
 
-### Étape E — Migration de la phase 2
+### Étape E — Migrations des phases suivantes
 
-Si tu avais déjà exécuté `db/init.sql` **avant** la phase 2, colle aussi
-[`db/migrations/001_step_entries_credited_steps.sql`](./db/migrations/001_step_entries_credited_steps.sql)
-dans **Neon → SQL Editor** → **Run**. (Un `init.sql` exécuté après la phase 2 contient déjà cette colonne.)
+Si tu avais déjà exécuté `db/init.sql` avant une phase, colle ses migrations dans
+**Neon → SQL Editor** → **Run**, dans l'ordre (elles sont idempotentes) :
+
+- phase 2 : [`db/migrations/001_step_entries_credited_steps.sql`](./db/migrations/001_step_entries_credited_steps.sql)
+- phase 3 : [`db/migrations/002_creatures_mourned_at.sql`](./db/migrations/002_creatures_mourned_at.sql)
+
+Un `init.sql` fraîchement exécuté contient déjà toutes ces colonnes.
+
+### Étape F — Nourrir (phase 3) : Cloudflare R2 + Google Gemini
+
+Sans ces variables, l'onglet **Repas** et l'écran **Nourrir** affichent « Configuration incomplète » ; le reste
+de l'app fonctionne. Attention : dès la phase 3, une créature vivante a faim avec le temps et peut tomber malade
+puis mourir si elle n'est jamais nourrie (voir `SPEC.md` § 3.8).
+
+1. **R2** : suis la section « Cloudflare R2 » ci-dessous (4 variables).
+2. **Gemini** : suis la section « Google Gemini » ci-dessous (1 variable, `GEMINI_MODEL` optionnel).
+3. Vercel → **Redeploy**, puis onglet Créature → **Nourrir** → prends une photo de ton assiette.
 
 ## 2. Cycle de travail
 
@@ -104,7 +118,11 @@ dans **Neon → SQL Editor** → **Run**. (Un `init.sql` exécuté après la pha
 ### Google Gemini — analyse des repas (phase 3)
 
 1. <https://aistudio.google.com> → **Get API key** → **Create API key**.
-2. Vercel → `GEMINI_API_KEY` → Redeploy. (`GEMINI_MODEL` est optionnel.)
+2. Vercel → `GEMINI_API_KEY` → Redeploy.
+3. Modèle : par défaut l'app détecte le dernier `gemini-X.Y-flash` stable disponible pour ta clé (repli
+   `gemini-3.8-flash` → `gemini-3.6-flash` → `gemini-3.5-flash-lite` → `gemini-2.5-flash`). Pour forcer un
+   modèle : `GEMINI_MODEL=gemini-3.6-flash` par exemple. Avec `NEXT_PUBLIC_DEV_GALLERY=true`, la page
+   `/dev/gemini` liste les modèles visibles et l'ordre d'essai.
 
 ### Stripe — boutique en mode test (phase 7)
 
@@ -129,8 +147,10 @@ Vercel → `NEXT_PUBLIC_DEV_GALLERY=true` (sur Preview et/ou Production) → Red
 apparaissent alors, sans connexion nécessaire :
 
 - `/dev/creatures` : toutes les espèces × 4 stades × 4 états (+ silhouettes, œufs, décors).
-- `/dev/screens?screen=egg|incubation|ready|reveal|home|home-sick|activity` : les écrans du jeu
-  avec des données factices, pour valider le design depuis un téléphone.
+- `/dev/screens?screen=egg|incubation|ready|reveal|home|home-sick|activity|feed|meal-result|meals|mourning` :
+  les écrans du jeu avec des données factices, pour valider le design depuis un téléphone.
+- `/dev/creatures?compact=1` : vue d'ensemble des 30 espèces (adulte, en forme).
+- `/dev/gemini` : modèles Gemini visibles avec ta clé.
 
 ---
 

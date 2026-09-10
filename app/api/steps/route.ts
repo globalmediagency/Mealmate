@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { fail, handleRouteError, ok } from "@/lib/api/respond";
 import { getSession } from "@/lib/auth/session";
-import { applyStepGains, getActiveCreature, refreshEggSteps } from "@/lib/creatures/service";
+import { applyStepGains, getActiveCreatureTicked, refreshEggSteps } from "@/lib/creatures/service";
 import { STEPS } from "@/lib/game/config";
 import { toCreatureView } from "@/lib/game/creature-view";
 import { gameDate } from "@/lib/game/time";
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     const body = saveSchema.parse(await request.json().catch(() => ({})));
     const userId = session.user.id;
 
-    const creature = await getActiveCreature(userId);
+    const creature = await getActiveCreatureTicked(userId);
     const { entry, gains } = await saveManualSteps(userId, body.steps, creature);
     let updated = creature;
     if (creature?.status === "egg") updated = await refreshEggSteps(creature);

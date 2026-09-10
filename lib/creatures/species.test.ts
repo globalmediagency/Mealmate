@@ -37,8 +37,10 @@ describe("species registry", () => {
     }
   });
 
-  it("ships the phase-2 roster for the easy tier", () => {
-    expect(speciesForTier("facile").length).toBeGreaterThanOrEqual(10);
-    expect(speciesByRarity("facile").legendaire).toHaveLength(1);
+  it("ships at least 10 species per tier with exactly one legendary", () => {
+    for (const tier of TIERS) {
+      expect(speciesForTier(tier).length).toBeGreaterThanOrEqual(10);
+      expect(speciesByRarity(tier).legendaire).toHaveLength(1);
+    }
   });
 });

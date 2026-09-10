@@ -29,6 +29,12 @@ export function hoursBetween(from: Date, to: Date): number {
   return Math.max(0, (to.getTime() - from.getTime()) / 3_600_000);
 }
 
+/** Very short label "9/9" for dense axes. */
+export function shortDayLabel(date: string): string {
+  const [, m, d] = date.split("-").map(Number);
+  return `${d}/${m}`;
+}
+
 /** Short French label for a YYYY-MM-DD date ("lun. 9 sept."). */
 export function formatDayLabel(date: string): string {
   const [y, m, d] = date.split("-").map(Number);

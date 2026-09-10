@@ -138,6 +138,8 @@ export const creatures = pgTable(
     diedAt: timestamptz("died_at"),
     deathCause: text("death_cause"),
     lifespanDays: integer("lifespan_days"),
+    /** When the user acknowledged the death (mourning screen shown once). */
+    mournedAt: timestamptz("mourned_at"),
   },
   (table) => [
     index("creatures_user_status_idx").on(table.userId, table.status),

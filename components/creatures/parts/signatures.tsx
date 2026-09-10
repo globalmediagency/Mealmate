@@ -8,7 +8,7 @@ const BRASS_DARK = "#A6823A";
 
 /** Signature items worn from the "Sage" stage (head slot). */
 export function HeadSignature({ type, layout, palette }: SignatureProps) {
-  const { head, top, eyeY, eyeGap } = layout;
+  const { head, top, eyeY, eyeGap, faceX } = layout;
   switch (type) {
     case "leaf":
       return (
@@ -37,7 +37,7 @@ export function HeadSignature({ type, layout, palette }: SignatureProps) {
       );
     case "monocle":
       return (
-        <g transform={`translate(${50 + eyeGap} ${eyeY})`}>
+        <g transform={`translate(${faceX + eyeGap} ${eyeY})`}>
           <circle r="6.4" stroke={BRASS} strokeWidth="1.4" fill="none" />
           <path d="M5 4 q3 6 1 12" stroke={BRASS} strokeWidth="0.8" fill="none" />
         </g>

@@ -3,10 +3,12 @@ import { CreatureHome } from "@/components/game/creature-home";
 import { EggChoice } from "@/components/game/egg-choice";
 import { HatchReveal } from "@/components/game/hatch-reveal";
 import { Incubation } from "@/components/game/incubation";
+import { Mourning } from "@/components/game/mourning";
 import { requireViewer } from "@/lib/auth/session";
 import { playableTiers, speciesByTierAll } from "@/lib/creatures";
 import { loadActiveCreatureView } from "@/lib/creatures/loader";
-import { getObtainedSpeciesIds } from "@/lib/creatures/service";
+import { getObtainedSpeciesIds, getUnmournedDeath } from "@/lib/creatures/service";
+import { toCreatureView } from "@/lib/game/creature-view";
 import { creatureLine } from "@/lib/game/dialogue";
 import { gameDate } from "@/lib/game/time";
 import { getManualEntry } from "@/lib/steps/service";
@@ -17,7 +19,13 @@ export default async function HomePage() {
   const { session } = await requireViewer();
   const creature = await loadActiveCreatureView(session.user.id);
 
+  if (creature?.status === "dead") {
+    return <Mourning creature={creature} />;
+  }
+
   if (!creature) {
+    const unmourned = await getUnmournedDeath(session.user.id);
+    if (unmourned) return <Mourning creature={toCreatureView(unmourned)} />;
     const obtained = await getObtainedSpeciesIds(session.user.id);
     return (
       <EggChoice

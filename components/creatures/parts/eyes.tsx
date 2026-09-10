@@ -123,13 +123,13 @@ function Eye({
 }
 
 export function Eyes({ type, layout, palette, state, uid, lidColor }: EyesProps) {
-  const { eyeY, eyeGap, eyeScale } = layout;
+  const { eyeY, eyeGap, eyeScale, faceX } = layout;
   return (
     <g>
-      <g transform={`translate(${50 - eyeGap} ${eyeY}) scale(${eyeScale})`}>
+      <g transform={`translate(${faceX - eyeGap} ${eyeY}) scale(${eyeScale})`}>
         <Eye type={type} palette={palette} state={state} side="l" uid={uid} lidColor={lidColor} />
       </g>
-      <g transform={`translate(${50 + eyeGap} ${eyeY}) scale(${eyeScale})`}>
+      <g transform={`translate(${faceX + eyeGap} ${eyeY}) scale(${eyeScale})`}>
         <Eye type={type} palette={palette} state={state} side="r" uid={uid} lidColor={lidColor} />
       </g>
     </g>

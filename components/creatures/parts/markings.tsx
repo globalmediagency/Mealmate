@@ -35,6 +35,18 @@ export function BodyMarkings({ type, layout, palette, opacity }: MarkingProps) {
           <path d={`M${body.cx + body.rx - 3} ${body.cy - 6} q-4 3 -3 8`} />
         </g>
       );
+    case "scales":
+      return (
+        <g stroke={withAlpha(palette.secondary, 0.55 * opacity)} strokeWidth="1.3" fill="none">
+          {[-1, 0, 1].map((row) =>
+            [-2, -1, 0, 1, 2].map((col) => {
+              const x = body.cx + col * 6 + (row % 2 === 0 ? 0 : 3);
+              const y = body.cy + row * 6;
+              return <path key={`${row}-${col}`} d={`M${x - 2.6} ${y} a2.6 2.6 0 0 0 5.2 0`} />;
+            }),
+          )}
+        </g>
+      );
     case "mask":
       // Light muzzle patch (the blaze on the head is drawn by HeadMarkings).
       return (
@@ -75,6 +87,16 @@ export function HeadMarkings({ type, layout, palette, opacity }: MarkingProps) {
           fill={withAlpha(palette.secondary, 0.9 * opacity)}
         />
       );
+    case "badger": {
+      const y0 = head.cy - head.r * 0.85;
+      const h = head.r * 1.5;
+      return (
+        <g fill={withAlpha(palette.secondary, 0.85 * opacity)}>
+          <rect x={layout.faceX - layout.eyeGap - 4} y={y0} width="8" height={h} rx="4" />
+          <rect x={layout.faceX + layout.eyeGap - 4} y={y0} width="8" height={h} rx="4" />
+        </g>
+      );
+    }
     case "crescent": {
       const cx = head.cx;
       const cy = head.cy - head.r * 0.58;

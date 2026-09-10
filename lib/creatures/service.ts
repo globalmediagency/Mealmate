@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { DomainError } from "@/lib/api/errors";
 import { getDb } from "@/lib/db";
@@ -8,6 +8,7 @@ import { drawSpecies } from "@/lib/game/rarity";
 import { gameDate } from "@/lib/game/time";
 import { sumStepsSince } from "@/lib/steps/service";
 import { isTierPlayable } from "./index";
+import { tickCreature } from "./tick-service";
 
 export const tierSchema = z.enum(TIERS);
 
@@ -26,6 +27,45 @@ export async function getActiveCreature(userId: string): Promise<Creature | null
     .where(and(eq(creatures.userId, userId), inArray(creatures.status, ["egg", "alive"])))
     .limit(1);
   return rows[0] ?? null;
+}
+
+/**
+ * The user's egg or living creature with the lazy tick applied. A creature
+ * that died during this tick is returned with `status = "dead"` so callers
+ * can show the mourning screen.
+ */
+export async function getActiveCreatureTicked(userId: string, now: Date = new Date()): Promise<Creature | null> {
+  const creature = await getActiveCreature(userId);
+  if (!creature) return null;
+  return creature.status === "alive" ? tickCreature(creature, now) : creature;
+}
+
+/** Most recent dead creature whose death has not been acknowledged yet. */
+export async function getUnmournedDeath(userId: string): Promise<Creature | null> {
+  const rows = await getDb()
+    .select()
+    .from(creatures)
+    .where(and(eq(creatures.userId, userId), eq(creatures.status, "dead"), isNull(creatures.mournedAt)))
+    .orderBy(desc(creatures.diedAt))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Marks every death of the user as acknowledged. */
+export async function mournCreatures(userId: string, now: Date = new Date()): Promise<void> {
+  await getDb()
+    .update(creatures)
+    .set({ mournedAt: now })
+    .where(and(eq(creatures.userId, userId), eq(creatures.status, "dead"), isNull(creatures.mournedAt)));
+}
+
+/** All dead creatures of the user, most recent first (cemetery). */
+export async function getDeadCreatures(userId: string): Promise<Creature[]> {
+  return getDb()
+    .select()
+    .from(creatures)
+    .where(and(eq(creatures.userId, userId), eq(creatures.status, "dead")))
+    .orderBy(desc(creatures.diedAt));
 }
 
 /** Creates a new egg. Steps already walked today count toward hatching. */

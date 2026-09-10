@@ -264,6 +264,14 @@
   .mm-react-disgust .mm-root {
     animation: mm-recoil 0.7s ease-out 1;
   }
+  .mm-react-sniff .mm-root {
+    animation: mm-sniff 0.9s ease-in-out infinite;
+  }
+  @keyframes mm-sniff {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    30% { transform: translateY(-2px) rotate(-4deg); }
+    60% { transform: translateY(-1px) rotate(4deg); }
+  }
   .mm-fx-rise {
     transform-box: fill-box;
     transform-origin: 50% 50%;

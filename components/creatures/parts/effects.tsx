@@ -33,7 +33,7 @@ export function SageAura({ layout }: { layout: Layout }) {
   );
 }
 
-export type Reaction = "eat" | "play" | "heal" | "disgust" | "tap";
+export type Reaction = "eat" | "play" | "heal" | "disgust" | "tap" | "sniff";
 
 /** One-shot particles shown during a reaction (hearts, puff, sparkles). */
 export function ReactionParticles({ reaction, layout }: { reaction: Reaction; layout: Layout }) {
@@ -78,5 +78,7 @@ export function ReactionParticles({ reaction, layout }: { reaction: Reaction; la
           <Sparkle x={head.cx + 20} y={top - 4} size={1.2} color="#F0D68F" delay={0.2} />
         </g>
       );
+    case "sniff":
+      return null;
   }
 }

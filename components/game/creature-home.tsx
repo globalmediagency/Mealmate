@@ -47,7 +47,7 @@ export function CreatureHome({ creature, line }: CreatureHomeProps) {
   if (!species) return null;
 
   const actions: Action[] = [
-    { id: "feed", label: "Nourrir", icon: Camera },
+    { id: "feed", label: "Nourrir", icon: Camera, href: "/feed", highlight: creature.hunger >= 60 && creature.state !== "sick" },
     { id: "play", label: "Jouer", icon: Gamepad2 },
     { id: "walk", label: "Marcher", icon: Footprints, href: "/activity" },
     { id: "dress", label: "Habiller", icon: Shirt },

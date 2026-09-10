@@ -59,6 +59,22 @@ function Ear({ type, palette }: { type: EarType; palette: SpeciesPalette }) {
           <path d="M0.5 1 L-2 -6 L6 -2 Z" fill={withAlpha(palette.secondary, 0.7)} />
         </g>
       );
+    case "antlers":
+      return (
+        <g stroke={palette.secondary} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" fill="none">
+          <path d="M0 3 L2 -8 L-3 -15" />
+          <path d="M2 -8 L6 -17" />
+          <path d="M1 -3 L7 -6" />
+        </g>
+      );
+    case "horn":
+      // Small pointed ears; the single horn is drawn once by <Ears /> (see below).
+      return (
+        <g>
+          <path d="M0 3 L-4 -9 L7 -3 Z" fill={palette.primary} />
+          <path d="M0.5 1 L-2 -5.5 L4 -2 Z" fill={inner} />
+        </g>
+      );
     case "none":
       return null;
   }
@@ -69,6 +85,12 @@ export function Ears({ type, layout, palette }: EarsProps) {
   const { left, right, tilt } = layout.ears;
   return (
     <g>
+      {type === "horn" ? (
+        <g transform={`translate(${layout.head.cx} ${layout.top + 2})`}>
+          <path d="M-3.2 1 L0 -17 L3.2 1 Z" fill={palette.accent} stroke={shade(palette.accent, -0.3)} strokeWidth="0.6" />
+          <path d="M-2 -3 L2 -5 M-1.5 -8 L1.5 -10" stroke={shade(palette.accent, -0.3)} strokeWidth="0.7" strokeLinecap="round" />
+        </g>
+      ) : null}
       <g transform={`translate(${left[0]} ${left[1]}) scale(-1 1) rotate(${-tilt})`}>
         <Ear type={type} palette={palette} />
       </g>

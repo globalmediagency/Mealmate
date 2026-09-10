@@ -10,5 +10,6 @@ l'éditeur SQL de Neon dans l'ordre des numéros.
 | Fichier | Phase | Contenu |
 |---|---|---|
 | `001_step_entries_credited_steps.sql` | 2 | `step_entries.credited_steps` (pas déjà convertis en effets) |
+| `002_creatures_mourned_at.sql` | 3 | `creatures.mourned_at` (écran de deuil vu) |
 
 Un `init.sql` fraîchement exécuté contient déjà toutes ces évolutions.

@@ -24,6 +24,7 @@ function creature(overrides: Partial<Creature> = {}): Creature {
     diedAt: null,
     deathCause: null,
     lifespanDays: null,
+    mournedAt: null,
     ...overrides,
   };
 }

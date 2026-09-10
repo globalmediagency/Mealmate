@@ -68,7 +68,7 @@ export const SvgCreatureRenderer: CreatureRenderer = ({
   const scaleAbout = (x: number, y: number, factor: number) =>
     `translate(${x} ${y}) scale(${factor}) translate(${-x} ${-y})`;
   const headTransform = scaleAbout(layout.head.cx, layout.head.cy, scales.head);
-  const faceTransform = scaleAbout(50, layout.eyeY + 4, scales.face);
+  const faceTransform = scaleAbout(layout.faceX, layout.eyeY + 4, scales.face);
   const bodyTransform = scaleAbout(50, 92, scales.body);
   const overallTransform = scaleAbout(50, 92, scales.overall);
 
@@ -76,8 +76,8 @@ export const SvgCreatureRenderer: CreatureRenderer = ({
     <g transform={faceTransform}>
       {isAlive && state !== "sick" ? (
         <g fill={palette.accent} opacity="0.5">
-          <ellipse cx={50 - layout.cheekGap} cy={layout.cheekY} rx="3.6" ry="2.1" />
-          <ellipse cx={50 + layout.cheekGap} cy={layout.cheekY} rx="3.6" ry="2.1" />
+          <ellipse cx={layout.faceX - layout.cheekGap} cy={layout.cheekY} rx="3.6" ry="2.1" />
+          <ellipse cx={layout.faceX + layout.cheekGap} cy={layout.cheekY} rx="3.6" ry="2.1" />
         </g>
       ) : null}
       <Eyes type={parts.eyes} layout={layout} palette={palette} state={state} uid={uid} lidColor={palette.primary} />

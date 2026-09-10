@@ -1,7 +1,7 @@
 import type { Rarity, Tier } from "@/lib/game/config";
 
 export type BodyType = "round" | "tall" | "blob" | "egg" | "serpent";
-export type EarType = "cat" | "rabbit" | "fox" | "round" | "horns" | "fold" | "pig" | "none";
+export type EarType = "cat" | "rabbit" | "fox" | "round" | "horns" | "fold" | "pig" | "antlers" | "horn" | "none";
 export type EyeType = "big" | "sleepy" | "sharp" | "sparkle";
 export type MouthType = "smile" | "small" | "beak" | "tongue" | "snout" | "fangs" | "w";
 export type TailType = "curl" | "fluffy" | "thin" | "feather" | "stub" | "puff" | "none";
@@ -13,6 +13,8 @@ export type MarkingType =
   | "shell"
   | "spikes"
   | "crescent"
+  | "badger"
+  | "scales"
   | "none";
 /** Extras are reserved to very rare / legendary species. */
 export type ExtraType = "wings" | "halo" | "crystals" | "flames" | "aura";

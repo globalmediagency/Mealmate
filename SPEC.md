@@ -105,6 +105,18 @@ public/sw.js, icons/    Service worker et icônes
 - Éclosion : `POST /api/creatures/hatch` vérifie le seuil, tire l'espèce (`drawSpecies`, `crypto.randomInt`, repli sur une rareté inférieure si le niveau est incomplet), passe en `alive` avec stats pleines ; `POST /api/creatures/name` fixe le nom une seule fois (2–20 caractères).
 - Accueil : machine à états serveur dans `app/(app)/home/page.tsx` → choix d'œuf, incubation, révélation/nommage, ou accueil créature (décor, jauges, bulle contextuelle `lib/game/dialogue.ts`, actions).
 
+### 3.8 Tick paresseux, maladie et mort (phase 3)
+- `lib/game/tick.ts` : `applyTick(creature, now)` pure et testée. Heures écoulées → heures « effectives » (plein régime jusqu'à 72 h, puis 25 %). Faim `+hungerPerHour × t` ; santé `−healthLossPerHour` seulement pendant les heures où la faim dépasse 80 (calcul du moment de franchissement) ; humeur `−moodLossPerHour × t`. `sick_since` est posé quand la santé passe sous 30 (instant de franchissement estimé, jamais avant `last_tick_at`) et remis à `null` au-dessus. Mort quand `now − sick_since ≥ jours du niveau`, sauf `protected_until` actif : `status = dead`, `died_at`, `death_cause = sickness`, `lifespan_days`.
+- `lib/creatures/tick-service.ts` : persistance par `UPDATE … WHERE status = 'alive' AND date_trunc('milliseconds', last_tick_at) = <valeur lue>` (concurrence optimiste, relecture en cas de perte).
+- Le tick s'applique à chaque lecture (`getActiveCreatureTicked`) : accueil, activité, repas, saisie des pas. Sans repas, une créature facile meurt en ~13 jours, une difficile en ~6.
+- Deuil : la créature morte reste « active » pour l'écran de deuil jusqu'à `mourned_at` (migration 002) ; `POST /api/creatures/mourn` puis choix d'un nouvel œuf. `/cimetière` liste les créatures mortes en version fantôme.
+
+### 3.9 Nourrir (phase 3)
+- Client : `<input type="file" accept="image/*" capture="environment">` (+ galerie), redimensionnement `lib/images/resize-client.ts` (≤ 1024 px, JPEG 0,8, ≤ 1,5 Mo, orientation EXIF respectée), `POST /api/meals` en multipart.
+- Serveur (`lib/meals/service.ts`) : tick → limite 5 repas / jour Paris (`(created_at at time zone 'Europe/Paris')::date`) → SHA-256 anti-doublon 24 h → analyse Gemini → si `is_food` faux : 422 sans stockage → effets (`lib/game/meal-effects.ts`) → upload R2 (`meals/<user>/<meal>.jpg`, bucket privé) → insertion + mise à jour des stats. L'analyse et le stockage sont injectés (`MealAnalyzer`, `ObjectStorage`) pour les tests.
+- Gemini (`lib/ai/gemini.ts`) : REST `generateContent`, image inline, `systemInstruction` en français (`lib/ai/meal-prompt.ts`), `responseMimeType: application/json` + `responseSchema`, validation zod (`lib/ai/meal-schema.ts`), une nouvelle tentative si JSON invalide, modèle suivant sur 404/429/5xx. Modèle : `GEMINI_MODEL` sinon dernier `gemini-X.Y-flash` stable listé par l'API `models` (cache 1 h), sinon chaîne de repli.
+- Affichage : URLs presignées GET 1 h générées à chaque lecture ; historique + graphique 7/30 jours (`recharts`) + moyenne hebdo.
+
 ## 4. Schéma de données
 
 Source de vérité : `db/init.sql` (idempotent) ⇄ `lib/db/schema.ts`. Colonnes en `snake_case`, horodatages en `timestamptz`.
@@ -113,7 +125,7 @@ Source de vérité : `db/init.sql` (idempotent) ⇄ `lib/db/schema.ts`. Colonnes
 |---|---|---|
 | `user`, `session`, `account`, `verification` | Better Auth | Index sur `session.user_id`, `account.user_id`, `verification.identifier` |
 | `profiles` | Pseudo + code ami | PK `user_id`, `friend_code` unique, index unique `lower(username)` |
-| `creatures` | Œuf → vivante → morte | `status ∈ {egg, alive, dead}`, `tier`, `species_id`, `rarity`, stats (`health`, `hunger`, `mood` en double precision, `xp` entier), `sick_since`, `protected_until`, `last_tick_at`, mort (`died_at`, `death_cause`, `lifespan_days`). Index `(user_id, status)` + **index unique partiel** `user_id WHERE status IN ('egg','alive')` (une seule créature active) |
+| `creatures` | Œuf → vivante → morte | `status ∈ {egg, alive, dead}`, `tier`, `species_id`, `rarity`, stats (`health`, `hunger`, `mood` en double precision, `xp` entier), `sick_since`, `protected_until`, `last_tick_at`, mort (`died_at`, `death_cause`, `lifespan_days`), `mourned_at` (migration 002). Index `(user_id, status)` + **index unique partiel** `user_id WHERE status IN ('egg','alive')` (une seule créature active) |
 | `meals` | Repas analysés | `image_key`, `image_hash` (SHA-256, anti-doublon 24 h), `score`, `verdict`, `foods` jsonb, `macros` jsonb, `portion`, `comment`, `creature_line`, `health_delta` |
 | `step_entries` | Pas | `date`, `steps`, `source ∈ {manual, strava, pedometer}`, `strava_activity_id` unique, `credited_steps` (pas déjà convertis en effets, migration 001) ; index unique partiel `(user_id, date, source) WHERE source='manual'` |
 | `play_sessions` | Mini-jeu | `creature_id`, `user_id`, `score` |
@@ -140,7 +152,12 @@ Phase 2 :
 - `POST /api/creatures/hatch` — éclosion ; `POST /api/creatures/name { name }` — nommage.
 - `GET /api/steps?days=14` — `{ date, today, history }` ; `POST /api/steps { steps }` — saisie du jour + effets (`gains`, `creature`).
 
-Phases suivantes (brief § 7) : `meals`, `play`, `accessories`, `friends`, `shop/checkout`, `webhooks/stripe`, `inventory/use`, `strava/*`, `account`.
+Phase 3 :
+- `POST /api/meals` (multipart `image`) — analyse + effets : `{ meal, analysis, effects, before, creature, mealsToday }` ; erreurs `meal_limit` (429), `duplicate_meal` (409), `not_food` (422), `creature_dead` (409), `ai_unavailable` (503).
+- `GET /api/meals` — `{ meals, stats }` (URLs presignées 1 h).
+- `POST /api/creatures/mourn` — accuse réception d'un décès.
+
+Phases suivantes (brief § 7) : `play`, `accessories`, `friends`, `shop/checkout`, `webhooks/stripe`, `inventory/use`, `strava/*`, `account`.
 
 ## 6. Design
 
@@ -179,4 +196,9 @@ Phases suivantes (brief § 7) : `meals`, `play`, `accessories`, `friends`, `shop
 | D18 | `step_entries.credited_steps` pour les effets de marche sur la créature | Rend l'édition idempotente (jamais deux crédits pour les mêmes pas) sans table supplémentaire. |
 | D19 | Tirage de secours vers une rareté inférieure si le niveau est incomplet | Permet de jouer le niveau facile avec 10 espèces avant l'arrivée des 20 ; les probabilités redeviennent exactes à roster complet. |
 | D20 | Éclosion déclenchée par l'utilisateur (bouton « Faire éclore ») plutôt qu'automatique | Il vit l'animation et la révélation ; l'API refuse si le seuil n'est pas atteint. |
-| D21 | Pas de tick (faim/santé) avant la phase 3 | Sans nourrissage, une créature se dégraderait sans recours ; le tick arrive avec les repas (phases 3–4). |
+| D21 | Tick livré avec le nourrissage (phase 3) | Sans nourrissage, une créature se dégraderait sans recours ; les deux arrivent ensemble. |
+| D22 | Choix du modèle Gemini à l'exécution via l'API `models` (dernier `gemini-X.Y-flash` stable), `GEMINI_MODEL` prioritaire, chaîne de repli statique | La doc n'était pas accessible depuis l'environnement de développement ; la détection en direct suit les mises à jour de Google sans redéploiement. |
+| D23 | Analyse avant stockage : une photo « pas un repas » n'est jamais enregistrée | Économise R2 et respecte l'esprit « les photos ne servent qu'à l'analyse ». |
+| D24 | Limite « 5 repas / jour » et statistiques calculées en SQL sur la date Paris (`at time zone`) | Une seule source de vérité pour la journée, cohérente entre Neon et PGlite. |
+| D25 | Les niveaux moyen et difficile deviennent jouables avec 10 espèces chacun ; le tirage se replie sur une rareté inférieure tant que le roster n'est pas complet | Demande du propriétaire ; les 30 espèces restantes arrivent en phase 5. |
+| D26 | Écran de deuil bloquant (une fois), puis choix libre du niveau | Donne du poids à la mort sans punir ; `mourned_at` évite de le revoir. |

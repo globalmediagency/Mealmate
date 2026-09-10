@@ -41,7 +41,8 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 ## Pages de validation visuelle
 
 - `/dev/creatures` : galerie espèces × stades × états, œufs et décors.
-- `/dev/screens?screen=…` : écrans du jeu avec données factices (`egg`, `incubation`, `ready`, `reveal`, `home`, `home-sick`, `activity`).
+- `/dev/screens?screen=…` : écrans du jeu avec données factices (`egg`, `incubation`, `ready`, `reveal`, `home`, `home-sick`, `activity`, `feed`, `meal-result`, `meals`, `mourning`).
+- `/dev/creatures?compact=1` : les 30 espèces en un coup d'œil. `/dev/gemini` : modèles Gemini visibles avec la clé.
 - Les deux sont gardées par `NEXT_PUBLIC_DEV_GALLERY=true` (lue au build : redéployer après l'avoir changée).
 
 ## Ajouter un accessoire (à partir de la phase 5)
@@ -49,6 +50,13 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 1. Ajouter l'entrée dans `lib/accessories/catalog.ts` (`id`, `name`, `slot` ∈ `head | eyes | neck | body`, `rarity`).
 2. Créer le composant SVG dans `components/accessories/` positionné sur l'`anchor` du slot et l'enregistrer dans le registre.
 3. Contrôler dans `/dev/creatures` sur plusieurs espèces et stades.
+
+## Nourrissage et IA
+
+- Toute lecture d'une créature vivante passe par `getActiveCreatureTicked()` (tick paresseux). Ne jamais lire `creatures` directement pour afficher des stats.
+- `feedCreature()` reçoit `analyzer` et `storage` injectés : les tests utilisent un faux analyseur et un stockage en mémoire (`lib/meals/meals.integration.test.ts`). Le vrai couple est `analyzeMealWithGemini` + `r2Storage`.
+- Le prompt Gemini vit dans `lib/ai/meal-prompt.ts` ; le contrat JSON dans `lib/ai/meal-schema.ts` (zod, normalisation tolérante). Toujours garder les deux alignés.
+- Les photos ne sont jamais servies en direct : `signedUrl()` (1 h) à chaque lecture.
 
 ## Points d'attention
 

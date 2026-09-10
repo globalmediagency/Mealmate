@@ -1,12 +1,14 @@
 import { RARITIES, TIERS, type Rarity, type Tier } from "@/lib/game/config";
+import { DIFFICILE_SPECIES } from "./species/difficile";
 import { FACILE_SPECIES } from "./species/facile";
+import { MOYEN_SPECIES } from "./species/moyen";
 import type { Species } from "./types";
 
 export type { Species, SpeciesSummary } from "./types";
 export { toSpeciesSummary } from "./types";
 
-/** Every species, all tiers. Later phases append "moyen" and "difficile". */
-export const ALL_SPECIES: readonly Species[] = [...FACILE_SPECIES];
+/** Every species, all tiers (10 per tier for now, 20 per tier at phase 5). */
+export const ALL_SPECIES: readonly Species[] = [...FACILE_SPECIES, ...MOYEN_SPECIES, ...DIFFICILE_SPECIES];
 
 const BY_ID = new Map(ALL_SPECIES.map((species) => [species.id, species]));
 

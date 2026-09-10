@@ -63,5 +63,5 @@ export function Mouth({ type, layout, palette, state }: MouthProps) {
     }
   }
 
-  return <g transform={`translate(50 ${layout.mouthY})`}>{content}</g>;
+  return <g transform={`translate(${layout.faceX} ${layout.mouthY})`}>{content}</g>;
 }

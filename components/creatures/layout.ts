@@ -7,6 +7,8 @@ export type Layout = {
   hasDistinctHead: boolean;
   head: { cx: number; cy: number; r: number };
   body: { cx: number; cy: number; rx: number; ry: number; path?: string };
+  /** Horizontal centre of the face (50 except for the serpent). */
+  faceX: number;
   eyeY: number;
   eyeGap: number;
   eyeScale: number;
@@ -23,6 +25,7 @@ export type Layout = {
 export const LAYOUTS: Record<BodyType, Layout> = {
   round: {
     hasDistinctHead: true,
+    faceX: 50,
     head: { cx: 50, cy: 40, r: 23 },
     body: { cx: 50, cy: 72, rx: 21, ry: 19 },
     eyeY: 40,
@@ -38,6 +41,7 @@ export const LAYOUTS: Record<BodyType, Layout> = {
   },
   tall: {
     hasDistinctHead: true,
+    faceX: 50,
     head: { cx: 50, cy: 35, r: 20 },
     body: { cx: 50, cy: 70, rx: 17, ry: 22 },
     eyeY: 35,
@@ -53,6 +57,7 @@ export const LAYOUTS: Record<BodyType, Layout> = {
   },
   blob: {
     hasDistinctHead: false,
+    faceX: 50,
     head: { cx: 50, cy: 44, r: 24 },
     body: {
       cx: 50,
@@ -74,6 +79,7 @@ export const LAYOUTS: Record<BodyType, Layout> = {
   },
   egg: {
     hasDistinctHead: false,
+    faceX: 50,
     head: { cx: 50, cy: 40, r: 22 },
     body: {
       cx: 50,
@@ -95,6 +101,7 @@ export const LAYOUTS: Record<BodyType, Layout> = {
   },
   serpent: {
     hasDistinctHead: true,
+    faceX: 62,
     head: { cx: 62, cy: 30, r: 14 },
     body: { cx: 50, cy: 76, rx: 26, ry: 14 },
     eyeY: 30,
