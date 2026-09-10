@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Lock } from "lucide-react";
+import { Check, Footprints, HeartPulse, Lock, Utensils } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -117,19 +117,25 @@ export function EggChoice({ speciesByTier, obtainedSpeciesIds, playableTiers, ru
         </div>
         <p className="mt-3 text-sm leading-relaxed text-cream-300">{config.description}</p>
 
-        <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-2xl bg-ink-900/70 p-3">
-            <dt className="text-[11px] uppercase tracking-wider text-cream-700">Pour éclore</dt>
-            <dd className="mt-1 text-sm font-semibold text-cream-50">{config.hatchSteps.toLocaleString("fr-FR")} pas</dd>
-          </div>
-          <div className="rounded-2xl bg-ink-900/70 p-3">
-            <dt className="text-[11px] uppercase tracking-wider text-cream-700">Repas sain</dt>
-            <dd className="mt-1 text-sm font-semibold text-cream-50">≥ {config.healthyScoreThreshold}/100</dd>
-          </div>
-          <div className="rounded-2xl bg-ink-900/70 p-3">
-            <dt className="text-[11px] uppercase tracking-wider text-cream-700">Malade max.</dt>
-            <dd className="mt-1 text-sm font-semibold text-cream-50">{config.sickDaysBeforeDeath} jours</dd>
-          </div>
+        <dl className="mt-4 space-y-2">
+          <TierStat
+            icon={Footprints}
+            label="Pour éclore"
+            value={`${config.hatchSteps.toLocaleString("fr-FR")} pas`}
+            hint="Le total de tes pas depuis le choix de l'œuf, saisis à la main ou importés de Strava."
+          />
+          <TierStat
+            icon={Utensils}
+            label="Repas jugé sain"
+            value={`note ≥ ${config.healthyScoreThreshold} / 100`}
+            hint={`Chaque photo de repas reçoit une note sur 100. À partir de ${config.healthyScoreThreshold}, le repas fait monter la santé ; en dessous, elle baisse un peu.`}
+          />
+          <TierStat
+            icon={HeartPulse}
+            label="Survie sans soins"
+            value={`${config.sickDaysBeforeDeath} jours de maladie`}
+            hint={`Sans manger, la faim monte, puis la santé chute et la créature tombe malade. Après ${config.sickDaysBeforeDeath} jours de maladie sans repas sain ni soin, elle meurt.`}
+          />
         </dl>
 
         <div className="mt-5">
@@ -190,6 +196,21 @@ export function EggChoice({ speciesByTier, obtainedSpeciesIds, playableTiers, ru
       <Button onClick={choose} disabled={pending || !playable} variant={playable ? "primary" : "secondary"}>
         {!playable ? "Ce niveau arrive bientôt" : pending ? "Création de l'œuf…" : `Choisir l'œuf ${config.label.toLowerCase()}`}
       </Button>
+    </div>
+  );
+}
+
+function TierStat({ icon: Icon, label, value, hint }: { icon: typeof Footprints; label: string; value: string; hint: string }) {
+  return (
+    <div className="flex gap-3 rounded-2xl bg-ink-900/70 p-3">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-ink-700 text-sage-300">
+        <Icon className="h-4 w-4" aria-hidden="true" />
+      </span>
+      <div className="min-w-0">
+        <dt className="text-[11px] uppercase tracking-wider text-cream-700">{label}</dt>
+        <dd className="mt-0.5 text-sm font-semibold text-cream-50">{value}</dd>
+        <dd className="mt-1 text-xs leading-relaxed text-cream-500">{hint}</dd>
+      </div>
     </div>
   );
 }
