@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { Egg } from "@/components/creatures/egg";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, LinkButton } from "@/components/ui/button";
 import { TIER_CONFIG } from "@/lib/game/config";
 import type { CreatureView } from "@/lib/game/creature-view";
 import { crackLevel } from "@/lib/game/steps";
@@ -137,10 +137,10 @@ export function Incubation({ creature: initial, todaySteps }: IncubationProps) {
         />
       </section>
 
-      <Button variant="secondary" disabled>
+      <LinkButton href="/activity" variant="secondary">
         <Activity className="h-5 w-5" aria-hidden="true" />
-        Connecter Strava · bientôt
-      </Button>
+        Importer mes activités Strava
+      </LinkButton>
     </div>
   );
 }

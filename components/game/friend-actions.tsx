@@ -64,7 +64,7 @@ export function HealFriend({ friend, inventory, notify }: { friend: FriendView; 
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         className={cn(
-          "inline-flex min-h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-colors",
+          "inline-flex min-h-11 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-colors",
           creature.state === "sick" ? "border-danger/50 bg-danger/15 text-danger hover:bg-danger/25" : "border-brass-400/50 bg-brass-500/15 text-brass-200 hover:bg-brass-500/25",
         )}
       >
@@ -77,7 +77,7 @@ export function HealFriend({ friend, inventory, notify }: { friend: FriendView; 
             <p className="text-xs text-cream-300">
               Envoyer un soin à <strong className="text-cream-50">{creature.name ?? "sa créature"}</strong>
             </p>
-            <button type="button" onClick={() => setOpen(false)} aria-label="Fermer" className="flex h-8 w-8 items-center justify-center rounded-lg text-cream-500 hover:bg-ink-700">
+            <button type="button" onClick={() => setOpen(false)} aria-label="Fermer" className="-m-1.5 flex h-11 w-11 items-center justify-center rounded-xl text-cream-500 hover:bg-ink-700">
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
@@ -205,7 +205,7 @@ export function TradeWithFriend({ friend, notify, initialData = null }: { friend
         type="button"
         onClick={toggle}
         aria-expanded={open}
-        className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-ink-500 bg-ink-700 px-3 text-xs font-semibold text-cream-100 transition-colors hover:border-ink-400"
+        className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-ink-500 bg-ink-700 px-3 text-xs font-semibold text-cream-100 transition-colors hover:border-ink-400"
       >
         <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
         Échanger
@@ -216,7 +216,7 @@ export function TradeWithFriend({ friend, notify, initialData = null }: { friend
             <p className="text-xs text-cream-300">
               Troc d&apos;accessoires avec <strong className="text-cream-50">{friend.user.username}</strong>
             </p>
-            <button type="button" onClick={() => setOpen(false)} aria-label="Fermer" className="flex h-8 w-8 items-center justify-center rounded-lg text-cream-500 hover:bg-ink-700">
+            <button type="button" onClick={() => setOpen(false)} aria-label="Fermer" className="-m-1.5 flex h-11 w-11 items-center justify-center rounded-xl text-cream-500 hover:bg-ink-700">
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>

@@ -20,6 +20,7 @@ import { CollectionGrid } from "@/components/game/collection-grid";
 import { FriendsPanel } from "@/components/game/friends-panel";
 import { ShopPanel } from "@/components/shop/shop-panel";
 import { StravaCard } from "@/components/game/strava-card";
+import { DangerZone } from "@/components/account/danger-zone";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { Card, CardTitle } from "@/components/ui/card";
 import { playableTiers, speciesByTierAll, toSpeciesSummary, getSpecies } from "@/lib/creatures";
@@ -32,7 +33,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -235,6 +236,14 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
       );
       break;
     }
+    case "account":
+      content = (
+        <div className="space-y-4">
+          <DangerZone hasPassword />
+          <DangerZone hasPassword={false} />
+        </div>
+      );
+      break;
     case "collection":
       content = <CollectionGrid obtained={new Set(["facile-chat-rond", "facile-lapin-doux", "moyen-renard-malin", "difficile-phenix"])} />;
       break;

@@ -3,8 +3,11 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { getDb, type Db } from "@/lib/db";
 import { account, session, user, verification } from "@/lib/db/schema";
+import { purgeExternalData } from "@/lib/account/service";
 import { optionalEnv, requireEnv } from "@/lib/env";
 import { tryCreateProfileFromName } from "@/lib/profile/service";
+import { r2Storage } from "@/lib/storage/r2";
+import { stravaApi } from "@/lib/strava/api";
 
 /**
  * Hosts allowed to serve the auth API. Vercel preview deployments each get a
@@ -60,6 +63,15 @@ export function createAuth(db?: Db) {
     socialProviders: socialProviders(),
     session: {
       cookieCache: { enabled: true, maxAge: 5 * 60 },
+    },
+    user: {
+      deleteUser: {
+        enabled: true,
+        // Photos (R2) and the Strava grant are outside the database cascade.
+        beforeDelete: async (deleted) => {
+          await purgeExternalData(deleted.id, { storage: r2Storage, stravaApi });
+        },
+      },
     },
     databaseHooks: {
       user: {

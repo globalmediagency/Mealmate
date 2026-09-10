@@ -1,17 +1,39 @@
 # MealMate
 
-Un Tamagotchi pour adultes, nourri avec des **photos de tes vrais repas** analysées par IA.
-Application web mobile-first (PWA) — prototype d'un futur objet physique.
+Un compagnon qui grandit avec tes vrais repas : tu photographies ce que tu manges, une IA note
+l'assiette, ta créature en profite (ou pas). Tu la fais marcher avec tes pas (saisie manuelle ou
+Strava), tu joues avec elle, tu l'habilles avec les accessoires gagnés en marchant, tu la montres à
+tes amis, tu la soignes… et si tu l'oublies trop longtemps, elle meurt.
 
-Tout se pilote depuis un navigateur : GitHub, Vercel, Neon, Cloudflare R2, Google AI Studio,
-Stripe, Strava. Aucune installation locale n'est nécessaire.
+Ce dépôt se pilote **entièrement depuis un navigateur** : GitHub, Vercel, Neon, Cloudflare R2,
+Google AI Studio, Stripe, Strava. Aucune installation locale n'est nécessaire.
 
-- Architecture et décisions : [`SPEC.md`](./SPEC.md)
-- Conventions de code : [`CLAUDE.md`](./CLAUDE.md)
-- Variables d'environnement : [`.env.example`](./.env.example)
+- Spécification et décisions : [`SPEC.md`](./SPEC.md)
+- Repères pour modifier le code : [`CLAUDE.md`](./CLAUDE.md)
 - Schéma SQL : [`db/init.sql`](./db/init.sql) puis [`db/migrations/`](./db/migrations/)
 
----
+## 0. Résumé des variables et migrations
+
+| Variable Vercel | Obligatoire | Sert à |
+|---|---|---|
+| `DATABASE_URL` | oui | Neon Postgres |
+| `BETTER_AUTH_SECRET` | oui | Signature des sessions, du `state` Strava et de l'espace admin |
+| `APP_URL` | recommandé | URL de production (hôte autorisé pour l'auth, repli des redirections) |
+| `AUTH_ALLOWED_HOSTS` | non | Hôtes supplémentaires autorisés pour l'auth, séparés par des virgules |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | non | Connexion Google |
+| `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | pour nourrir | Photos de repas (bucket privé) |
+| `GEMINI_API_KEY` (+ `GEMINI_MODEL`) | pour nourrir | Analyse des repas |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | pour `/admin` | Réglage des exigences des créatures |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | pour la boutique | Paiements de test |
+| `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` | pour Strava | Import d'activités |
+| `NEXT_PUBLIC_DEV_GALLERY` | non | `true` pour ouvrir `/dev/creatures` et `/dev/screens` (lue au build) |
+| `NEXT_PUBLIC_CONTACT_EMAIL` | non | Adresse affichée dans les mentions légales |
+
+Sans variable, le build passe et chaque écran explique ce qui manque au lieu de planter.
+
+Migrations à coller dans **Neon → SQL Editor**, dans l'ordre, si `db/init.sql` a été exécuté avant la
+phase correspondante (un `init.sql` récent les contient déjà) : `001` pas crédités, `002` deuil,
+`003` règles admin, `004` coffres, `005` cadeaux et trocs, `006` prénom Strava.
 
 ## 1. Mise en route (phase 1 : compte et connexion)
 
@@ -86,18 +108,6 @@ puis mourir si elle n'est jamais nourrie (voir `SPEC.md` § 3.8).
 2. **Gemini** : suis la section « Google Gemini » ci-dessous (1 variable, `GEMINI_MODEL` optionnel).
 3. Vercel → **Redeploy**, puis onglet Créature → **Nourrir** → prends une photo de ton assiette.
 
-### Étape H — Jouer et accessoires (phase 5)
-
-Rien à configurer : après la migration 004, l'accueil propose **Jouer** (3 parties par jour, 20 secondes) et
-**Habiller** (garde-robe). Chaque tranche de 5 000 pas depuis l'éclosion donne un coffre à ouvrir dans l'onglet
-**Activité**. La **Collection** (60 créatures) est dans l'onglet Plus.
-
-### Étape I — Amis (phase 6)
-
-Rien à configurer. Onglet **Amis** : ton code ami (`MM-XXXXXX`) et ton pseudo, un champ pour ajouter un proche par
-code ou pseudo exact, les demandes reçues / envoyées, puis les cartes de tes amis avec leur créature animée.
-Une pastille sur l'onglet indique les demandes reçues.
-
 ### Étape G — Espace admin (phase 4)
 
 1. Vercel → **Environment Variables** : `ADMIN_USERNAME` (ex. `chef`) et `ADMIN_PASSWORD` (long et unique) → Redeploy.
@@ -111,6 +121,18 @@ Une pastille sur l'onglet indique les demandes reçues.
 
 Prérequis : la migration `db/migrations/003_game_settings.sql` (voir étape E). Sans elle, l'app continue avec les
 valeurs par défaut et l'admin affiche une erreur à l'enregistrement.
+
+### Étape H — Jouer et accessoires (phase 5)
+
+Rien à configurer : après la migration 004, l'accueil propose **Jouer** (3 parties par jour, 20 secondes) et
+**Habiller** (garde-robe). Chaque tranche de 5 000 pas depuis l'éclosion donne un coffre à ouvrir dans l'onglet
+**Activité**. La **Collection** (60 créatures) est dans l'onglet Plus.
+
+### Étape I — Amis (phase 6)
+
+Rien à configurer. Onglet **Amis** : ton code ami (`MM-XXXXXX`) et ton pseudo, un champ pour ajouter un proche par
+code ou pseudo exact, les demandes reçues / envoyées, puis les cartes de tes amis avec leur créature animée.
+Une pastille sur l'onglet indique les demandes reçues.
 
 ## 2. Cycle de travail
 
@@ -219,7 +241,36 @@ apparaissent alors, sans connexion nécessaire :
 
 ---
 
-## 4. Scripts (pour information)
+## 4. Tester l'application en dix minutes
+
+1. **Compte** : inscription email + mot de passe (ou Google), choix du pseudo, code ami affiché dans Plus.
+2. **Œuf** : choisis un niveau, saisis 15 000 pas dans Activité (ou moins, plusieurs jours), appuie sur
+   **Faire éclore** dès que la jauge est pleine, nomme la créature.
+3. **Nourrir** : photographie un repas (R2 + Gemini configurés) ; la note, les aliments reconnus et
+   l'effet sur la santé s'affichent. Trois repas par jour maximum (réglable dans `/admin`).
+4. **Vie** : laisse passer quelques heures sans nourrir : la faim monte, puis la santé baisse, la
+   créature devient fatiguée puis malade ; l'accueil affiche le nombre de jours restants. Un repas
+   sain ou un soin la remet d'aplomb ; sinon elle meurt et rejoint le cimetière.
+5. **Jouer et accessoires** : trois parties de 20 s par jour ; un coffre d'accessoire tous les
+   5 000 pas, à ouvrir dans Activité, à porter dans la garde-robe.
+6. **Amis** : ajoute un second compte par code ami ; soigne sa créature malade, propose un troc.
+7. **Boutique** : carte de test Stripe `4242 4242 4242 4242`.
+8. **Strava** : connecte ton compte, synchronise.
+9. **Plus → Mes données** : export JSON, suppression du compte (photos et lien Strava compris).
+
+## 5. Limites connues
+
+- **Vercel Hobby** : usage non commercial uniquement (la boutique reste en mode test), pas de tâche
+  planifiée ni de WebSocket : tout ce qui dépend du temps (faim, maladie, mort) est calculé à la
+  lecture, ce qui donne exactement le même résultat qu'un calcul en continu.
+- **Strava** : un seul domaine de callback par application ; l'application non validée n'accepte
+  que ton propre compte.
+- **Podomètre** : pas d'accès au capteur du téléphone depuis une PWA ; la saisie manuelle et Strava
+  sont les deux sources de pas.
+- **Gemini** : quota gratuit limité ; en cas d'erreur, le repas n'est pas compté et un message
+  l'explique.
+
+## 6. Scripts (pour information)
 
 | Commande | Rôle |
 |---|---|

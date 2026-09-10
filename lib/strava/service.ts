@@ -1,9 +1,8 @@
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { DomainError } from "@/lib/api/errors";
 import { applyStepGains, refreshEggSteps } from "@/lib/creatures/service";
 import { getDb } from "@/lib/db";
 import { stepEntries, stravaConnections, type Creature, type StravaConnection } from "@/lib/db/schema";
-import { STEPS } from "@/lib/game/config";
 import { stepCredit } from "@/lib/game/steps";
 import { activityDate, activityStepEquivalent, sportLabel, syncGate, syncWindowStart } from "@/lib/game/strava";
 import { gameDate } from "@/lib/game/time";
@@ -181,14 +180,3 @@ export async function syncStrava(userId: string, api: StravaApi, creature: Creat
   imported.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   return { imported, skipped, gains, status: toStatus(updated[0] ?? conn, now), creature: next };
 }
-
-/** Strava step entries of the last `days` days (for the activity page). */
-export async function countStravaEntriesSince(userId: string, fromDate: string): Promise<number> {
-  const rows = await getDb()
-    .select({ count: sql<number>`count(*)` })
-    .from(stepEntries)
-    .where(and(eq(stepEntries.userId, userId), eq(stepEntries.source, "strava"), gte(stepEntries.date, fromDate)));
-  return Number(rows[0]?.count ?? 0);
-}
-
-export const STRAVA_WINDOW_DAYS = STEPS.strava.syncWindowDays;

@@ -51,7 +51,7 @@ export function MealsHistory({ meals, stats, tier }: MealsHistoryProps) {
                 role="tab"
                 aria-selected={range === r}
                 onClick={() => setRange(r)}
-                className={cn("min-h-9 rounded-lg px-3 font-semibold", range === r ? "bg-sage-800/60 text-sage-200" : "text-cream-500")}
+                className={cn("min-h-10 rounded-lg px-3 font-semibold", range === r ? "bg-sage-800/60 text-sage-200" : "text-cream-500")}
               >
                 {r} j
               </button>

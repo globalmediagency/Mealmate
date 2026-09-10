@@ -189,11 +189,11 @@ export function FriendsPanel({ me, friends, incoming, outgoing, inventory, trade
                       type="button"
                       onClick={() => call(friend.friendshipId, `/api/friends/${friend.friendshipId}`, "DELETE", `${friend.user.username} a été retiré·e de tes amis.`)}
                       disabled={pending === friend.friendshipId}
-                      className="min-h-9 rounded-xl border border-danger/50 bg-danger/15 px-2 text-xs font-semibold text-danger"
+                      className="min-h-11 rounded-xl border border-danger/50 bg-danger/15 px-2 text-xs font-semibold text-danger"
                     >
                       Retirer
                     </button>
-                    <button type="button" onClick={() => setConfirmRemove(null)} className="min-h-9 rounded-xl border border-ink-500 px-2 text-xs text-cream-300">
+                    <button type="button" onClick={() => setConfirmRemove(null)} className="min-h-11 rounded-xl border border-ink-500 px-2 text-xs text-cream-300">
                       Non
                     </button>
                   </span>
@@ -202,7 +202,7 @@ export function FriendsPanel({ me, friends, incoming, outgoing, inventory, trade
                     type="button"
                     onClick={() => setConfirmRemove(friend.friendshipId)}
                     aria-label={`Retirer ${friend.user.username} de mes amis`}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-cream-700 hover:bg-ink-700 hover:text-cream-100"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-cream-700 hover:bg-ink-700 hover:text-cream-100"
                   >
                     <UserRoundX className="h-4 w-4" aria-hidden="true" />
                   </button>

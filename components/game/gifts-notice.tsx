@@ -40,7 +40,7 @@ export function GiftsNotice({ gifts, creatureName }: { gifts: GiftView[]; creatu
             ))}
           </ul>
         </div>
-        <button type="button" onClick={dismiss} disabled={pending} className="min-h-9 shrink-0 rounded-xl border border-health/40 px-3 text-xs font-semibold text-health hover:bg-health/15">
+        <button type="button" onClick={dismiss} disabled={pending} className="min-h-11 shrink-0 rounded-xl border border-health/40 px-3 text-xs font-semibold text-health hover:bg-health/15">
           Merci !
         </button>
       </div>

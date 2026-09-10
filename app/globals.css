@@ -424,3 +424,27 @@
     100% { transform: translateY(320px) rotate(540deg); opacity: 0; }
   }
 }
+
+/* Keyboard focus: visible on every interactive element, including raw buttons and links. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-brass-400);
+  outline-offset: 2px;
+}
+
+/* "Aller au contenu" link, revealed only when focused. */
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: 0.5rem;
+  z-index: 100;
+  padding: 0.6rem 1rem;
+  border-radius: 1rem;
+  background: var(--color-brass-400);
+  color: var(--color-ink-950);
+  font-weight: 600;
+  transform: translateY(-200%);
+  transition: transform 120ms ease;
+}
+.skip-link:focus-visible {
+  transform: translateY(0);
+}

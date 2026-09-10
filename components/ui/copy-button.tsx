@@ -25,7 +25,7 @@ export function CopyButton({ value, label, className }: CopyButtonProps) {
       onClick={handleCopy}
       aria-label={label}
       className={cn(
-        "inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-ink-500 bg-ink-700 px-3 text-xs font-semibold text-cream-300 transition-colors hover:bg-ink-600",
+        "inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-ink-500 bg-ink-700 px-3 text-xs font-semibold text-cream-300 transition-colors hover:bg-ink-600",
         copied && "border-health/50 text-health",
         className,
       )}

@@ -42,7 +42,7 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 ## Pages de validation visuelle
 
 - `/dev/creatures` : galerie espèces × stades × états, œufs et décors.
-- `/dev/screens?screen=…` : écrans du jeu avec données factices (`egg`, `incubation`, `ready`, `reveal`, `home`, `home-sick`, `home-hungry`, `activity`, `feed`, `meal-result`, `meals`, `mourning`, `admin`, `play`, `wardrobe`, `chest`, `collection`, `friends`, `shop`, `home-protected`).
+- `/dev/screens?screen=…` : écrans du jeu avec données factices (`egg`, `incubation`, `ready`, `reveal`, `home`, `home-sick`, `home-hungry`, `activity`, `feed`, `meal-result`, `meals`, `mourning`, `admin`, `play`, `wardrobe`, `chest`, `collection`, `friends`, `shop`, `home-protected`, `account`).
 - `/dev/creatures?compact=1` : les 60 espèces en un coup d'œil ; la page complète montre les 30 accessoires. `/dev/gemini` : modèles Gemini visibles avec la clé.
 - `/admin` (hors galerie) : espace d'administration protégé par `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
 - Les deux sont gardées par `NEXT_PUBLIC_DEV_GALLERY=true` (lue au build : redéployer après l'avoir changée).
@@ -81,6 +81,12 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 - Les jetons ne sortent jamais du serveur : renvoyer `StravaStatus`, jamais la ligne `strava_connections`.
 - Import idempotent par `ON CONFLICT (strava_activity_id) DO NOTHING` ; crédit à la créature **par jour toutes sources** via `creditDays()` (jamais par activité).
 - Le bouton « Connecter Strava » est une balise `<a href="/api/strava/connect">` (pas `Link`) : la route répond par une redirection externe.
+
+## Compte (export, suppression)
+
+- `lib/account/service.ts` : `exportAccount()` (jamais de clé d'image ni d'identifiant d'un autre utilisateur, seulement des pseudos) et `purgeExternalData()` (préfixe R2 `meals/<userId>/` + révocation Strava). La suppression passe par `deleteUser` de Better Auth (`lib/auth/index.ts`, hook `beforeDelete`) ; tout le reste est en `ON DELETE CASCADE` : toute nouvelle table liée à un utilisateur **doit** référencer `"user"(id) ON DELETE CASCADE` et être ajoutée à `countUserFootprint()` pour le test.
+- En-têtes de sécurité dans `next.config.ts` ; pages privées en `robots: noindex` via les layouts `(app)`, `admin`, `dev`.
+- Accessibilité : cibles ≥ 44 px (`min-h-11` / `h-11 w-11`, avec marge négative pour les icônes de fermeture), focus global dans `globals.css`, lien d'évitement `.skip-link` dans le layout `(app)`.
 
 ## Nourrissage et IA
 

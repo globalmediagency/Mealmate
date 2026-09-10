@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { Check, ChevronRight, Smartphone, X } from "lucide-react";
 import Link from "next/link";
+import { DangerZone } from "@/components/account/danger-zone";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardText, CardTitle } from "@/components/ui/card";
 import { CopyButton } from "@/components/ui/copy-button";
+import { hasPasswordAccount } from "@/lib/account/service";
 import { requireViewer } from "@/lib/auth/session";
 import { getConfigStatus } from "@/lib/env";
 
@@ -24,6 +26,7 @@ const SERVICE_LABELS: Array<{ key: keyof ReturnType<typeof getConfigStatus>; lab
 export default async function MorePage() {
   const { session, profile } = await requireViewer();
   const status = getConfigStatus();
+  const hasPassword = await hasPasswordAccount(session.user.id);
 
   return (
     <div className="space-y-5 animate-rise">
@@ -115,6 +118,7 @@ export default async function MorePage() {
       </Card>
 
       <LogoutButton />
+      <DangerZone hasPassword={hasPassword} />
       <p className="pb-2 text-center text-xs text-cream-700">MealMate · prototype web</p>
     </div>
   );

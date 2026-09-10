@@ -47,17 +47,17 @@ export function TradesList({ trades, notify }: { trades: TradesOverview; notify:
       <ul className="space-y-2">
         {trades.incoming.map((trade) => (
           <TradeRow key={trade.id} trade={trade} highlight>
-            <button type="button" disabled={pending === trade.id} onClick={() => act(trade, "accept")} aria-label="Accepter l'échange" className="flex h-10 w-10 items-center justify-center rounded-xl bg-sage-500 text-ink-950 hover:bg-sage-400 disabled:opacity-50">
+            <button type="button" disabled={pending === trade.id} onClick={() => act(trade, "accept")} aria-label="Accepter l'échange" className="flex h-11 w-11 items-center justify-center rounded-xl bg-sage-500 text-ink-950 hover:bg-sage-400 disabled:opacity-50">
               <Check className="h-4 w-4" aria-hidden="true" />
             </button>
-            <button type="button" disabled={pending === trade.id} onClick={() => act(trade, "withdraw")} aria-label="Refuser l'échange" className="flex h-10 w-10 items-center justify-center rounded-xl border border-ink-500 bg-ink-700 text-cream-100 hover:bg-ink-600 disabled:opacity-50">
+            <button type="button" disabled={pending === trade.id} onClick={() => act(trade, "withdraw")} aria-label="Refuser l'échange" className="flex h-11 w-11 items-center justify-center rounded-xl border border-ink-500 bg-ink-700 text-cream-100 hover:bg-ink-600 disabled:opacity-50">
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </TradeRow>
         ))}
         {trades.outgoing.map((trade) => (
           <TradeRow key={trade.id} trade={trade}>
-            <button type="button" disabled={pending === trade.id} onClick={() => act(trade, "withdraw")} className="min-h-10 rounded-xl px-3 text-xs font-semibold text-cream-300 hover:bg-ink-700 disabled:opacity-50">
+            <button type="button" disabled={pending === trade.id} onClick={() => act(trade, "withdraw")} className="min-h-11 rounded-xl px-3 text-xs font-semibold text-cream-300 hover:bg-ink-700 disabled:opacity-50">
               Retirer
             </button>
           </TradeRow>

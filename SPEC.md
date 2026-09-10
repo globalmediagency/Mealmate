@@ -155,6 +155,13 @@ public/sw.js, icons/    Service worker et icônes
 - **Déconnexion** (`DELETE /api/strava`) : `oauth/deauthorize` (meilleur effort) puis suppression de la ligne ; les pas importés restent.
 - Page Activité : carte Strava (non configuré / connecter / connecté avec dernière synchro, liste des activités importées avec leurs pas, gains, déconnexion avec confirmation). Le bouton « Connecter » est un lien HTML simple vers `/api/strava/connect` (redirection externe).
 
+### 3.15 Finitions : compte, sécurité, accessibilité (phase 9)
+- **Export** : `GET /api/account/export` renvoie un JSON téléchargeable avec tout ce que l'app conserve (compte, profil, créatures et tenues, repas **sans clés d'images**, pas, parties, accessoires, amis, achats, inventaire, cadeaux, trocs, statut Strava). Les autres personnes n'y apparaissent que par pseudo.
+- **Suppression** : bouton « Supprimer mon compte » dans Plus (mot `SUPPRIMER` + mot de passe pour les comptes email ; session récente pour les comptes Google). Passe par `deleteUser` de Better Auth, dont le hook `beforeDelete` appelle `purgeExternalData()` : suppression du préfixe R2 `meals/<userId>/` et révocation Strava, puis la ligne `user` est supprimée et **toutes** les tables MealMate suivent en cascade (`ON DELETE CASCADE`). Testé sur PGlite (`lib/account/account.integration.test.ts`) : l'empreinte de l'utilisateur tombe à zéro, l'ami garde ses propres données.
+- **En-têtes** : `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (caméra autorisée pour la prise de photo, micro / géoloc / paiement coupés). Pages privées (`(app)`, `/admin`, `/dev`) en `noindex`.
+- **Accessibilité** : cibles tactiles ≥ 44 px partout (boutons d'échange, de soin, de fermeture…), contour de focus clavier global (`:focus-visible`), lien « Aller au contenu », squelette de chargement annoncé (`aria-busy`), animations déjà coupées par `prefers-reduced-motion`.
+- **Performance perçue** : `app/(app)/loading.tsx` (streaming), middleware qui redirige toutes les pages privées dès la présence du cookie, requêtes de page parallélisées (`Promise.all`).
+
 ## 4. Schéma de données
 
 Source de vérité : `db/init.sql` (idempotent) ⇄ `lib/db/schema.ts`. Colonnes en `snake_case`, horodatages en `timestamptz`.
@@ -222,7 +229,8 @@ Phase 8 :
 - `GET /api/strava/connect` → redirection Strava ; `GET /api/strava/callback` → retour OAuth (redirige vers `/activity?strava=…`).
 - `POST /api/strava/sync` → `{ imported, skipped, gains, status, creature }`.
 
-Phases suivantes (brief § 7) : `account`.
+Phase 9 :
+- `GET /api/account/export` → JSON téléchargeable ; suppression via `POST /api/auth/delete-user` (Better Auth, hook `beforeDelete`).
 
 ## 6. Design
 
@@ -236,7 +244,7 @@ Phases suivantes (brief § 7) : `account`.
 1. **Socle** : Next.js, Tailwind, thème, PWA, Better Auth, Drizzle, `db/init.sql`, `.env.example`, README, landing, inscription/connexion, onboarding pseudo, onglets avec états « bientôt », page Plus (profil, code ami, état des services, déconnexion).
 2. **Œuf & éclosion** : choix de l'œuf (3 cartes, silhouettes, compteurs par rareté), incubation (œuf par niveau, jauge, saisie des pas), éclosion animée, tirage, nommage, 10 espèces faciles × 4 stades × 4 états, accueil créature, page Activité (historique 14 jours), `/dev/creatures`, `/dev/screens`.
 3. Nourrir. 4. Vie & mort. 5. **Jouer & accessoires** : mini-jeu tactile 20 s, coffres tous les 5 000 pas, 30 accessoires SVG, garde-robe, collection, 60 espèces.
-6. Amis. 7. Boutique Stripe. 8. Strava. 9. Finitions.
+6. Amis. 7. Boutique Stripe (+ soins aux amis, trocs). 8. Strava. 9. **Finitions** : export et suppression de compte (photos R2 et Strava compris), en-têtes de sécurité, accessibilité (cibles 44 px, focus, lien d'évitement), squelette de chargement, README final.
 
 ## 8. Décisions
 
@@ -287,3 +295,6 @@ Phases suivantes (brief § 7) : `account`.
 | D43 | Crédit des pas Strava par jour toutes sources confondues, puis marquage de toutes les entrées du jour | Respecte le plafond quotidien de santé quel que soit l'ordre saisie manuelle / synchro ; évite de créditer deux fois. |
 | D44 | Plafond de 40 000 pas-équivalents par activité et jours antérieurs à l'éclosion non crédités | Une sortie vélo de 300 km ne doit pas remplir 30 coffres ; les activités d'avant la naissance de la créature ne la nourrissent pas (mais comptent pour l'œuf si postérieures à son choix). |
 | D45 | Un seul domaine de callback Strava (production) | Strava n'accepte qu'un « Authorization Callback Domain » par application : la connexion se teste en production, ou en changeant temporairement le domaine pour une preview. |
+| D46 | Suppression de compte via `deleteUser` de Better Auth + hook `beforeDelete` | Better Auth vérifie déjà le mot de passe (ou la fraîcheur de session) et nettoie sessions et cookies ; le hook ne s'occupe que de ce que la cascade SQL ne voit pas (R2, Strava). |
+| D47 | Export JSON brut, sans photos | Les photos se retéléchargent depuis l'écran Repas (URL signées) ; un export avec binaires dépasserait la limite de réponse Vercel et exposerait des clés de stockage. |
+| D48 | En-têtes de sécurité posés dans `next.config.ts`, pas de CSP stricte | Une CSP fine casserait Stripe / Google sans bénéfice immédiat sur un prototype ; `nosniff`, `DENY`, `Referrer-Policy` et `Permissions-Policy` couvrent l'essentiel sans risque. |

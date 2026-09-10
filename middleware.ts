@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const PROTECTED_PREFIXES = ["/home", "/meals", "/activity", "/friends", "/more", "/onboarding"];
+const PROTECTED_PREFIXES = ["/home", "/meals", "/activity", "/friends", "/more", "/onboarding", "/feed", "/play", "/wardrobe", "/collection", "/cemetery", "/shop"];
 const GUEST_ONLY = new Set(["/login", "/signup"]);
 
 /** Better Auth session cookie names (secure prefix is used over HTTPS). */
@@ -42,6 +42,12 @@ export const config = {
     "/activity/:path*",
     "/friends/:path*",
     "/more/:path*",
+    "/feed/:path*",
+    "/play/:path*",
+    "/wardrobe/:path*",
+    "/collection/:path*",
+    "/cemetery/:path*",
+    "/shop/:path*",
     "/onboarding",
     "/login",
     "/signup",
