@@ -12,5 +12,6 @@ l'éditeur SQL de Neon dans l'ordre des numéros.
 | `001_step_entries_credited_steps.sql` | 2 | `step_entries.credited_steps` (pas déjà convertis en effets) |
 | `002_creatures_mourned_at.sql` | 3 | `creatures.mourned_at` (écran de deuil vu) |
 | `003_game_settings.sql` | 4 | table `game_settings` (règles de jeu réglables depuis `/admin`) |
+| `004_creatures_accessory_drops.sql` | 5 | `creatures.accessory_drops` (coffres d'accessoires déjà ouverts) |
 
 Un `init.sql` fraîchement exécuté contient déjà toutes ces évolutions.

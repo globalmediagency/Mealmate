@@ -1,9 +1,9 @@
 "use client";
 
-import { Camera, Footprints, Gamepad2, Heart, HeartPulse, Shirt, Smile, Utensils } from "lucide-react";
+import { Camera, Footprints, Gamepad2, Gift, Heart, HeartPulse, Shirt, Smile, Utensils } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { Creature, type Reaction } from "@/components/creatures/creature";
+import { Creature, type EquippedAccessory, type Reaction } from "@/components/creatures/creature";
 import { Environment } from "@/components/creatures/environment";
 import { RarityBadge } from "@/components/creatures/rarity-badge";
 import { Badge } from "@/components/ui/badge";
@@ -15,11 +15,11 @@ import { cn } from "@/lib/utils/cn";
 import { CareAlert } from "./care-alert";
 import { Gauge } from "./gauge";
 
-type CreatureHomeProps = { creature: CreatureView; line: string };
+type CreatureHomeProps = { creature: CreatureView; line: string; accessories?: EquippedAccessory[]; chestsAvailable?: number };
 
 type Action = { id: string; label: string; icon: typeof Camera; href?: string; highlight?: boolean };
 
-export function CreatureHome({ creature, line }: CreatureHomeProps) {
+export function CreatureHome({ creature, line, accessories = [], chestsAvailable = 0 }: CreatureHomeProps) {
   const species = creature.species ? getSpecies(creature.species.id) : undefined;
   const [reaction, setReaction] = useState<Reaction | null>(null);
   const [bubble, setBubble] = useState(line);
@@ -49,9 +49,9 @@ export function CreatureHome({ creature, line }: CreatureHomeProps) {
 
   const actions: Action[] = [
     { id: "feed", label: "Nourrir", icon: Camera, href: "/feed", highlight: creature.hunger >= 60 && creature.state !== "sick" },
-    { id: "play", label: "Jouer", icon: Gamepad2 },
+    { id: "play", label: "Jouer", icon: Gamepad2, href: "/play" },
     { id: "walk", label: "Marcher", icon: Footprints, href: "/activity" },
-    { id: "dress", label: "Habiller", icon: Shirt },
+    { id: "dress", label: "Habiller", icon: Shirt, href: "/wardrobe" },
     { id: "heal", label: "Soigner", icon: HeartPulse, highlight: creature.state === "sick" },
   ];
 
@@ -94,8 +94,17 @@ export function CreatureHome({ creature, line }: CreatureHomeProps) {
           aria-label={`Caresser ${creature.name}`}
           className="absolute inset-x-0 bottom-2 flex justify-center focus-visible:outline-none"
         >
-          <Creature species={species} stage={creature.stage.id} state={creature.state} size={260} reaction={reaction} />
+          <Creature species={species} stage={creature.stage.id} state={creature.state} size={260} reaction={reaction} accessories={accessories} />
         </button>
+        {chestsAvailable > 0 ? (
+          <Link
+            href="/activity"
+            className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full border border-brass-400/60 bg-ink-900/85 px-3 py-1.5 text-xs font-semibold text-brass-200 backdrop-blur animate-pulse-soft"
+          >
+            <Gift className="h-4 w-4" aria-hidden="true" />
+            {chestsAvailable} coffre{chestsAvailable > 1 ? "s" : ""}
+          </Link>
+        ) : null}
       </section>
 
       <section className="space-y-3 rounded-3xl border border-ink-600/80 bg-ink-800/90 p-4 shadow-card">

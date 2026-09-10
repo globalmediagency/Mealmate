@@ -7,7 +7,8 @@ import { Mourning } from "@/components/game/mourning";
 import { requireViewer } from "@/lib/auth/session";
 import { playableTiers, speciesByTierAll } from "@/lib/creatures";
 import { loadActiveCreatureView } from "@/lib/creatures/loader";
-import { getObtainedSpeciesIds, getUnmournedDeath } from "@/lib/creatures/service";
+import { getActiveCreature, getObtainedSpeciesIds, getUnmournedDeath } from "@/lib/creatures/service";
+import { getChestStatus, getOutfit, outfitToEquipped } from "@/lib/accessories/service";
 import { toCreatureView } from "@/lib/game/creature-view";
 import { creatureLine } from "@/lib/game/dialogue";
 import { getGameRules } from "@/lib/game/rules-service";
@@ -48,5 +49,7 @@ export default async function HomePage() {
     return <HatchReveal creature={creature} />;
   }
 
-  return <CreatureHome creature={creature} line={creatureLine(creature)} />;
+  const raw = await getActiveCreature(session.user.id);
+  const [outfit, chest] = await Promise.all([getOutfit(creature.id), raw ? getChestStatus(raw) : null]);
+  return <CreatureHome creature={creature} line={creatureLine(creature)} accessories={outfitToEquipped(outfit)} chestsAvailable={chest?.available ?? 0} />;
 }

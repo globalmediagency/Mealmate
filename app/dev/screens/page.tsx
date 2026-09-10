@@ -12,6 +12,11 @@ import { MealsHistory } from "@/components/game/meals-history";
 import { Mourning } from "@/components/game/mourning";
 import type { MealStats, MealView } from "@/lib/meals/service";
 import { RulesForm } from "@/components/admin/rules-form";
+import { FoodCatchGame } from "@/components/game/food-catch-game";
+import { Wardrobe } from "@/components/game/wardrobe";
+import { ChestOpener } from "@/components/game/chest-reveal";
+import { ACCESSORIES } from "@/lib/accessories/catalog";
+import { CollectionGrid } from "@/components/game/collection-grid";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { Card, CardTitle } from "@/components/ui/card";
 import { playableTiers, speciesByTierAll, toSpeciesSummary, getSpecies } from "@/lib/creatures";
@@ -24,7 +29,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "meal-result", "meals", "mourning", "admin"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -153,12 +158,35 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
     case "admin":
       content = <RulesForm initialRules={DEFAULT_RULES} storedPatch={{}} updatedAt={null} updatedBy={null} />;
       break;
+    case "play":
+      content = <FoodCatchGame creature={mockCreature({})} accessories={[{ slot: "head", id: "straw_hat" }]} playsLeft={3} />;
+      break;
+    case "wardrobe":
+      content = (
+        <Wardrobe
+          creature={mockCreature({})}
+          owned={ACCESSORIES.filter((a) => ["straw_hat", "beret", "round_glasses", "scarf", "bow_tie", "cape", "top_hat"].includes(a.id))}
+          outfit={{ head: "straw_hat", neck: "scarf" }}
+        />
+      );
+      break;
+    case "collection":
+      content = <CollectionGrid obtained={new Set(["facile-chat-rond", "facile-lapin-doux", "moyen-renard-malin", "difficile-phenix"])} />;
+      break;
+    case "chest":
+      content = (
+        <div className="space-y-4">
+          <ChestOpener status={{ totalSteps: 12_300, earned: 2, opened: 0, available: 2, stepsToNext: 2_700, stepsPerChest: 5_000 }} canEquip />
+          <ChestOpener status={{ totalSteps: 3_200, earned: 0, opened: 0, available: 0, stepsToNext: 1_800, stepsPerChest: 5_000 }} canEquip />
+        </div>
+      );
+      break;
     case "mourning":
       content = <Mourning creature={mockCreature({ status: "dead", state: "dead", health: 0, hunger: 100, mood: 5, ageDays: 9, lifespanDays: 9, diedAt: new Date().toISOString() })} />;
       break;
     default: {
       const c = mockCreature({});
-      content = <CreatureHome creature={c} line={creatureLine(c)} />;
+      content = <CreatureHome creature={c} line={creatureLine(c)} accessories={[{ slot: "head", id: "beret" }, { slot: "neck", id: "bow_tie" }]} chestsAvailable={1} />;
     }
   }
 

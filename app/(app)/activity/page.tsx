@@ -3,6 +3,9 @@ import { Activity, Egg, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { StepsForm } from "@/components/game/steps-form";
 import { StepsHistory } from "@/components/game/steps-history";
+import { ChestOpener } from "@/components/game/chest-reveal";
+import { getChestStatus } from "@/lib/accessories/service";
+import { getActiveCreature } from "@/lib/creatures/service";
 import { Button } from "@/components/ui/button";
 import { Card, CardText, CardTitle } from "@/components/ui/card";
 import { requireViewer } from "@/lib/auth/session";
@@ -16,11 +19,13 @@ export const metadata: Metadata = { title: "Activité" };
 export default async function ActivityPage() {
   const { session } = await requireViewer();
   const today = gameDate();
-  const [entry, history, creature] = await Promise.all([
+  const [entry, history, creature, raw] = await Promise.all([
     getManualEntry(session.user.id, today),
     getStepHistory(session.user.id, 14, today),
     loadActiveCreatureView(session.user.id),
+    getActiveCreature(session.user.id),
   ]);
+  const chest = raw && raw.status === "alive" && creature?.status === "alive" ? await getChestStatus(raw) : null;
 
   return (
     <div className="space-y-5 animate-rise">
@@ -52,11 +57,13 @@ export default async function ActivityPage() {
             <CardTitle className="text-base">Chaque 1 000 pas renforce {creature.name}</CardTitle>
             <CardText className="mt-1">
               +{STEPS.healthPerThousandSteps} santé (max +{STEPS.maxHealthPerDay} par jour) et +{STEPS.xpPerThousandSteps} XP.
-              Tous les {STEPS.stepsPerAccessory.toLocaleString("fr-FR")} pas : un accessoire (bientôt).
+              Tous les {STEPS.stepsPerAccessory.toLocaleString("fr-FR")} pas : un coffre d&apos;accessoire.
             </CardText>
           </div>
         </Card>
       ) : null}
+
+      {chest ? <ChestOpener status={chest} canEquip={Boolean(creature?.name)} /> : null}
 
       <Card>
         <CardTitle className="text-lg">14 derniers jours</CardTitle>

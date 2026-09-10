@@ -410,6 +410,9 @@
     animation: mm-spin 30s linear infinite;
     opacity: 0.8;
   }
+  .mm-fx-float {
+    animation: mm-fx-rise 0.9s ease-out forwards;
+  }
   .mm-confetti {
     animation-name: mm-confetti-fall;
     animation-timing-function: linear;

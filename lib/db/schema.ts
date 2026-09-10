@@ -140,6 +140,8 @@ export const creatures = pgTable(
     lifespanDays: integer("lifespan_days"),
     /** When the user acknowledged the death (mourning screen shown once). */
     mournedAt: timestamptz("mourned_at"),
+    /** Accessory chests already opened for this creature (phase 5). */
+    accessoryDrops: integer("accessory_drops").notNull().default(0),
   },
   (table) => [
     index("creatures_user_status_idx").on(table.userId, table.status),

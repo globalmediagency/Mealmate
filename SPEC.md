@@ -125,6 +125,14 @@ public/sw.js, icons/    Service worker et icônes
 - Tableau de bord : compteurs anonymes (comptes, œufs, vivantes, malades, cimetière, repas) et simulation « jamais nourrie » (`simulateNeglect`).
 - Accueil : `CareAlert` prévient quand la créature a faim, est affamée ou malade, avec le temps restant avant la mort.
 
+### 3.11 Jouer, accessoires, garde-robe, collection (phase 5)
+- Mini-jeu (`components/game/food-catch-game.tsx`) : 20 s, des aliments (emoji) tombent, la créature suit le doigt (`pointermove`, easing), boucle `requestAnimationFrame` sans état React par frame (positions écrites dans `style.transform`, pool de 10 éléments réutilisés). Score = ratio d'aliments sains attrapés × 100 − 10 par malbouffe (`computePlayScore`, pur et testé). `POST /api/play` reçoit les compteurs bruts, recalcule le score côté serveur, applique `+15 humeur, +5 XP (+5 si parfait)`, limite 3 parties / jour Paris (`play_sessions`).
+- Coffres : 1 par 5 000 pas cumulés depuis le jour de l'éclosion (`chestStatus`, somme des `step_entries` ≥ date d'éclosion) moins `creatures.accessory_drops` (migration 004). `POST /api/accessories/open` réserve le coffre par `UPDATE … WHERE accessory_drops = <lu>` (pas de double ouverture), tire la rareté (65/25/8/2) puis l'accessoire ; doublon → `+20 XP`. Écran d'ouverture animé (`ChestOpener`) sur la page Activité, badge « N coffres » sur l'accueil.
+- Accessoires : catalogue `lib/accessories/catalog.ts` (30 : 12 tête, 6 yeux, 7 cou, 5 corps), rendu `components/accessories/*` (registre `ACCESSORY_RENDERERS`, couches `front` / `back`). `<Creature accessories>` les place sur les ancres de la silhouette (`layout.top`, ligne des yeux, `neck`, centre du corps) dans le groupe correspondant, donc mis à l'échelle avec le stade (tête agrandie des bébés). Un accessoire porté masque l'objet signature du stade Sage sur le même emplacement.
+- Garde-robe (`/wardrobe`) : aperçu live, onglets par emplacement, équiper / retirer (`POST /api/accessories`, vérification de propriété et d'emplacement, upsert `creature_outfits`).
+- Collection (`/collection`) : 60 espèces par niveau, obtenues (vivantes ou mortes) en couleur, sinon silhouettes avec liseré de rareté.
+- 60 espèces : 20 par niveau avec quotas exacts 9 / 6 / 4 / 1, vérifiés par test.
+
 ## 4. Schéma de données
 
 Source de vérité : `db/init.sql` (idempotent) ⇄ `lib/db/schema.ts`. Colonnes en `snake_case`, horodatages en `timestamptz`.
@@ -133,7 +141,7 @@ Source de vérité : `db/init.sql` (idempotent) ⇄ `lib/db/schema.ts`. Colonnes
 |---|---|---|
 | `user`, `session`, `account`, `verification` | Better Auth | Index sur `session.user_id`, `account.user_id`, `verification.identifier` |
 | `profiles` | Pseudo + code ami | PK `user_id`, `friend_code` unique, index unique `lower(username)` |
-| `creatures` | Œuf → vivante → morte | `status ∈ {egg, alive, dead}`, `tier`, `species_id`, `rarity`, stats (`health`, `hunger`, `mood` en double precision, `xp` entier), `sick_since`, `protected_until`, `last_tick_at`, mort (`died_at`, `death_cause`, `lifespan_days`), `mourned_at` (migration 002). Index `(user_id, status)` + **index unique partiel** `user_id WHERE status IN ('egg','alive')` (une seule créature active) |
+| `creatures` | Œuf → vivante → morte | `status ∈ {egg, alive, dead}`, `tier`, `species_id`, `rarity`, stats (`health`, `hunger`, `mood` en double precision, `xp` entier), `sick_since`, `protected_until`, `last_tick_at`, mort (`died_at`, `death_cause`, `lifespan_days`), `mourned_at` (migration 002), `accessory_drops` (migration 004). Index `(user_id, status)` + **index unique partiel** `user_id WHERE status IN ('egg','alive')` (une seule créature active) |
 | `meals` | Repas analysés | `image_key`, `image_hash` (SHA-256, anti-doublon 24 h), `score`, `verdict`, `foods` jsonb, `macros` jsonb, `portion`, `comment`, `creature_line`, `health_delta` |
 | `step_entries` | Pas | `date`, `steps`, `source ∈ {manual, strava, pedometer}`, `strava_activity_id` unique, `credited_steps` (pas déjà convertis en effets, migration 001) ; index unique partiel `(user_id, date, source) WHERE source='manual'` |
 | `play_sessions` | Mini-jeu | `creature_id`, `user_id`, `score` |
@@ -166,11 +174,16 @@ Phase 3 :
 - `GET /api/meals` — `{ meals, stats }` (URLs presignées 1 h).
 - `POST /api/creatures/mourn` — accuse réception d'un décès.
 
+Phase 5 :
+- `GET /api/play` — parties restantes ; `POST /api/play { healthySpawned, healthyCaught, junkHit }` — score serveur + effets.
+- `GET /api/accessories` — `{ owned, outfit, chest }` ; `POST /api/accessories { slot, accessoryId | null }` — équiper / retirer.
+- `POST /api/accessories/open` — ouvre un coffre gagné.
+
 Phase 4 (admin) :
 - `POST /api/admin/login` / `POST /api/admin/logout` — cookie signé.
 - `GET /api/admin/settings` — `{ rules, stored }` ; `PUT /api/admin/settings { patch } | { reset: true }`.
 
-Phases suivantes (brief § 7) : `play`, `accessories`, `friends`, `shop/checkout`, `webhooks/stripe`, `inventory/use`, `strava/*`, `account`.
+Phases suivantes (brief § 7) : `friends`, `shop/checkout`, `webhooks/stripe`, `inventory/use`, `strava/*`, `account`.
 
 ## 6. Design
 
@@ -183,7 +196,8 @@ Phases suivantes (brief § 7) : `play`, `accessories`, `friends`, `shop/checkout
 
 1. **Socle** : Next.js, Tailwind, thème, PWA, Better Auth, Drizzle, `db/init.sql`, `.env.example`, README, landing, inscription/connexion, onboarding pseudo, onglets avec états « bientôt », page Plus (profil, code ami, état des services, déconnexion).
 2. **Œuf & éclosion** : choix de l'œuf (3 cartes, silhouettes, compteurs par rareté), incubation (œuf par niveau, jauge, saisie des pas), éclosion animée, tirage, nommage, 10 espèces faciles × 4 stades × 4 états, accueil créature, page Activité (historique 14 jours), `/dev/creatures`, `/dev/screens`.
-3. Nourrir. 4. Vie & mort. 5. Jouer & accessoires (60 espèces). 6. Amis. 7. Boutique Stripe. 8. Strava. 9. Finitions.
+3. Nourrir. 4. Vie & mort. 5. **Jouer & accessoires** : mini-jeu tactile 20 s, coffres tous les 5 000 pas, 30 accessoires SVG, garde-robe, collection, 60 espèces.
+6. Amis. 7. Boutique Stripe. 8. Strava. 9. Finitions.
 
 ## 8. Décisions
 
@@ -218,3 +232,7 @@ Phases suivantes (brief § 7) : `play`, `accessories`, `friends`, `shop/checkout
 | D27 | Admin par identifiants en variables Vercel + cookie HMAC, sans table ni Better Auth | Un seul administrateur, zéro configuration hors Vercel, révocation en changeant le mot de passe. |
 | D28 | Règles en une ligne jsonb de surcharges, fusionnées sur les défauts du code | Les défauts restent versionnés dans `config.ts` ; le jsonb ne stocke que ce qui change et survit aux ajouts de paramètres. |
 | D29 | Cache des règles 60 s par instance | Évite une lecture Neon à chaque tick ; un délai d'une minute est acceptable pour des réglages de jeu. |
+| D30 | Aliments du mini-jeu en emoji, pas en SVG | Lisibles, universels, zéro asset ; la contrainte « pas de bitmap » visait les créatures. |
+| D31 | Le serveur recalcule le score à partir des compteurs bruts et borne tout | Les effets étant fixes (+15 humeur), tricher n'apporte que le bonus « parfait » ; pas de simulation serveur nécessaire. |
+| D32 | Coffres comptés par `accessory_drops` sur la créature + somme des pas depuis l'éclosion | Aucune table supplémentaire ; l'édition d'une saisie de pas reste cohérente ; réservation atomique par `UPDATE` conditionnel. |
+| D33 | Accessoires portés rendus dans les groupes tête / visage / corps du SVG | Ils suivent automatiquement les proportions du stade sans calcul d'ancre supplémentaire. |

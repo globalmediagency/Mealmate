@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS creatures (
   death_cause     text,
   lifespan_days   integer,
   mourned_at      timestamptz,
+  accessory_drops integer NOT NULL DEFAULT 0,
   CONSTRAINT creatures_tier_check   CHECK (tier IN ('facile', 'moyen', 'difficile')),
   CONSTRAINT creatures_status_check CHECK (status IN ('egg', 'alive', 'dead'))
 );

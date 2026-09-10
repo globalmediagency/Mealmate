@@ -42,16 +42,22 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 ## Pages de validation visuelle
 
 - `/dev/creatures` : galerie espèces × stades × états, œufs et décors.
-- `/dev/screens?screen=…` : écrans du jeu avec données factices (`egg`, `incubation`, `ready`, `reveal`, `home`, `home-sick`, `activity`, `feed`, `meal-result`, `meals`, `mourning`).
-- `/dev/creatures?compact=1` : les 30 espèces en un coup d'œil. `/dev/gemini` : modèles Gemini visibles avec la clé.
+- `/dev/screens?screen=…` : écrans du jeu avec données factices (`egg`, `incubation`, `ready`, `reveal`, `home`, `home-sick`, `home-hungry`, `activity`, `feed`, `meal-result`, `meals`, `mourning`, `admin`, `play`, `wardrobe`, `chest`, `collection`).
+- `/dev/creatures?compact=1` : les 60 espèces en un coup d'œil ; la page complète montre les 30 accessoires. `/dev/gemini` : modèles Gemini visibles avec la clé.
 - `/admin` (hors galerie) : espace d'administration protégé par `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
 - Les deux sont gardées par `NEXT_PUBLIC_DEV_GALLERY=true` (lue au build : redéployer après l'avoir changée).
 
-## Ajouter un accessoire (à partir de la phase 5)
+## Ajouter un accessoire
 
-1. Ajouter l'entrée dans `lib/accessories/catalog.ts` (`id`, `name`, `slot` ∈ `head | eyes | neck | body`, `rarity`).
-2. Créer le composant SVG dans `components/accessories/` positionné sur l'`anchor` du slot et l'enregistrer dans le registre.
-3. Contrôler dans `/dev/creatures` sur plusieurs espèces et stades.
+1. Ajouter l'entrée dans `lib/accessories/catalog.ts` (`id`, `name`, `slot` ∈ `head | eyes | neck | body`, `rarity`, `tagline`).
+2. Dessiner le SVG dans le fichier de `components/accessories/` du slot (`head.tsx`, `eyes.tsx`, `neck.tsx`, `body.tsx`) : un objet `{ front?, back? }` dont les coordonnées sont relatives à l'ancre (tête = sommet du crâne, y vers le bas ; yeux = centre de la ligne des yeux, verres à x = ±9 ; cou = base de la tête ; corps = centre du corps). `back` est dessiné derrière le corps (cape, ailes, sac).
+3. Contrôler sur `/dev/creatures` (section « Accessoires » + « Portés ») sur plusieurs silhouettes et stades. Le test `lib/game/accessories.test.ts` vérifie qu'un rendu existe pour chaque entrée du catalogue.
+
+## Mini-jeu et coffres
+
+- Le jeu (`components/game/food-catch-game.tsx`) ne passe pas par l'état React à chaque frame : positions écrites directement dans `style.transform` depuis `requestAnimationFrame`, éléments recyclés (pool). Garder cette discipline pour rester à 60 fps sur mobile.
+- Le serveur recalcule le score (`computePlayScore`) à partir des compteurs bruts : ne jamais faire confiance à un score client.
+- Coffres : `getChestStatus(creature)` (somme des pas depuis l'éclosion − `accessory_drops`), `openChest()` réserve le coffre par `UPDATE` conditionnel avant le tirage.
 
 ## Nourrissage et IA
 

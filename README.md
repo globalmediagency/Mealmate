@@ -70,6 +70,7 @@ Si tu avais déjà exécuté `db/init.sql` avant une phase, colle ses migrations
 - phase 2 : [`db/migrations/001_step_entries_credited_steps.sql`](./db/migrations/001_step_entries_credited_steps.sql)
 - phase 3 : [`db/migrations/002_creatures_mourned_at.sql`](./db/migrations/002_creatures_mourned_at.sql)
 - phase 4 : [`db/migrations/003_game_settings.sql`](./db/migrations/003_game_settings.sql)
+- phase 5 : [`db/migrations/004_creatures_accessory_drops.sql`](./db/migrations/004_creatures_accessory_drops.sql)
 
 Un `init.sql` fraîchement exécuté contient déjà toutes ces colonnes.
 
@@ -82,6 +83,12 @@ puis mourir si elle n'est jamais nourrie (voir `SPEC.md` § 3.8).
 1. **R2** : suis la section « Cloudflare R2 » ci-dessous (4 variables).
 2. **Gemini** : suis la section « Google Gemini » ci-dessous (1 variable, `GEMINI_MODEL` optionnel).
 3. Vercel → **Redeploy**, puis onglet Créature → **Nourrir** → prends une photo de ton assiette.
+
+### Étape H — Jouer et accessoires (phase 5)
+
+Rien à configurer : après la migration 004, l'accueil propose **Jouer** (3 parties par jour, 20 secondes) et
+**Habiller** (garde-robe). Chaque tranche de 5 000 pas depuis l'éclosion donne un coffre à ouvrir dans l'onglet
+**Activité**. La **Collection** (60 créatures) est dans l'onglet Plus.
 
 ### Étape G — Espace admin (phase 4)
 
@@ -162,9 +169,9 @@ Vercel → `NEXT_PUBLIC_DEV_GALLERY=true` (sur Preview et/ou Production) → Red
 apparaissent alors, sans connexion nécessaire :
 
 - `/dev/creatures` : toutes les espèces × 4 stades × 4 états (+ silhouettes, œufs, décors).
-- `/dev/screens?screen=egg|incubation|ready|reveal|home|home-sick|activity|feed|meal-result|meals|mourning` :
+- `/dev/screens?screen=egg|incubation|ready|reveal|home|home-sick|home-hungry|activity|feed|meal-result|meals|mourning|admin|play|wardrobe|chest|collection` :
   les écrans du jeu avec des données factices, pour valider le design depuis un téléphone.
-- `/dev/creatures?compact=1` : vue d'ensemble des 30 espèces (adulte, en forme).
+- `/dev/creatures?compact=1` : vue d'ensemble des 60 espèces (adulte, en forme) ; la page complète montre aussi les 30 accessoires.
 - `/dev/gemini` : modèles Gemini visibles avec ta clé.
 
 ---

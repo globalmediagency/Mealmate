@@ -37,10 +37,12 @@ describe("species registry", () => {
     }
   });
 
-  it("ships at least 10 species per tier with exactly one legendary", () => {
+  it("ships the full roster: 20 species per tier with exact quotas", () => {
     for (const tier of TIERS) {
-      expect(speciesForTier(tier).length).toBeGreaterThanOrEqual(10);
-      expect(speciesByRarity(tier).legendaire).toHaveLength(1);
+      expect(speciesForTier(tier).length).toBe(SPECIES_PER_TIER);
+      const groups = speciesByRarity(tier);
+      for (const rarity of RARITIES) expect(groups[rarity].length).toBe(SPECIES_PER_RARITY[rarity]);
     }
+    expect(ALL_SPECIES.length).toBe(60);
   });
 });

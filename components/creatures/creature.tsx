@@ -3,6 +3,7 @@ import type { Species } from "@/lib/creatures/types";
 import type { StageId } from "@/lib/game/config";
 import type { CreatureState } from "@/lib/game/creature-view";
 import { cn } from "@/lib/utils/cn";
+import { AccessoryAt } from "@/components/accessories";
 import { LAYOUTS, hashUnit, shade, stageScales } from "./layout";
 import { BodyShape, HeadShape } from "./parts/bodies";
 import { Ears } from "./parts/ears";
@@ -43,6 +44,7 @@ export const SvgCreatureRenderer: CreatureRenderer = ({
   species,
   stage = "enfant",
   state = "healthy",
+  accessories = [],
   size = 200,
   animated = true,
   reaction = null,
@@ -61,6 +63,9 @@ export const SvgCreatureRenderer: CreatureRenderer = ({
   const isAlive = state !== "dead";
   const blinkDuration = 3 + hashUnit(species.id, 1) * 3;
   const blinkDelay = hashUnit(species.id, 2) * 2;
+
+  const worn = Object.fromEntries(accessories.map((a) => [a.slot, a.id])) as Partial<Record<EquippedAccessory["slot"], string>>;
+  const showAccessories = !silhouette;
 
   const filter =
     silhouette ? `url(#${uid}-silhouette)` : state === "sick" ? `url(#${uid}-sick)` : state === "tired" ? `url(#${uid}-tired)` : state === "dead" ? `url(#${uid}-dead)` : undefined;
@@ -82,8 +87,13 @@ export const SvgCreatureRenderer: CreatureRenderer = ({
       ) : null}
       <Eyes type={parts.eyes} layout={layout} palette={palette} state={state} uid={uid} lidColor={palette.primary} />
       <Mouth type={parts.mouth} layout={layout} palette={palette} state={state} />
+      {showAccessories && worn.eyes ? (
+        <AccessoryAt id={worn.eyes} anchor={[layout.faceX, layout.eyeY]} layer="front" palette={palette} />
+      ) : null}
     </g>
   );
+  const headAccessory =
+    showAccessories && worn.head ? <AccessoryAt id={worn.head} anchor={[layout.head.cx, layout.top]} layer="front" palette={palette} /> : null;
 
   return (
     <svg
@@ -142,6 +152,9 @@ export const SvgCreatureRenderer: CreatureRenderer = ({
               {parts.markings === "shell" ? (
                 <BackMarkings type="shell" layout={layout} palette={palette} opacity={Math.max(0.6, markingOpacity)} />
               ) : null}
+              {showAccessories && worn.body ? (
+                <AccessoryAt id={worn.body} anchor={[layout.body.cx, layout.body.cy]} layer="back" palette={palette} />
+              ) : null}
               <Tail type={parts.tail} layout={layout} palette={palette} />
             </g>
 
@@ -150,7 +163,11 @@ export const SvgCreatureRenderer: CreatureRenderer = ({
               <BodyShape layout={layout} palette={palette} gradientId={`${uid}-skin`} serpent={parts.body === "serpent"} />
               <BodyMarkings type={parts.markings} layout={layout} palette={palette} opacity={markingOpacity} />
               {!layout.hasDistinctHead ? <Ears type={parts.ears} layout={layout} palette={palette} /> : null}
-              {isSage ? <NeckSignature type={species.signature} layout={layout} palette={palette} /> : null}
+              {isSage && !worn.neck && !worn.body ? <NeckSignature type={species.signature} layout={layout} palette={palette} /> : null}
+              {showAccessories && worn.body ? (
+                <AccessoryAt id={worn.body} anchor={[layout.body.cx, layout.body.cy]} layer="front" palette={palette} />
+              ) : null}
+              {showAccessories && worn.neck ? <AccessoryAt id={worn.neck} anchor={layout.neck} layer="front" palette={palette} /> : null}
             </g>
 
             {/* Head layer (distinct heads grow on babies). */}
@@ -163,20 +180,22 @@ export const SvgCreatureRenderer: CreatureRenderer = ({
                 <HeadShape layout={layout} gradientId={`${uid}-skin`} />
                 <HeadMarkings type={parts.markings} layout={layout} palette={palette} opacity={markingOpacity} />
                 {face}
-                {isSage ? <HeadSignature type={species.signature} layout={layout} palette={palette} /> : null}
+                {isSage && !worn.head && !worn.eyes ? <HeadSignature type={species.signature} layout={layout} palette={palette} /> : null}
                 {extras.map((extra) => (
                   <FrontExtra key={extra} type={extra} layout={layout} palette={palette} uid={uid} />
                 ))}
+                {headAccessory}
                 {state === "sick" && !silhouette ? <SickOverlay layout={layout} /> : null}
               </g>
             ) : (
               <g>
                 <HeadMarkings type={parts.markings} layout={layout} palette={palette} opacity={markingOpacity} />
                 {face}
-                {isSage ? <HeadSignature type={species.signature} layout={layout} palette={palette} /> : null}
+                {isSage && !worn.head && !worn.eyes ? <HeadSignature type={species.signature} layout={layout} palette={palette} /> : null}
                 {extras.map((extra) => (
                   <FrontExtra key={extra} type={extra} layout={layout} palette={palette} uid={uid} />
                 ))}
+                {headAccessory}
                 {state === "sick" && !silhouette ? <SickOverlay layout={layout} /> : null}
               </g>
             )}

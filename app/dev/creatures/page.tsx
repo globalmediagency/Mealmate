@@ -4,7 +4,9 @@ import { Creature } from "@/components/creatures/creature";
 import { Egg } from "@/components/creatures/egg";
 import { Environment } from "@/components/creatures/environment";
 import { RarityBadge } from "@/components/creatures/rarity-badge";
-import { ALL_SPECIES } from "@/lib/creatures";
+import { ALL_SPECIES, getSpecies } from "@/lib/creatures";
+import { ACCESSORIES } from "@/lib/accessories/catalog";
+import { AccessoryIcon } from "@/components/accessories";
 import { STAGES, TIERS } from "@/lib/game/config";
 import type { CreatureState } from "@/lib/game/creature-view";
 import { isDevGalleryEnabled } from "@/lib/env";
@@ -60,6 +62,51 @@ export default async function DevCreaturesPage({ searchParams }: { searchParams:
           ))}
         </section>
       ) : null}
+
+      <section className="mb-10">
+        <h2 className="mb-3 font-display text-xl text-cream-50">Accessoires ({ACCESSORIES.length})</h2>
+        <div className="grid grid-cols-5 gap-2 sm:grid-cols-8">
+          {ACCESSORIES.map((a) => (
+            <div key={a.id} className="rounded-2xl bg-ink-800/80 p-1 text-center">
+              <AccessoryIcon id={a.id} size={64} className="mx-auto" />
+              <p className="truncate text-[10px] text-cream-300">{a.name}</p>
+              <p className="text-[9px] text-cream-700">{a.slot} · {a.rarity}</p>
+            </div>
+          ))}
+        </div>
+        <h3 className="mb-2 mt-4 text-sm font-semibold text-cream-300">Portés (adulte, en forme)</h3>
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+          {[
+            ["facile-chat-rond", "straw_hat", "round_glasses", "scarf", "apron"],
+            ["moyen-renard-malin", "top_hat", "monocle", "bow_tie", "cape"],
+            ["difficile-licorne", "flower_crown", "star_glasses", "pearl_necklace", "butterfly_wings"],
+            ["facile-hamster-joufflu", "beanie", "goggles", "bandana", "vest"],
+            ["moyen-hibou-savant", "wizard_hat", "hero_mask", "medal", "backpack"],
+            ["difficile-dragonnet", "viking_helmet", "sunglasses", "bell_collar", "cape"],
+          ].map(([speciesId, head, eyes, neck, body]) => {
+            const sp = getSpecies(speciesId);
+            if (!sp) return null;
+            return (
+              <div key={speciesId} className="rounded-2xl bg-ink-800/80 p-1 text-center">
+                <Creature
+                  species={sp}
+                  stage="adulte"
+                  size={130}
+                  animated={animated}
+                  className="mx-auto"
+                  accessories={[
+                    { slot: "head", id: head },
+                    { slot: "eyes", id: eyes },
+                    { slot: "neck", id: neck },
+                    { slot: "body", id: body },
+                  ]}
+                />
+                <p className="text-[10px] text-cream-500">{sp.name}</p>
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
       <section className="mb-10">
         <h2 className="mb-3 font-display text-xl text-cream-50">Œufs et environnements</h2>

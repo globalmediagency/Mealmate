@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, Lock } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Creature } from "@/components/creatures/creature";
@@ -177,6 +178,11 @@ export function EggChoice({ speciesByTier, obtainedSpeciesIds, playableTiers, ru
               {SPECIES_PER_TIER - species.length} espèces sont encore en cours de création.
             </p>
           ) : null}
+          <p className="mt-2 text-xs text-cream-700">
+            <Link href="/collection" className="underline">
+              Voir toute la collection
+            </Link>
+          </p>
         </div>
       </section>
 
