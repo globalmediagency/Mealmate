@@ -16,8 +16,11 @@ export function getSpecies(id: string): Species | undefined {
   return BY_ID.get(id);
 }
 
+/** Species of a tier, commons first and the legendary last (stable by name within a rarity). */
 export function speciesForTier(tier: Tier): Species[] {
-  return ALL_SPECIES.filter((species) => species.tier === tier);
+  return ALL_SPECIES.filter((species) => species.tier === tier).sort(
+    (a, b) => RARITIES.indexOf(a.rarity) - RARITIES.indexOf(b.rarity) || a.name.localeCompare(b.name, "fr"),
+  );
 }
 
 export function speciesByRarity(tier: Tier): Record<Rarity, Species[]> {

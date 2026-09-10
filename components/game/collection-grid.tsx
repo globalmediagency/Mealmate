@@ -16,7 +16,7 @@ export function CollectionGrid({ obtained }: { obtained: ReadonlySet<string> }) 
         ))}
       </ul>
       {TIERS.map((tier) => {
-        const species = speciesForTier(tier);
+        const species = speciesForTier(tier); // already sorted: commons first, legendary last
         const got = species.filter((s) => obtained.has(s.id)).length;
         return (
           <section key={tier}>
