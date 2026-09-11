@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { BoardedAway } from "@/components/game/boarded-away";
 import { CreatureHome } from "@/components/game/creature-home";
 import { HostedCreatures } from "@/components/game/hosted-creatures";
+import { HostedDeathNotice } from "@/components/game/hosted-death-notice";
 import { PensionHome } from "@/components/game/pension-home";
 import { EggChoice } from "@/components/game/egg-choice";
 import { HatchReveal } from "@/components/game/hatch-reveal";
@@ -36,7 +37,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -262,6 +263,7 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
       const roux = mockCreature({ id: "demo-roux", name: "Roux", tier: "moyen", species: toSpeciesSummary(getSpecies("moyen-renard-malin")!), health: 92, hunger: 20 });
       content = (
         <div className="space-y-4">
+          <HostedDeathNotice deaths={[{ boardingId: "99999999-9999-4999-8999-999999999999", creatureName: "Pixel", ownerName: "Sophie", diedAt: new Date().toISOString() }]} />
           <CreatureHome creature={mockCreature({})} line={creatureLine(mockCreature({}))} chestsAvailable={1} />
           <HostedCreatures
             items={[
@@ -309,6 +311,9 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
       break;
     case "mourning":
       content = <Mourning creature={mockCreature({ status: "dead", state: "dead", health: 0, hunger: 100, mood: 5, ageDays: 9, lifespanDays: 9, diedAt: new Date().toISOString() })} />;
+      break;
+    case "mourning-pension":
+      content = <Mourning creature={mockCreature({ status: "dead", state: "dead", health: 0, hunger: 100, mood: 5, ageDays: 9, lifespanDays: 9, diedAt: new Date().toISOString() })} boardedWith="Karim" />;
       break;
     default: {
       const c = mockCreature({});

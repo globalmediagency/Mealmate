@@ -17,7 +17,7 @@ import { saveManualSteps } from "@/lib/steps/service";
 import type { ObjectStorage } from "@/lib/storage/r2";
 import { createTestDatabase, insertTestUser, type TestDatabase } from "@/lib/test/pglite";
 import { creatureStepsSince } from "./custody-service";
-import { boardingCooldownUntil, boardingLimits, cooldownEnd, countUnseenBoardings, endBoarding, getHeldCreature, getHeldCreatures, livingHeld, markBoardingsSeen, saveStepsForHeld, startBoarding } from "./service";
+import { boardingCooldownUntil, boardingLimits, cooldownEnd, countUnseenBoardings, diedInBoarding, endBoarding, getHeldCreature, getHeldCreatures, listUnseenDeathsHosted, livingHeld, markBoardingsSeen, saveStepsForHeld, startBoarding } from "./service";
 
 let tdb: TestDatabase;
 let alice: string;
@@ -247,5 +247,24 @@ describe("the stay ends on its own", () => {
     expect(ended.creature.status).toBe("dead");
     expect((await getUnmournedDeath(alice))?.id).toBe(misoId);
     expect((await getHeldCreatures(alice, T3)).own).toBeNull();
+    // The owner's mourning screen names the host.
+    expect((await diedInBoarding(misoId))?.username).toBe("BobB");
+    expect(await diedInBoarding("00000000-0000-4000-8000-000000000000")).toBeNull();
+    // A death never makes the owner wait before lending the next creature.
+    expect(await boardingCooldownUntil(alice, new Date(T3.getTime() + 3_600_000), DEFAULT_RULES)).toBeNull();
+  });
+
+  it("tells the host, who dismisses the notice on their own", async () => {
+    const T3 = new Date(T1.getTime() + 5 * DAY);
+    expect(await countUnseenBoardings(bob, T3)).toBe(1);
+    const deaths = await listUnseenDeathsHosted(bob);
+    expect(deaths.map((d) => [d.creatureName, d.ownerName])).toEqual([["Miso", "AliceB"]]);
+    await markBoardingsSeen(bob, T3); // open stays only: the death notice stays
+    expect(await countUnseenBoardings(bob, T3)).toBe(1);
+    await markBoardingsSeen(bob, T3, deaths[0].boardingId);
+    expect(await countUnseenBoardings(bob, T3)).toBe(0);
+    expect(await listUnseenDeathsHosted(bob)).toEqual([]);
+    await markBoardingsSeen(carol, T3, deaths[0].boardingId); // someone else cannot touch it
+    expect(await listUnseenDeathsHosted(bob)).toEqual([]);
   });
 });

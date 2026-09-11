@@ -12,10 +12,14 @@ import { getSpecies } from "@/lib/creatures";
 import { TIER_CONFIG } from "@/lib/game/config";
 import type { CreatureView } from "@/lib/game/creature-view";
 
-type MourningProps = { creature: CreatureView };
+type MourningProps = {
+  creature: CreatureView;
+  /** Username of the friend the creature was staying with when it died. */
+  boardedWith?: string | null;
+};
 
 /** Sober farewell screen shown once after a death, before choosing a new egg. */
-export function Mourning({ creature }: MourningProps) {
+export function Mourning({ creature, boardedWith = null }: MourningProps) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,8 +58,13 @@ export function Mourning({ creature }: MourningProps) {
         </div>
         <p className="mx-auto mt-5 max-w-xs text-base leading-relaxed text-cream-300">
           {creature.name} a vécu <strong className="text-cream-50">{days} jour{days > 1 ? "s" : ""}</strong> à tes côtés
-          {diedOn ? `, jusqu'au ${diedOn}` : ""}. Une longue maladie l&apos;a emporté·e.
+          {diedOn ? `, jusqu'au ${diedOn}` : ""}. Une longue maladie l&apos;a emporté·e{boardedWith ? `, pendant sa pension chez ${boardedWith}` : ""}.
         </p>
+        {boardedWith ? (
+          <p className="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-cream-500">
+            {boardedWith} a été prévenu·e. La pension est terminée : {creature.name} est revenu·e auprès de toi.
+          </p>
+        ) : null}
         <p className="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-cream-500">
           Ce n&apos;est pas un échec. Chaque créature apprend quelque chose à celle qui suit. Elle t&apos;attend au
           cimetière, avec les autres.

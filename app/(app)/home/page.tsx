@@ -6,10 +6,11 @@ import { EggChoice } from "@/components/game/egg-choice";
 import { GiftsNotice } from "@/components/game/gifts-notice";
 import { HatchReveal } from "@/components/game/hatch-reveal";
 import { HostedCreatures } from "@/components/game/hosted-creatures";
+import { HostedDeathNotice } from "@/components/game/hosted-death-notice";
 import { Incubation } from "@/components/game/incubation";
 import { Mourning } from "@/components/game/mourning";
 import { requireViewer } from "@/lib/auth/session";
-import { getHeldCreatures, toBoardingView } from "@/lib/boarding/service";
+import { diedInBoarding, getHeldCreatures, listUnseenDeathsHosted, toBoardingView } from "@/lib/boarding/service";
 import { hostedCreatureViews } from "@/lib/boarding/views";
 import { playableTiers, speciesByTierAll } from "@/lib/creatures";
 import { getObtainedSpeciesIds, getUnmournedDeath, refreshEggSteps } from "@/lib/creatures/service";
@@ -29,17 +30,19 @@ export default async function HomePage() {
   const [rules, gifts] = await Promise.all([getGameRules(), listUnseenGifts(session.user.id)]);
   // Own creature (ticked), its stay at a friend's if any, and the creatures friends entrusted to the user.
   const held = await getHeldCreatures(session.user.id, now, rules);
-  const hosted = await hostedCreatureViews(held.boarded, now, rules);
+  const [hosted, deaths] = await Promise.all([hostedCreatureViews(held.boarded, now, rules), listUnseenDeathsHosted(session.user.id)]);
   const raw = held.own;
   const creature = raw ? toCreatureView(raw.status === "egg" ? await refreshEggSteps(raw) : raw, now, rules) : null;
   // Gifts and boarded creatures can show up whatever the own creature's state: they frame every screen.
   const frame = (screen: ReactNode, options: { gifts?: boolean } = { gifts: true }) => {
     const notice = options.gifts && gifts.length > 0 ? <GiftsNotice gifts={gifts} creatureName={creature?.status === "alive" ? creature.name ?? undefined : undefined} /> : null;
+    const losses = deaths.length > 0 ? <HostedDeathNotice deaths={deaths} /> : null;
     const list = hosted.length > 0 ? <HostedCreatures items={hosted} /> : null;
-    if (!notice && !list) return screen;
+    if (!notice && !losses && !list) return screen;
     return (
       <div className="space-y-4">
         {notice}
+        {losses}
         {screen}
         {list}
       </div>
@@ -47,12 +50,12 @@ export default async function HomePage() {
   };
 
   if (creature?.status === "dead") {
-    return frame(<Mourning creature={creature} />);
+    return frame(<Mourning creature={creature} boardedWith={(await diedInBoarding(creature.id))?.username ?? null} />);
   }
 
   if (!creature) {
     const unmourned = await getUnmournedDeath(session.user.id);
-    if (unmourned) return frame(<Mourning creature={toCreatureView(unmourned, now, rules)} />);
+    if (unmourned) return frame(<Mourning creature={toCreatureView(unmourned, now, rules)} boardedWith={(await diedInBoarding(unmourned.id))?.username ?? null} />);
     const obtained = await getObtainedSpeciesIds(session.user.id);
     return frame(
       <EggChoice

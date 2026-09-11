@@ -146,8 +146,9 @@ Une pastille sur l'onglet indique les demandes reçues.
 ses repas et ses pas la nourrissent et la renforcent comme les siennes, il peut jouer avec elle, la soigner avec son
 armoire et ouvrir les coffres qu'elle gagne chez lui (les accessoires sont pour lui) ; il ne peut ni lui retirer ni lui
 ajouter d'accessoire. Elle continue de vivre, de tomber malade ou de mourir. Ton écran Créature montre où elle est et un
-bouton « Récupérer ma créature en pension chez … » la ramène aussitôt (morte si elle est morte entre-temps) ; l'hôte
-peut aussi la rendre plus tôt, et elle rentre seule à l'échéance. Dans **Admin › Règles de jeu** : « Pension maximale »
+bouton « Récupérer ma créature en pension chez … » la ramène aussitôt (morte si elle est morte entre-temps : tu vois
+l'écran de deuil et tu choisis seul le prochain œuf, l'hôte reçoit un mot et cette pension ne compte pas pour le repos) ;
+l'hôte peut aussi la rendre plus tôt, et elle rentre seule à l'échéance. Dans **Admin › Règles de jeu** : « Pension maximale »
 par niveau, nombre de créatures hébergées au maximum par joueur (0 désactive la pension) et « Repos après une pension » :
 après X jours de pension effectifs, le propriétaire attend X × ce facteur avant de confier à nouveau (1 par défaut,
 0 pour aucun repos).

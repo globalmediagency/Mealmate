@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { DomainError } from "@/lib/api/errors";
 import { applyStepGains, getActiveCreatureTicked, refreshEggSteps } from "@/lib/creatures/service";
 import { tickCreature } from "@/lib/creatures/tick-service";
@@ -77,11 +77,15 @@ export async function openBoardingsHostedBy(hostId: string): Promise<Boarding[]>
 
 type EndReason = NonNullable<Boarding["endReason"]>;
 
-/** Closes an open stay at most once (conditional update). Returns null when it was already closed. */
+/**
+ * Closes an open stay at most once (conditional update). Returns null when it
+ * was already closed. A death resets `host_seen_at`: the host gets a notice
+ * to acknowledge, like the arrival.
+ */
 async function closeBoarding(id: string, endedAt: Date, reason: EndReason): Promise<Boarding | null> {
   const rows = await getDb()
     .update(boardings)
-    .set({ endedAt, endReason: reason })
+    .set({ endedAt, endReason: reason, ...(reason === "died" ? { hostSeenAt: null } : {}) })
     .where(and(eq(boardings.id, id), isNull(boardings.endedAt)))
     .returning();
   return rows[0] ?? null;
@@ -209,15 +213,16 @@ export function cooldownEnd(startedAt: Date, endedAt: Date, multiplier: number):
 
 /**
  * When the owner may lend a creature again: after a stay of X days they wait
- * X × `rules.boarding.cooldownMultiplier` (whatever creature, whatever end
- * reason). Null when nothing blocks them now.
+ * X × `rules.boarding.cooldownMultiplier`, whatever the creature. A stay that
+ * ended with the creature's death never counts. Null when nothing blocks
+ * them now.
  */
 export async function boardingCooldownUntil(ownerId: string, now: Date, rules: GameRules): Promise<Date | null> {
   if (rules.boarding.cooldownMultiplier <= 0) return null;
   const rows = await getDb()
     .select({ startedAt: boardings.startedAt, endedAt: boardings.endedAt })
     .from(boardings)
-    .where(and(eq(boardings.ownerId, ownerId), isNotNull(boardings.endedAt)))
+    .where(and(eq(boardings.ownerId, ownerId), isNotNull(boardings.endedAt), ne(boardings.endReason, "died")))
     .orderBy(desc(boardings.endedAt))
     .limit(1);
   const last = rows[0];
@@ -316,17 +321,53 @@ export async function endBoarding(userId: string, boardingId: string, now: Date 
   return { boarding: closed, creature, role, other };
 }
 
-/** Open stays the host has not looked at yet (badge on the creature tab). */
+/** Arrivals and deaths the host has not acknowledged yet (badge on the creature tab). */
 export async function countUnseenBoardings(hostId: string, now: Date = new Date()): Promise<number> {
   const [row] = await getDb()
     .select({ count: sql<number>`count(*)` })
     .from(boardings)
-    .where(and(eq(boardings.hostId, hostId), isNull(boardings.endedAt), isNull(boardings.hostSeenAt), gt(boardings.endsAt, now)));
+    .where(
+      and(
+        eq(boardings.hostId, hostId),
+        isNull(boardings.hostSeenAt),
+        or(and(isNull(boardings.endedAt), gt(boardings.endsAt, now)), eq(boardings.endReason, "died")),
+      ),
+    );
   return Number(row?.count ?? 0);
 }
 
-export async function markBoardingsSeen(hostId: string, now: Date = new Date()): Promise<void> {
-  await getDb().update(boardings).set({ hostSeenAt: now }).where(and(eq(boardings.hostId, hostId), isNull(boardings.endedAt), isNull(boardings.hostSeenAt)));
+/**
+ * The host acknowledged the creatures entrusted to them (open stays), or one
+ * specific stay (`boardingId`: used to dismiss a death notice).
+ */
+export async function markBoardingsSeen(hostId: string, now: Date = new Date(), boardingId?: string): Promise<void> {
+  const target = boardingId ? eq(boardings.id, boardingId) : isNull(boardings.endedAt);
+  await getDb().update(boardings).set({ hostSeenAt: now }).where(and(eq(boardings.hostId, hostId), isNull(boardings.hostSeenAt), target));
+}
+
+export type HostedDeathView = { boardingId: string; creatureName: string | null; ownerName: string; diedAt: string };
+
+/** Creatures that died in the host's care and whose notice was not dismissed yet. */
+export async function listUnseenDeathsHosted(hostId: string): Promise<HostedDeathView[]> {
+  const rows = await getDb()
+    .select({ id: boardings.id, ownerId: boardings.ownerId, endedAt: boardings.endedAt, creatureName: creatures.name })
+    .from(boardings)
+    .innerJoin(creatures, eq(creatures.id, boardings.creatureId))
+    .where(and(eq(boardings.hostId, hostId), eq(boardings.endReason, "died"), isNull(boardings.hostSeenAt)))
+    .orderBy(desc(boardings.endedAt));
+  if (rows.length === 0) return [];
+  const owners = await profilesOf(rows.map((r) => r.ownerId));
+  return rows.map((r) => ({ boardingId: r.id, creatureName: r.creatureName, ownerName: owners.get(r.ownerId)!.username, diedAt: (r.endedAt ?? new Date()).toISOString() }));
+}
+
+/** The host a creature was staying with when it died, for the owner's mourning screen. */
+export async function diedInBoarding(creatureId: string): Promise<PublicProfile | null> {
+  const rows = await getDb()
+    .select({ hostId: boardings.hostId })
+    .from(boardings)
+    .where(and(eq(boardings.creatureId, creatureId), eq(boardings.endReason, "died")))
+    .limit(1);
+  return rows[0] ? profileOf(rows[0].hostId) : null;
 }
 
 /** Every stay the user took part in, for the account export. */
