@@ -69,4 +69,26 @@ export const NECK_ACCESSORIES: Record<string, AccessoryRenderer> = {
       </g>
     ),
   },
+  // Coaching rewards
+  progress_medal: {
+    front: () => (
+      <g transform="translate(0 1)">
+        <path d="M-9 -2 L0 9 L9 -2" stroke="#4A6FD6" strokeWidth="2" fill="none" strokeLinecap="round" />
+        <circle cx="0" cy="11" r="4.6" fill={BRASS} stroke={BRASS_DARK} strokeWidth="0.7" />
+        <path d="M-1.6 12.8 L-1.6 9.2 L1.2 12 L1.2 8.4" stroke={BRASS_DARK} strokeWidth="0.9" fill="none" strokeLinecap="round" />
+        <path d="M0 13.2 L0 15.6 M-1.3 14.2 L0 15.6 L1.3 14.2" stroke={BRASS_DARK} strokeWidth="0.8" fill="none" strokeLinecap="round" />
+      </g>
+    ),
+  },
+  coach_whistle: {
+    front: () => (
+      <g transform="translate(0 1)">
+        <path d="M-8 -2 C-8 4 -3 8 2 9" stroke="#2B2B2B" strokeWidth="1" fill="none" />
+        <path d="M8 -2 C8 4 5 8 2 9" stroke="#2B2B2B" strokeWidth="1" fill="none" />
+        <rect x="-1" y="8" width="8" height="3.2" rx="1" fill="#C0C0C0" stroke="#7A7A7A" strokeWidth="0.5" />
+        <circle cx="0" cy="12" r="3.2" fill="#C0C0C0" stroke="#7A7A7A" strokeWidth="0.5" />
+        <circle cx="-0.6" cy="11.4" r="0.9" fill="#4A4A4A" />
+      </g>
+    ),
+  },
 };

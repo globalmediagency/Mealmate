@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ACCESSORIES, type Accessory } from "@/lib/accessories/catalog";
+import { ACCESSORIES, CHEST_ACCESSORIES, type Accessory } from "@/lib/accessories/catalog";
 import { speciesForTier } from "@/lib/creatures";
 import type { Species } from "@/lib/creatures/types";
 import { ACCESSORY_RARITY_WEIGHTS, RARITIES, RARITY_WEIGHTS, TIERS, type Tier } from "./config";
@@ -39,8 +39,13 @@ export function defaultSpeciesWeight(species: Species, pool: readonly Species[] 
   return shareOfRarity(RARITY_WEIGHTS[species.rarity], pool.filter((s) => s.rarity === species.rarity).length);
 }
 
-/** Default weight of an accessory: its rarity's share of the catalogue, split evenly inside the rarity. */
-export function defaultAccessoryWeight(accessory: Accessory, pool: readonly Accessory[] = ACCESSORIES): number {
+/**
+ * Default weight of an accessory: its rarity's share of the step-chest pool,
+ * split evenly inside the rarity. Coaching-only accessories get the same
+ * weight as a chest accessory of their rarity; a reward pool simply adds
+ * them to the chest pool and the draw renormalises.
+ */
+export function defaultAccessoryWeight(accessory: Accessory, pool: readonly Accessory[] = CHEST_ACCESSORIES): number {
   return shareOfRarity(ACCESSORY_RARITY_WEIGHTS[accessory.rarity], pool.filter((a) => a.rarity === accessory.rarity).length);
 }
 
@@ -100,9 +105,9 @@ export function speciesWeights(tier: Tier, overrides: Record<string, number> = {
   );
 }
 
-/** Every accessory with its weight, commons first then catalogue order. */
-export function accessoryWeights(overrides: Record<string, number> = {}): Weighted<Accessory>[] {
-  const pool = [...ACCESSORIES].sort((a, b) => RARITIES.indexOf(a.rarity) - RARITIES.indexOf(b.rarity));
+/** Every accessory of a pool (step chests by default) with its weight, commons first then catalogue order. */
+export function accessoryWeights(overrides: Record<string, number> = {}, source: readonly Accessory[] = CHEST_ACCESSORIES): Weighted<Accessory>[] {
+  const pool = [...source].sort((a, b) => RARITIES.indexOf(a.rarity) - RARITIES.indexOf(b.rarity));
   return withChances(
     pool.map((accessory) => {
       const defaultWeight = defaultAccessoryWeight(accessory);
@@ -153,6 +158,6 @@ export function defaultWeightsById(): { species: Map<string, number>; accessorie
   const species = new Map<string, number>();
   for (const tier of TIERS) for (const row of speciesWeights(tier)) species.set(row.item.id, row.defaultWeight);
   const accessories = new Map<string, number>();
-  for (const row of accessoryWeights()) accessories.set(row.item.id, row.defaultWeight);
+  for (const row of accessoryWeights({}, ACCESSORIES)) accessories.set(row.item.id, row.defaultWeight);
   return { species, accessories };
 }

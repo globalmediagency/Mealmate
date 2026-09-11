@@ -73,4 +73,29 @@ export const BODY_ACCESSORIES: Record<string, AccessoryRenderer> = {
       </g>
     ),
   },
+  // Coaching rewards
+  student_satchel: {
+    back: () => (
+      <g>
+        <rect x="-15" y="-12" width="30" height="22" rx="5" fill="#8C5A3A" />
+        <path d="M-15 -8 L15 -8 L15 -1 L-15 -1 Z" fill="#A6703F" />
+        <rect x="-3" y="-4" width="6" height="4" rx="1" fill="#E8C36A" />
+      </g>
+    ),
+    front: () => (
+      <g>
+        <path d="M-8 -18 C-10 -8 -10 2 -8 10" stroke="#8C5A3A" strokeWidth="3" strokeLinecap="round" fill="none" />
+        <path d="M8 -18 C10 -8 10 2 8 10" stroke="#8C5A3A" strokeWidth="3" strokeLinecap="round" fill="none" />
+      </g>
+    ),
+  },
+  coach_whip: {
+    front: () => (
+      <g transform="translate(11 2)">
+        <rect x="-2" y="-8" width="4" height="9" rx="1.4" fill="#5E4630" />
+        <path d="M-1 -8 L1 -8" stroke="#E8C36A" strokeWidth="1" />
+        <path d="M0 1 C6 3 6 9 1 10 C-4 11 -4 5 1 4 C4 3 5 8 1 8" stroke="#8C5A3A" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+      </g>
+    ),
+  },
 };

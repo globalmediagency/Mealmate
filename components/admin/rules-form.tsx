@@ -35,6 +35,9 @@ type Draft = {
   rejectScreenPhotos: boolean;
   maxPerHost: string;
   cooldownMultiplier: string;
+  mealRetentionDays: string;
+  thumbsPerStudentReward: string;
+  thumbsPerCoachReward: string;
 };
 
 function toDraft(rules: GameRules): Draft {
@@ -49,6 +52,9 @@ function toDraft(rules: GameRules): Draft {
     rejectScreenPhotos: rules.feeding.rejectScreenPhotos,
     maxPerHost: String(rules.boarding.maxPerHost),
     cooldownMultiplier: String(rules.boarding.cooldownMultiplier),
+    mealRetentionDays: String(rules.feeding.mealRetentionDays),
+    thumbsPerStudentReward: String(rules.coaching.thumbsPerStudentReward),
+    thumbsPerCoachReward: String(rules.coaching.thumbsPerCoachReward),
   };
 }
 
@@ -60,8 +66,9 @@ function toPatch(draft: Draft): GameRulesPatch {
     ) as GameRulesPatch["tiers"],
     hungerDamageThreshold: num(draft.hungerDamageThreshold),
     tick: { fullRateHoursCap: num(draft.fullRateHoursCap), slowRate: num(draft.slowRatePercent) / 100 },
-    feeding: { maxMealsPerDay: num(draft.maxMealsPerDay), rejectScreenPhotos: draft.rejectScreenPhotos },
+    feeding: { maxMealsPerDay: num(draft.maxMealsPerDay), rejectScreenPhotos: draft.rejectScreenPhotos, mealRetentionDays: num(draft.mealRetentionDays) },
     boarding: { maxPerHost: num(draft.maxPerHost), cooldownMultiplier: num(draft.cooldownMultiplier) },
+    coaching: { thumbsPerStudentReward: num(draft.thumbsPerStudentReward), thumbsPerCoachReward: num(draft.thumbsPerCoachReward) },
   };
 }
 
@@ -76,6 +83,9 @@ function safePreview(draft: Draft): GameRules | null {
       patch.feeding?.maxMealsPerDay,
       patch.boarding?.maxPerHost,
       patch.boarding?.cooldownMultiplier,
+      patch.feeding?.mealRetentionDays,
+      patch.coaching?.thumbsPerStudentReward,
+      patch.coaching?.thumbsPerCoachReward,
     ];
     if (flat.some((v) => v === undefined || Number.isNaN(v))) return null;
     return mergeRules(patch);
@@ -198,6 +208,11 @@ export function RulesForm({ initialRules, storedPatch, updatedAt, updatedBy }: R
           <input type="text" inputMode="numeric" value={draft.maxMealsPerDay} onChange={(e) => setDraft((d) => ({ ...d, maxMealsPerDay: e.target.value }))} className={inputClass} />
           <span className="block text-[11px] text-cream-700">défaut {DEFAULT_RULES.feeding.maxMealsPerDay}</span>
         </label>
+        <label className="space-y-1 text-sm">
+          <span className="text-cream-100">Conservation des repas (jours)</span>
+          <input type="text" inputMode="numeric" value={draft.mealRetentionDays} onChange={(e) => setDraft((d) => ({ ...d, mealRetentionDays: e.target.value }))} className={inputClass} />
+          <span className="block text-[11px] text-cream-700">Photos et fiches supprimées au-delà, pour le joueur comme pour son coach · défaut {DEFAULT_RULES.feeding.mealRetentionDays}</span>
+        </label>
         <label className="flex items-start gap-3 text-sm sm:col-span-2">
           <input
             type="checkbox"
@@ -241,6 +256,20 @@ export function RulesForm({ initialRules, storedPatch, updatedAt, updatedBy }: R
           <span className="block text-[11px] text-cream-700">
             Après X jours de pension effectifs, le propriétaire ne peut plus confier sa créature pendant X × cette valeur (0 = aucun repos) · défaut {DEFAULT_RULES.boarding.cooldownMultiplier}
           </span>
+        </label>
+      </section>
+
+      <section className="grid gap-3 rounded-3xl border border-ink-600/80 bg-ink-800/90 p-4 shadow-card sm:grid-cols-2">
+        <h2 className="font-display text-xl text-cream-50 sm:col-span-2">Coaching</h2>
+        <label className="space-y-1 text-sm">
+          <span className="text-cream-100">Pouces nets par récompense de l&apos;élève</span>
+          <input type="text" inputMode="numeric" value={draft.thumbsPerStudentReward} onChange={(e) => setDraft((d) => ({ ...d, thumbsPerStudentReward: e.target.value }))} className={inputClass} />
+          <span className="block text-[11px] text-cream-700">Pouces verts moins pouces rouges · défaut {DEFAULT_RULES.coaching.thumbsPerStudentReward}</span>
+        </label>
+        <label className="space-y-1 text-sm">
+          <span className="text-cream-100">Pouces donnés par récompense du coach</span>
+          <input type="text" inputMode="numeric" value={draft.thumbsPerCoachReward} onChange={(e) => setDraft((d) => ({ ...d, thumbsPerCoachReward: e.target.value }))} className={inputClass} />
+          <span className="block text-[11px] text-cream-700">Verts ou rouges, tous élèves confondus · défaut {DEFAULT_RULES.coaching.thumbsPerCoachReward}</span>
         </label>
       </section>
 

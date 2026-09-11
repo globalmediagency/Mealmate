@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BOARDING, FEEDING, HUNGER_DAMAGE_THRESHOLD, TICK, TIER_CONFIG, TIERS, type Tier, type TierConfig } from "./config";
+import { BOARDING, COACHING, FEEDING, HUNGER_DAMAGE_THRESHOLD, TICK, TIER_CONFIG, TIERS, type Tier, type TierConfig } from "./config";
 
 /** Per-tier demands that the admin can tune (spec § 3.1). */
 export type TierRules = Pick<
@@ -25,8 +25,9 @@ export type GameRules = {
   /** Hunger above which health starts dropping. */
   hungerDamageThreshold: number;
   tick: { fullRateHoursCap: number; slowRate: number };
-  feeding: { maxMealsPerDay: number; rejectScreenPhotos: boolean };
+  feeding: { maxMealsPerDay: number; rejectScreenPhotos: boolean; mealRetentionDays: number };
   boarding: BoardingRules;
+  coaching: { thumbsPerStudentReward: number; thumbsPerCoachReward: number };
 };
 
 const pickTier = (config: TierConfig): TierRules => ({
@@ -48,8 +49,9 @@ export const DEFAULT_RULES: GameRules = {
   },
   hungerDamageThreshold: HUNGER_DAMAGE_THRESHOLD,
   tick: { fullRateHoursCap: TICK.fullRateHoursCap, slowRate: TICK.slowRate },
-  feeding: { maxMealsPerDay: FEEDING.maxMealsPerDay, rejectScreenPhotos: FEEDING.rejectScreenPhotos },
+  feeding: { maxMealsPerDay: FEEDING.maxMealsPerDay, rejectScreenPhotos: FEEDING.rejectScreenPhotos, mealRetentionDays: FEEDING.mealRetentionDays },
   boarding: { maxPerHost: BOARDING.maxPerHost, cooldownMultiplier: BOARDING.cooldownMultiplier },
+  coaching: { thumbsPerStudentReward: COACHING.thumbsPerStudentReward, thumbsPerCoachReward: COACHING.thumbsPerCoachReward },
 };
 
 const tierRulesSchema = z
@@ -72,8 +74,11 @@ export const gameRulesPatchSchema = z
       .partial(),
     hungerDamageThreshold: z.coerce.number().min(0).max(100),
     tick: z.object({ fullRateHoursCap: z.coerce.number().min(1).max(8760), slowRate: z.coerce.number().min(0).max(1) }).partial(),
-    feeding: z.object({ maxMealsPerDay: z.coerce.number().int().min(1).max(20), rejectScreenPhotos: z.boolean() }).partial(),
+    feeding: z
+      .object({ maxMealsPerDay: z.coerce.number().int().min(1).max(20), rejectScreenPhotos: z.boolean(), mealRetentionDays: z.coerce.number().int().min(1).max(365) })
+      .partial(),
     boarding: z.object({ maxPerHost: z.coerce.number().int().min(0).max(50), cooldownMultiplier: z.coerce.number().min(0).max(20) }).partial(),
+    coaching: z.object({ thumbsPerStudentReward: z.coerce.number().int().min(1).max(100), thumbsPerCoachReward: z.coerce.number().int().min(1).max(100) }).partial(),
   })
   .partial();
 
@@ -91,6 +96,7 @@ export function mergeRules(patch: GameRulesPatch | null | undefined, base: GameR
     tick: { ...base.tick, ...(patch.tick ?? {}) },
     feeding: { ...base.feeding, ...(patch.feeding ?? {}) },
     boarding: { ...base.boarding, ...(patch.boarding ?? {}) },
+    coaching: { ...base.coaching, ...(patch.coaching ?? {}) },
   };
 }
 

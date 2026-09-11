@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { isSuspiciousPhoto, PHOTO_SOURCE_LABELS, VERDICT_LABELS, type Verdict } from "@/lib/ai/meal-schema";
+import { ThumbBadge } from "./thumb-badge";
 import { TIER_CONFIG, type Tier } from "@/lib/game/config";
 import { formatDayLabel, shortDayLabel } from "@/lib/game/time";
 import type { MealStats, MealView } from "@/lib/meals/service";
@@ -109,6 +110,7 @@ export function MealsHistory({ meals, stats, tier }: MealsHistoryProps) {
                     <p className="text-xs text-cream-500">{timeFormat.format(new Date(meal.createdAt))}</p>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       <HealthDeltaBadge delta={meal.healthDelta} />
+                      {meal.review ? <ThumbBadge verdict={meal.review} /> : null}
                       {isSuspiciousPhoto(meal.photoSource) ? (
                         <span className="inline-flex items-center rounded-full border border-brass-400/50 bg-brass-500/15 px-2.5 py-1 text-xs font-semibold text-brass-200">
                           {PHOTO_SOURCE_LABELS[meal.photoSource]} ?<span className="sr-only"> (repérée par l&apos;IA, le repas reste compté)</span>

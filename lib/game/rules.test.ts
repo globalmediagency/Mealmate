@@ -9,6 +9,8 @@ describe("rules", () => {
     expect(DEFAULT_RULES.feeding.maxMealsPerDay).toBe(5);
     expect(DEFAULT_RULES.tiers.moyen.boardingMaxDays).toBe(30);
     expect(DEFAULT_RULES.boarding).toEqual({ maxPerHost: 5, cooldownMultiplier: 1 });
+    expect(DEFAULT_RULES.coaching).toEqual({ thumbsPerStudentReward: 5, thumbsPerCoachReward: 10 });
+    expect(DEFAULT_RULES.feeding.mealRetentionDays).toBe(30);
   });
 
   it("tunes the boarding rules", () => {

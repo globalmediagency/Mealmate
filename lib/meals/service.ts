@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { isSuspiciousPhoto, type PhotoSource } from "@/lib/ai/meal-schema";
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 import type { MealAnalyzer } from "@/lib/ai/gemini";
 import type { MealAnalysis } from "@/lib/ai/meal-schema";
 import { DomainError } from "@/lib/api/errors";
 import { getHeldCreatures, livingHeld, type HeldCreature } from "@/lib/boarding/service";
 import { getDb } from "@/lib/db";
-import { creatures, meals, type Creature, type Meal } from "@/lib/db/schema";
+import { creatures, mealReviews, meals, type Creature, type Meal } from "@/lib/db/schema";
 import { FEEDING, GAME_TIMEZONE, HEALTH_STATE, type Tier } from "@/lib/game/config";
 import { mealEffects, type MealEffects } from "@/lib/game/meal-effects";
 import type { GameRules } from "@/lib/game/rules";
@@ -177,6 +177,9 @@ export async function feedCreature(input: FeedInput): Promise<FeedResult> {
 
 const ownerNameOf = (held: HeldCreature) => held.owner?.username ?? null;
 
+/** The coach's thumb on a meal, as shown to the student and the coach. */
+export type MealThumb = "up" | "down";
+
 export type MealView = {
   id: string;
   imageUrl: string;
@@ -190,9 +193,11 @@ export type MealView = {
   healthDelta: number;
   createdAt: string;
   photoSource: PhotoSource;
+  /** Thumb given by the coach, null when not reviewed (spec § 3.17). */
+  review: MealThumb | null;
 };
 
-export async function toMealView(meal: Meal, storage: ObjectStorage): Promise<MealView> {
+export async function toMealView(meal: Meal, storage: ObjectStorage, review: MealThumb | null = null): Promise<MealView> {
   return {
     id: meal.id,
     imageUrl: await storage.signedUrl(meal.imageKey),
@@ -206,18 +211,43 @@ export async function toMealView(meal: Meal, storage: ObjectStorage): Promise<Me
     healthDelta: meal.healthDelta,
     createdAt: meal.createdAt.toISOString(),
     photoSource: meal.photoSource as PhotoSource,
+    review,
   };
 }
 
-/** Recent meals (most recent first) with short-lived signed image URLs. */
+/**
+ * Deletes the user's meals older than `retentionDays` (photo first, then the
+ * row; a photo that cannot be removed keeps its row for a later try). Called
+ * lazily when a history is read. Returns how many meals went away.
+ */
+export async function purgeExpiredMeals(userId: string, storage: ObjectStorage, now: Date, retentionDays: number): Promise<number> {
+  const cutoff = new Date(now.getTime() - retentionDays * 86_400_000);
+  const db = getDb();
+  const expired = await db.select({ id: meals.id, imageKey: meals.imageKey }).from(meals).where(and(eq(meals.userId, userId), lt(meals.createdAt, cutoff)));
+  let removed = 0;
+  for (const meal of expired) {
+    try {
+      await storage.remove(meal.imageKey);
+    } catch (error) {
+      console.error(`[meals] could not remove photo ${meal.imageKey}, keeping the meal for now`, error);
+      continue;
+    }
+    await db.delete(meals).where(eq(meals.id, meal.id));
+    removed += 1;
+  }
+  return removed;
+}
+
+/** Recent meals (most recent first) with short-lived signed image URLs and the coach's thumb. */
 export async function listMeals(userId: string, storage: ObjectStorage, limit = 60): Promise<MealView[]> {
   const rows = await getDb()
-    .select()
+    .select({ meal: meals, review: mealReviews.verdict })
     .from(meals)
+    .leftJoin(mealReviews, eq(mealReviews.mealId, meals.id))
     .where(eq(meals.userId, userId))
     .orderBy(desc(meals.createdAt))
     .limit(limit);
-  return Promise.all(rows.map((meal) => toMealView(meal, storage)));
+  return Promise.all(rows.map((row) => toMealView(row.meal, storage, row.review ?? null)));
 }
 
 export type DailyScore = { date: string; average: number | null; count: number };

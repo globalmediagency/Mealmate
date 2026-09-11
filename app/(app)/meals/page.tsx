@@ -7,7 +7,8 @@ import { LinkButton } from "@/components/ui/button";
 import { requireViewer } from "@/lib/auth/session";
 import { loadActiveCreatureView } from "@/lib/creatures/loader";
 import { ConfigError, getConfigStatus } from "@/lib/env";
-import { listMeals, mealStats } from "@/lib/meals/service";
+import { getGameRules } from "@/lib/game/rules-service";
+import { listMeals, mealStats, purgeExpiredMeals } from "@/lib/meals/service";
 import { r2Storage } from "@/lib/storage/r2";
 
 export const metadata: Metadata = { title: "Repas" };
@@ -27,6 +28,8 @@ export default async function MealsPage() {
     );
   }
 
+  // Meals older than the retention rule go away (photo and row) before the history is read.
+  await purgeExpiredMeals(session.user.id, r2Storage, new Date(), (await getGameRules()).feeding.mealRetentionDays);
   const [meals, stats] = await Promise.all([listMeals(session.user.id, r2Storage), mealStats(session.user.id)]);
 
   return (

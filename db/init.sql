@@ -63,10 +63,12 @@ CREATE INDEX IF NOT EXISTS verification_identifier_idx ON "verification"(identif
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS profiles (
-  user_id     text PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE,
-  username    text NOT NULL,
-  friend_code text NOT NULL UNIQUE,
-  created_at  timestamptz NOT NULL DEFAULT now()
+  user_id                text PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE,
+  username               text NOT NULL,
+  friend_code            text NOT NULL UNIQUE,
+  created_at             timestamptz NOT NULL DEFAULT now(),
+  student_rewards_opened integer NOT NULL DEFAULT 0,
+  coach_rewards_opened   integer NOT NULL DEFAULT 0
 );
 -- Usernames are unique case-insensitively.
 CREATE UNIQUE INDEX IF NOT EXISTS profiles_username_lower_idx ON profiles (lower(username));
@@ -273,6 +275,38 @@ CREATE TABLE IF NOT EXISTS boardings (
 CREATE INDEX IF NOT EXISTS boardings_host_idx ON boardings (host_id, ended_at);
 CREATE INDEX IF NOT EXISTS boardings_owner_idx ON boardings (owner_id, ended_at);
 CREATE UNIQUE INDEX IF NOT EXISTS boardings_creature_open_idx ON boardings (creature_id) WHERE ended_at IS NULL;
+
+-- ---------------------------------------------------------------------------
+-- Coaching : un ami note les repas de son élève (migration 010)
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS coachings (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id      text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  coach_id        text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  status          text NOT NULL DEFAULT 'pending',
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  responded_at    timestamptz,
+  ended_at        timestamptz,
+  ended_by        text,
+  thumbs_up       integer NOT NULL DEFAULT 0,
+  thumbs_down     integer NOT NULL DEFAULT 0,
+  student_seen_at timestamptz,
+  CONSTRAINT coachings_not_self_check CHECK (student_id <> coach_id),
+  CONSTRAINT coachings_status_check CHECK (status IN ('pending', 'active', 'declined', 'cancelled', 'ended'))
+);
+CREATE INDEX IF NOT EXISTS coachings_coach_status_idx ON coachings (coach_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS coachings_student_open_idx ON coachings (student_id) WHERE status IN ('pending', 'active');
+
+CREATE TABLE IF NOT EXISTS meal_reviews (
+  meal_id     uuid PRIMARY KEY REFERENCES meals(id) ON DELETE CASCADE,
+  coaching_id uuid NOT NULL REFERENCES coachings(id) ON DELETE CASCADE,
+  verdict     text NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT meal_reviews_verdict_check CHECK (verdict IN ('up', 'down'))
+);
+CREATE INDEX IF NOT EXISTS meal_reviews_coaching_idx ON meal_reviews (coaching_id);
 
 -- ---------------------------------------------------------------------------
 -- Admin: configurable game rules (single row id = 'default')

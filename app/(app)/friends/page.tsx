@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { FriendsPanel } from "@/components/game/friends-panel";
+import { SocialTabs } from "@/components/game/social-tabs";
 import { PageHeader } from "@/components/layout/page-header";
 import { requireViewer } from "@/lib/auth/session";
 import { boardingCooldownUntil, boardingLimits, getHeldCreatures } from "@/lib/boarding/service";
+import { countCoachingBadges } from "@/lib/coaching/service";
 import type { Tier } from "@/lib/game/config";
 import { getGameRules } from "@/lib/game/rules-service";
 import { listFriends, listRequests } from "@/lib/friends/service";
@@ -15,19 +17,21 @@ export default async function FriendsPage() {
   const { session, profile } = await requireViewer();
   const now = new Date();
   const rules = await getGameRules();
-  const [friends, requests, inventory, trades, held, cooldown] = await Promise.all([
+  const [friends, requests, inventory, trades, held, cooldown, coachingBadge] = await Promise.all([
     listFriends(session.user.id),
     listRequests(session.user.id),
     getInventory(session.user.id),
     listTrades(session.user.id),
     getHeldCreatures(session.user.id, now, rules),
     boardingCooldownUntil(session.user.id, now, rules),
+    countCoachingBadges(session.user.id),
   ]);
   const own = held.own;
   const boardable = own && own.status === "alive" && own.name && !held.away && rules.boarding.maxPerHost > 0 ? { creatureName: own.name, ...boardingLimits(own.tier as Tier, rules) } : null;
   return (
     <div className="space-y-5">
       <PageHeader title="Amis" subtitle="Découvre les créatures de tes proches." />
+      <SocialTabs coachingBadge={coachingBadge} />
       <FriendsPanel
         me={{ username: profile.username, friendCode: profile.friendCode }}
         friends={friends}

@@ -42,7 +42,7 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 ## Pages de validation visuelle
 
 - `/dev/creatures` : galerie espèces × stades × états, œufs et décors.
-- `/dev/screens?screen=…` : écrans du jeu avec données factices (`egg`, `incubation`, `ready`, `reveal`, `home`, `home-sick`, `home-hungry`, `activity`, `feed`, `meal-result`, `meals`, `mourning`, `admin`, `play`, `wardrobe`, `chest`, `collection`, `friends`, `shop`, `home-protected`, `account`, `home-away`, `home-hosting`, `pension`, `mourning-pension`).
+- `/dev/screens?screen=…` : écrans du jeu avec données factices (`egg`, `incubation`, `ready`, `reveal`, `home`, `home-sick`, `home-hungry`, `activity`, `feed`, `meal-result`, `meals`, `mourning`, `admin`, `play`, `wardrobe`, `chest`, `collection`, `friends`, `shop`, `home-protected`, `account`, `home-away`, `home-hosting`, `pension`, `mourning-pension`, `coach`, `coach-meals`).
 - `/dev/creatures?compact=1` : les 60 espèces en un coup d'œil ; la page complète montre les 30 accessoires. `/dev/gemini` : modèles Gemini visibles avec la clé.
 - `/admin` (hors galerie) : espace d'administration protégé par `ADMIN_USERNAME` / `ADMIN_PASSWORD` (aussi acceptés sur la page de connexion normale ; l'identifiant est réservé via `isAdminIdentifier()`), avec les onglets Règles de jeu, Créatures (`/admin/creatures`, filtres niveau / rareté, fiche stades × états) et Accessoires (`/admin/accessoires`, par emplacement, aperçu porté à chaque stade).
 - Les deux sont gardées par `NEXT_PUBLIC_DEV_GALLERY=true` (lue au build : redéployer après l'avoir changée).
@@ -67,6 +67,14 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 - La fin de pension est paresseuse (`settleBoarding` à chaque lecture) : mort → `died` (remet `host_seen_at` à `NULL` : l'hôte acquitte l'encart de décès via `markBoardingsSeen(hostId, now, boardingId)`, le propriétaire voit « pendant sa pension chez X » dans le deuil via `diedInBoarding()` ; un décès ne compte jamais pour le repos), échéance → `expired` ; `endBoarding()` pour `recovered` (propriétaire) / `returned` (hôte), par `UPDATE` conditionnel.
 - Pas et coffres : les pas d'un jour vont au **détenteur** de ce jour (`lib/boarding/custody.ts`, jour de départ à l'hôte, jour de retour au propriétaire) ; `getChestStatus()` passe par `creatureStepsSince()`. L'hôte garde les accessoires des coffres ouverts pendant la pension ; il ne peut pas changer la tenue (`equipAccessory` reste réservé au propriétaire).
 - Un repas nourrit toutes les créatures vivantes détenues (`feedCreature` → `others`), avec des effets calculés par créature (niveau, faim). La limite de repas par jour reste par joueur ; la limite de parties est par créature (`countPlaysToday(creatureId)`).
+
+## Coaching
+
+- Un joueur choisit son coach parmi ses amis acceptés (`proposeCoach`, table `coachings`, migration 010) ; le coach accepte ou décline (`respondToProposal`), chacun peut mettre fin à tout moment (`endCoaching` : `cancelled` / `declined` / `ended` + `ended_by`). Un seul coaching `pending` ou `active` par élève (index unique partiel) ; un coach peut avoir plusieurs élèves.
+- Le coach voit les repas de son élève (photos signées, date et heure, note de l'appli) via `studentMealsForCoach()` : **seule** exception à la règle « photos jamais montrées à un autre utilisateur », réservée à la relation `active`. Il pose un pouce par repas (`reviewMeal`, table `meal_reviews`, un avis par repas, modifiable) ; les compteurs `thumbs_up` / `thumbs_down` vivent sur `coachings` et survivent à la purge des repas.
+- Récompenses (`rewardStatuses`, `openCoachingReward`) : élève = Σ max(verts − rouges, 0) sur tous ses coachings ÷ `coaching.thumbsPerStudentReward` (règle admin, défaut 5) ; coach = Σ (verts + rouges) sur tous ses coachings ÷ `coaching.thumbsPerCoachReward` (défaut 10). Compteurs `profiles.student_rewards_opened` / `coach_rewards_opened` réservés par `UPDATE` conditionnel. Tirage sur `rewardPool(role)` = accessoires des coffres + ceux réservés au rôle (`Accessory.source` ∈ `chest | student | coach`, `CHEST_ACCESSORIES` pour les coffres classiques) ; un accessoire garde le même poids dans tous les groupes (part de sa rareté dans le groupe des coffres), seul le total change.
+- Conservation des repas : `purgeExpiredMeals(userId, storage, now, rules.feeding.mealRetentionDays)` (règle admin, défaut 30 j) supprime photo R2 puis ligne, appelée paresseusement avant toute lecture d'historique (page Repas, `GET /api/meals`, vue du coach). Une photo impossible à supprimer garde sa ligne.
+- Écrans : `/coach` (onglet « Coaching » à côté d'« Amis », `SocialTabs`), `/coach/[id]` pour le coach ; pastille de l'onglet Amis = propositions reçues + réponses non vues (`countCoachingBadges`, `POST /api/coaching/seen`).
 
 ## Amis
 
@@ -111,4 +119,4 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 - Ne jamais lancer `pkill -f "next dev"` depuis une commande dont la ligne contient elle-même « next dev » (elle se tuerait) : utiliser un motif avec crochets (`"next de[v]"`) ou tuer par port.
 - Better Auth utilise un `baseURL` dynamique (`*.vercel.app` autorisé) : ne pas définir `BETTER_AUTH_URL`.
 - Neon HTTP ne supporte pas `db.transaction()` : utiliser `db.batch()` ou des mises à jour conditionnelles.
-- Les photos de repas sont privées : bucket R2 privé, presigned GET courts, jamais exposées aux amis.
+- Les photos de repas sont privées : bucket R2 privé, presigned GET courts, jamais exposées aux amis (seul le coach actif d'un joueur les voit, voir « Coaching »).

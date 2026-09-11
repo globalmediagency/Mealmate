@@ -123,4 +123,27 @@ export const HEAD_ACCESSORIES: Record<string, AccessoryRenderer> = {
       </g>
     ),
   },
+  // Coaching rewards
+  graduation_cap: {
+    front: () => (
+      <g>
+        <path d="M-11 2 C-11 -6 11 -6 11 2 Z" fill="#2B2B2B" />
+        <path d="M-19 -5 L0 -12 L19 -5 L0 2 Z" fill="#1E1E1E" stroke="#4A4A4A" strokeWidth="0.5" />
+        <path d="M0 -5 L0 -1" stroke="#E8C36A" strokeWidth="0.8" />
+        <path d="M0 -1 L11 -1 L12 6" stroke="#E8C36A" strokeWidth="1.2" strokeLinecap="round" fill="none" />
+        <circle cx="12" cy="7" r="1.6" fill="#E8C36A" />
+      </g>
+    ),
+  },
+  coach_cap: {
+    front: () => (
+      <g>
+        <path d="M-12 1 C-12 -11 12 -11 12 1 Z" fill="#D9666B" />
+        <path d="M0 -10 L0 1" stroke="#A63F45" strokeWidth="0.8" />
+        <path d="M2 0 L19 3 L19 6 L2 4.5 Z" fill="#A63F45" />
+        <circle cx="-3" cy="-4" r="3.4" fill="#F7F4EC" />
+        <path d="M-2.2 -5.6 A2.2 2.2 0 1 0 -2.2 -2.4" stroke="#A63F45" strokeWidth="1.1" fill="none" strokeLinecap="round" />
+      </g>
+    ),
+  },
 };

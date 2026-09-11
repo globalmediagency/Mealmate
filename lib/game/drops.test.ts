@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ACCESSORIES, accessoriesByRarity } from "@/lib/accessories/catalog";
+import { ACCESSORIES, accessoriesByRarity, CHEST_ACCESSORIES, rewardPool, sourceOf } from "@/lib/accessories/catalog";
 import { speciesForTier } from "@/lib/creatures";
 import { ACCESSORY_RARITY_WEIGHTS, RARITIES, RARITY_WEIGHTS, TIERS } from "./config";
 import { accessoryWeights, compactOverrides, defaultSpeciesWeight, dropWeightsSchema, effectiveWeights, formatChance, formatPercent, isAllZero, PERCENT, pickWeighted, speciesWeights } from "./drops";
@@ -25,7 +25,7 @@ describe("default weights", () => {
 
   it("do the same for accessories, commons first", () => {
     const rows = accessoryWeights();
-    expect(rows).toHaveLength(ACCESSORIES.length);
+    expect(rows).toHaveLength(CHEST_ACCESSORIES.length);
     expect(rows.reduce((s, r) => s + r.weight, 0)).toBeCloseTo(PERCENT, 6);
     for (const rarity of RARITIES) {
       const share = rows.filter((r) => r.item.rarity === rarity).reduce((s, r) => s + r.percent, 0);
@@ -33,6 +33,19 @@ describe("default weights", () => {
     }
     expect(rows[0].item.id).toBe(accessoriesByRarity().commun[0].id);
     expect(rows[rows.length - 1].item.rarity).toBe("legendaire");
+  });
+
+  it("keeps coaching-only accessories out of chests and adds them to their reward pool", () => {
+    const chest = accessoryWeights();
+    expect(chest.some((r) => sourceOf(r.item) !== "chest")).toBe(false);
+    const student = accessoryWeights({}, rewardPool("student"));
+    expect(student).toHaveLength(CHEST_ACCESSORIES.length + ACCESSORIES.filter((a) => sourceOf(a) === "student").length);
+    expect(student.some((r) => sourceOf(r.item) === "coach")).toBe(false);
+    const cap = student.find((r) => r.item.id === "graduation_cap")!;
+    const rareChest = student.find((r) => r.item.id === "top_hat")!;
+    expect(cap.defaultWeight).toBe(rareChest.defaultWeight); // same weight as a chest accessory of its rarity
+    expect(student.reduce((s, r) => s + r.percent, 0)).toBeCloseTo(PERCENT, 6);
+    expect(cap.percent).toBeLessThan(rareChest.percent + 1e-9);
   });
 
   it("express a common easy species as roughly 1 chance in 15", () => {

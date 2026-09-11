@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db";
 import {
   account,
   boardings,
+  coachings,
   creatureOutfits,
   creatures,
   friendships,
@@ -38,7 +39,7 @@ function omit<T extends object, K extends keyof T>(row: T, keys: readonly K[]): 
 /** Everything MealMate holds about a user, as plain JSON (photos are listed by date only, never by key). */
 export async function exportAccount(userId: string, now: Date = new Date()) {
   const db = getDb();
-  const [users, profileRows, creatureRows, mealRows, stepRows, playRows, accessoryRows, friendshipRows, purchaseRows, inventoryRows, giftRows, tradeRows, boardingRows, strava] =
+  const [users, profileRows, creatureRows, mealRows, stepRows, playRows, accessoryRows, friendshipRows, purchaseRows, inventoryRows, giftRows, tradeRows, boardingRows, coachingRows, strava] =
     await Promise.all([
       db.select({ email: user.email, name: user.name, createdAt: user.createdAt }).from(user).where(eq(user.id, userId)),
       db.select({ username: profiles.username, friendCode: profiles.friendCode, createdAt: profiles.createdAt }).from(profiles).where(eq(profiles.userId, userId)),
@@ -53,6 +54,7 @@ export async function exportAccount(userId: string, now: Date = new Date()) {
       db.select().from(gifts).where(or(eq(gifts.fromUserId, userId), eq(gifts.toUserId, userId))),
       db.select().from(trades).where(or(eq(trades.proposerId, userId), eq(trades.receiverId, userId))),
       db.select().from(boardings).where(or(eq(boardings.ownerId, userId), eq(boardings.hostId, userId))),
+      db.select().from(coachings).where(or(eq(coachings.studentId, userId), eq(coachings.coachId, userId))),
       getStravaStatus(userId, now),
     ]);
 
@@ -65,6 +67,7 @@ export async function exportAccount(userId: string, now: Date = new Date()) {
   for (const g of giftRows) otherIds.add(g.fromUserId === userId ? g.toUserId : g.fromUserId);
   for (const t of tradeRows) otherIds.add(t.proposerId === userId ? t.receiverId : t.proposerId);
   for (const b of boardingRows) otherIds.add(b.ownerId === userId ? b.hostId : b.ownerId);
+  for (const c of coachingRows) otherIds.add(c.studentId === userId ? c.coachId : c.studentId);
   const others = otherIds.size ? await db.select({ userId: profiles.userId, username: profiles.username }).from(profiles).where(inArray(profiles.userId, [...otherIds])) : [];
   const nameOf = new Map(others.map((p) => [p.userId, p.username]));
   const other = (id: string) => nameOf.get(id) ?? "utilisateur supprimé";
@@ -85,6 +88,7 @@ export async function exportAccount(userId: string, now: Date = new Date()) {
     gifts: giftRows.map((g) => ({ direction: g.fromUserId === userId ? "sent" : "received", with: other(g.fromUserId === userId ? g.toUserId : g.fromUserId), kind: g.kind, item: g.item, createdAt: g.createdAt })),
     trades: tradeRows.map((t) => ({ direction: t.proposerId === userId ? "proposed" : "received", with: other(t.proposerId === userId ? t.receiverId : t.proposerId), offered: t.offeredAccessoryId, requested: t.requestedAccessoryId, status: t.status, createdAt: t.createdAt, resolvedAt: t.resolvedAt })),
     boardings: boardingRows.map((b) => ({ role: b.ownerId === userId ? "owner" : "host", with: other(b.ownerId === userId ? b.hostId : b.ownerId), creatureId: b.creatureId, startedAt: b.startedAt, endsAt: b.endsAt, endedAt: b.endedAt, endReason: b.endReason })),
+    coachings: coachingRows.map((c) => ({ role: c.studentId === userId ? "student" : "coach", with: other(c.studentId === userId ? c.coachId : c.studentId), status: c.status, thumbsUp: c.thumbsUp, thumbsDown: c.thumbsDown, createdAt: c.createdAt, endedAt: c.endedAt })),
     strava: { connected: strava.connected, athleteName: strava.athleteName, lastSyncAt: strava.lastSyncAt },
   };
 }
@@ -138,6 +142,7 @@ export async function countUserFootprint(userId: string): Promise<Record<string,
     gifts: await count(db.select().from(gifts).where(or(eq(gifts.fromUserId, userId), eq(gifts.toUserId, userId)))),
     trades: await count(db.select().from(trades).where(or(eq(trades.proposerId, userId), eq(trades.receiverId, userId)))),
     boardings: await count(db.select().from(boardings).where(or(eq(boardings.ownerId, userId), eq(boardings.hostId, userId)))),
+    coachings: await count(db.select().from(coachings).where(or(eq(coachings.studentId, userId), eq(coachings.coachId, userId)))),
     accounts: await count(db.select().from(account).where(and(eq(account.userId, userId)))),
   };
 }

@@ -5,6 +5,9 @@ import { BoardedAway } from "@/components/game/boarded-away";
 import { CreatureHome } from "@/components/game/creature-home";
 import { HostedCreatures } from "@/components/game/hosted-creatures";
 import { HostedDeathNotice } from "@/components/game/hosted-death-notice";
+import { CoachingPanel } from "@/components/game/coaching-panel";
+import { StudentMeals } from "@/components/game/student-meals";
+import { SocialTabs } from "@/components/game/social-tabs";
 import { PensionHome } from "@/components/game/pension-home";
 import { EggChoice } from "@/components/game/egg-choice";
 import { HatchReveal } from "@/components/game/hatch-reveal";
@@ -37,7 +40,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -156,9 +159,9 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
       const stats: MealStats = { daily, weekAverage: 73, monthAverage: 70, weekCount: 9, todayCount: 2 };
       const img = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#5e7053"/><circle cx="32" cy="32" r="18" fill="#e8c36a"/></svg>');
       const meals: MealView[] = [
-        { id: "m1", imageUrl: img, score: 82, verdict: "sain", foods: ["saumon grillé", "quinoa", "avocat"], macros: { proteins: 4, fibers: 4, carbs: 3, fats: 3, sugars: 1, ultra_processed: 1 }, portion: "raisonnable", comment: "Une assiette équilibrée. Bravo !", creatureLine: "Miam, du saumon !", healthDelta: 10.5, photoSource: "screen", createdAt: new Date().toISOString() },
-        { id: "m2", imageUrl: img, score: 38, verdict: "peu_sain", foods: ["burger", "frites"], macros: { proteins: 3, fibers: 1, carbs: 4, fats: 2, sugars: 2, ultra_processed: 4 }, portion: "copieuse", comment: "Un plaisir de temps en temps ; un peu de verdure à côté la prochaine fois ?", creatureLine: "Ouh, c'est lourd…", healthDelta: -0.5, photoSource: "real", createdAt: new Date(Date.now() - 86_400_000).toISOString() },
-        { id: "m3", imageUrl: img, score: 64, verdict: "correct", foods: ["pâtes", "tomates", "parmesan"], macros: { proteins: 2, fibers: 2, carbs: 4, fats: 2, sugars: 1, ultra_processed: 2 }, portion: "raisonnable", comment: "Correct ! Des légumes en plus et c'est parfait.", creatureLine: "Des pâtes, chouette.", healthDelta: 6, photoSource: "real", createdAt: new Date(Date.now() - 2 * 86_400_000).toISOString() },
+        { id: "m1", imageUrl: img, score: 82, verdict: "sain", foods: ["saumon grillé", "quinoa", "avocat"], macros: { proteins: 4, fibers: 4, carbs: 3, fats: 3, sugars: 1, ultra_processed: 1 }, portion: "raisonnable", comment: "Une assiette équilibrée. Bravo !", creatureLine: "Miam, du saumon !", healthDelta: 10.5, photoSource: "screen", createdAt: new Date().toISOString(), review: "up" },
+        { id: "m2", imageUrl: img, score: 38, verdict: "peu_sain", foods: ["burger", "frites"], macros: { proteins: 3, fibers: 1, carbs: 4, fats: 2, sugars: 2, ultra_processed: 4 }, portion: "copieuse", comment: "Un plaisir de temps en temps ; un peu de verdure à côté la prochaine fois ?", creatureLine: "Ouh, c'est lourd…", healthDelta: -0.5, photoSource: "real", createdAt: new Date(Date.now() - 86_400_000).toISOString(), review: "down" },
+        { id: "m3", imageUrl: img, score: 64, verdict: "correct", foods: ["pâtes", "tomates", "parmesan"], macros: { proteins: 2, fibers: 2, carbs: 4, fats: 2, sugars: 1, ultra_processed: 2 }, portion: "raisonnable", comment: "Correct ! Des légumes en plus et c'est parfait.", creatureLine: "Des pâtes, chouette.", healthDelta: 6, photoSource: "real", createdAt: new Date(Date.now() - 2 * 86_400_000).toISOString(), review: null },
       ];
       content = <MealsHistory meals={meals} stats={stats} tier="facile" />;
       break;
@@ -312,6 +315,40 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
     case "mourning":
       content = <Mourning creature={mockCreature({ status: "dead", state: "dead", health: 0, hunger: 100, mood: 5, ageDays: 9, lifespanDays: 9, diedAt: new Date().toISOString() })} />;
       break;
+    case "coach": {
+      const now = new Date().toISOString();
+      content = (
+        <div className="space-y-5">
+          <SocialTabs coachingBadge={1} />
+          <CoachingPanel
+            me={{ username: "Chabond_42" }}
+            current={{ id: "c1111111-1111-4111-8111-111111111111", status: "active", student: { userId: "me", username: "Chabond_42" }, coach: { userId: "u2", username: "Karim" }, thumbsUp: 7, thumbsDown: 2, createdAt: now, respondedAt: now, endedAt: null, endedBy: null }}
+            notices={[{ id: "c1111111-1111-4111-8111-111111111111", status: "active", student: { userId: "me", username: "Chabond_42" }, coach: { userId: "u2", username: "Karim" }, thumbsUp: 7, thumbsDown: 2, createdAt: now, respondedAt: now, endedAt: null, endedBy: null }]}
+            friends={[{ friendshipId: "a", username: "Marion" }, { friendshipId: "b", username: "Karim" }]}
+            proposals={[{ id: "c2222222-2222-4222-8222-222222222222", status: "pending", student: { userId: "u9", username: "Lina" }, coach: { userId: "me", username: "Chabond_42" }, thumbsUp: 0, thumbsDown: 0, createdAt: now, respondedAt: null, endedAt: null, endedBy: null }]}
+            students={[{ id: "c3333333-3333-4333-8333-333333333333", status: "active", student: { userId: "u1", username: "Marion" }, coach: { userId: "me", username: "Chabond_42" }, thumbsUp: 12, thumbsDown: 3, createdAt: now, respondedAt: now, endedAt: null, endedBy: null }]}
+            rewards={{ student: { points: 5, per: 5, earned: 1, opened: 0, available: 1, toNext: 5 }, coach: { points: 15, per: 10, earned: 1, opened: 1, available: 0, toNext: 5 } }}
+          />
+        </div>
+      );
+      break;
+    }
+    case "coach-meals": {
+      const now = new Date().toISOString();
+      const img = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#5e7053"/><circle cx="32" cy="32" r="18" fill="#e8c36a"/></svg>');
+      const meal = (id: string, score: number, verdict: "sain" | "correct" | "peu_sain", foods: string[], review: "up" | "down" | null, hoursAgo: number) => ({
+        id, imageUrl: img, score, verdict, foods, macros: { proteins: 3, fibers: 3, carbs: 3, fats: 2, sugars: 1, ultra_processed: 1 }, portion: "raisonnable", comment: "Une assiette équilibrée, bravo.", creatureLine: null, healthDelta: 4, photoSource: "real" as const, createdAt: new Date(Date.now() - hoursAgo * 3_600_000).toISOString(), review,
+      });
+      content = (
+        <StudentMeals
+          coaching={{ id: "c3333333-3333-4333-8333-333333333333", status: "active", student: { userId: "u1", username: "Marion" }, coach: { userId: "me", username: "Chabond_42" }, thumbsUp: 12, thumbsDown: 3, createdAt: now, respondedAt: now, endedAt: null, endedBy: null }}
+          meals={[meal("m1", 84, "sain", ["saumon", "quinoa", "brocolis"], "up", 2), meal("m2", 41, "peu_sain", ["pizza", "soda"], "down", 26), meal("m3", 66, "correct", ["pâtes", "tomates"], null, 50)]}
+          retentionDays={30}
+          thumbsPerReward={5}
+        />
+      );
+      break;
+    }
     case "mourning-pension":
       content = <Mourning creature={mockCreature({ status: "dead", state: "dead", health: 0, hunger: 100, mood: 5, ageDays: 9, lifespanDays: 9, diedAt: new Date().toISOString() })} boardedWith="Karim" />;
       break;

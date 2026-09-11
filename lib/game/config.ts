@@ -131,6 +131,8 @@ export const FEEDING = {
   /** Refuse photos of a screen or a printed picture (admin-tunable; off = warn only). */
   rejectScreenPhotos: false,
   maxMealsPerDay: 5,
+  /** Meals (rows and photos) are deleted after this many days (admin-tunable). */
+  mealRetentionDays: 30,
   duplicateWindowHours: 24,
   healthDeltaDivisor: 4,
   healthDeltaMin: -15,
@@ -168,6 +170,14 @@ export const STEPS = {
 } as const;
 
 /** Mini-game rules (spec § 3.7). */
+/** Coaching (spec § 3.17): a friend reviews the student's meals with thumbs. Admin-tunable defaults. */
+export const COACHING = {
+  /** Net thumbs (up − down) the student needs per surprise accessory. */
+  thumbsPerStudentReward: 5,
+  /** Thumbs (up or down) the coach gives per surprise accessory. */
+  thumbsPerCoachReward: 10,
+} as const;
+
 /** Boarding a creature at a friend's (spec § 3.16). The per-tier maximum stay lives in TIER_CONFIG. */
 export const BOARDING = {
   /** Hard ceiling accepted by the API whatever the admin rules say (days). */

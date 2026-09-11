@@ -5,7 +5,7 @@ import { AccessoryIcon } from "@/components/accessories";
 import { Creature } from "@/components/creatures/creature";
 import { RarityBadge } from "@/components/creatures/rarity-badge";
 import { requireAdmin } from "@/lib/admin/auth";
-import { ACCESSORIES, accessoriesForSlot, SLOT_LABELS, SLOTS } from "@/lib/accessories/catalog";
+import { ACCESSORIES, accessoriesForSlot, CHEST_ACCESSORIES, rewardPool, SLOT_LABELS, SLOTS, SOURCE_LABELS, sourceOf, type AccessorySource } from "@/lib/accessories/catalog";
 import { speciesForTier } from "@/lib/creatures";
 import { RARITIES, RARITY_LABELS, STAGES } from "@/lib/game/config";
 import { accessoryWeights, formatChance } from "@/lib/game/drops";
@@ -22,11 +22,23 @@ export default async function AdminAccessoriesPage({ searchParams }: { searchPar
   await requireAdmin();
   const { slot: slotParam } = await searchParams;
   const activeSlot = isSlot(slotParam) ? slotParam : undefined;
-  const weighted = accessoryWeights((await getDropWeights()).accessories);
-  const chanceOf = new Map(weighted.map((w) => [w.item.id, w]));
+  const overrides = (await getDropWeights()).accessories;
+  // One weight per accessory; each pool (step chests, student rewards, coach rewards) has its own total.
+  const weighted = accessoryWeights(overrides, ACCESSORIES);
+  const chanceIn: Record<AccessorySource, Map<string, ReturnType<typeof accessoryWeights>[number]>> = {
+    chest: new Map(accessoryWeights(overrides).map((w) => [w.item.id, w])),
+    student: new Map(accessoryWeights(overrides, rewardPool("student")).map((w) => [w.item.id, w])),
+    coach: new Map(accessoryWeights(overrides, rewardPool("coach")).map((w) => [w.item.id, w])),
+  };
+  const chanceOf = (id: string) => chanceIn[sourceOf(ACCESSORIES.find((a) => a.id === id)!)].get(id);
+  const CHANCE_LABELS: Record<AccessorySource, string> = { chest: "Chance par coffre", student: "Chance par récompense d'élève", coach: "Chance par récompense de coach" };
+  const POOL_LABELS: Record<AccessorySource, string> = { chest: "coffres", student: "récompenses d'élève", coach: "récompenses de coach" };
+  const poolsOf = (source: AccessorySource): AccessorySource[] => (source === "chest" ? ["chest", "student", "coach"] : [source]);
   const shownSlots = activeSlot ? [activeSlot] : SLOTS;
   const shownIds = new Set(ACCESSORIES.filter((a) => shownSlots.includes(a.slot)).map((a) => a.id));
-  const hiddenWeight = weighted.filter((w) => !shownIds.has(w.item.id)).reduce((sum, w) => sum + w.weight, 0);
+  const hiddenWeight = Object.fromEntries(
+    (["chest", "student", "coach"] as const).map((pool) => [pool, weighted.filter((w) => !shownIds.has(w.item.id) && poolsOf(sourceOf(w.item)).includes(pool)).reduce((sum, w) => sum + w.weight, 0)]),
+  );
   // Reference model: the first common species of the easy tier, at every stage.
   const model = speciesForTier("facile")[0];
   const counts = Object.fromEntries(RARITIES.map((r) => [r, ACCESSORIES.filter((a) => a.rarity === r).length]));
@@ -36,7 +48,8 @@ export default async function AdminAccessoriesPage({ searchParams }: { searchPar
       <div>
         <h1 className="font-display text-3xl font-semibold text-cream-50">Accessoires</h1>
         <p className="mt-1 text-sm text-cream-500">
-          {ACCESSORIES.length} accessoires gagnés dans les coffres (un coffre tous les 5 000 pas), répartis en {SLOTS.length} emplacements.
+          {CHEST_ACCESSORIES.length} accessoires gagnés dans les coffres (un coffre tous les 5 000 pas) et {ACCESSORIES.length - CHEST_ACCESSORIES.length} réservés aux
+          récompenses de coaching (élève ou coach), répartis en {SLOTS.length} emplacements.
           {" "}
           {RARITIES.map((r) => `${counts[r]} ${RARITY_LABELS[r].toLowerCase()}`).join(" · ")}.
         </p>
@@ -62,11 +75,22 @@ export default async function AdminAccessoriesPage({ searchParams }: { searchPar
       <DropRateEditor
         key={activeSlot ?? "all"}
         kind="accessories"
-        title={activeSlot ? `Probabilités des coffres · ${SLOT_LABELS[activeSlot]}` : "Probabilités des coffres · tous les accessoires"}
+        title={activeSlot ? `Probabilités · ${SLOT_LABELS[activeSlot]}` : "Probabilités · tous les accessoires"}
         rows={weighted
           .filter((w) => shownIds.has(w.item.id))
-          .map((w) => ({ id: w.item.id, name: w.item.name, rarity: w.item.rarity, defaultWeight: w.defaultWeight, weight: w.weight, overridden: w.overridden }))}
+          .map((w) => ({
+            id: w.item.id,
+            name: w.item.name,
+            rarity: w.item.rarity,
+            defaultWeight: w.defaultWeight,
+            weight: w.weight,
+            overridden: w.overridden,
+            pool: sourceOf(w.item),
+            pools: poolsOf(sourceOf(w.item)),
+            tag: sourceOf(w.item) === "chest" ? undefined : sourceOf(w.item) === "student" ? "élève" : "coach",
+          }))}
         hiddenPoolWeight={hiddenWeight}
+        poolLabels={POOL_LABELS}
       />
 
       {shownSlots.map((slot) => {
@@ -88,10 +112,15 @@ export default async function AdminAccessoriesPage({ searchParams }: { searchPar
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-semibold text-cream-50">{a.name}</span>
                         <RarityBadge rarity={a.rarity} className="text-[10px]" />
+                        {sourceOf(a) !== "chest" ? (
+                          <span className="rounded-full border border-sage-500/50 bg-sage-800/40 px-2 py-0.5 text-[10px] font-semibold text-sage-200">{SOURCE_LABELS[sourceOf(a)]}</span>
+                        ) : null}
                         <code className="text-xs text-cream-700">{a.id}</code>
                       </div>
                       <p className="text-sm text-cream-500">{a.tagline}</p>
-                      <p className="text-xs tabular-nums text-cream-700">Chance par coffre : {chanceOf.get(a.id) ? formatChance(chanceOf.get(a.id)!) : "—"}</p>
+                      <p className="text-xs tabular-nums text-cream-700">
+                        {CHANCE_LABELS[sourceOf(a)]} : {chanceOf(a.id) ? formatChance(chanceOf(a.id)!) : "—"}
+                      </p>
                     </div>
                   </div>
                   {model ? (

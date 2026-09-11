@@ -18,6 +18,16 @@ const MAX_PENDING_OUTGOING = 20;
 
 export type PublicProfile = { userId: string; username: string };
 
+/** Usernames of several users (a deleted profile reads "Un ami"). */
+export async function publicProfiles(userIds: string[]): Promise<Map<string, PublicProfile>> {
+  const ids = [...new Set(userIds)];
+  if (ids.length === 0) return new Map();
+  const rows = await getDb().select({ userId: profiles.userId, username: profiles.username }).from(profiles).where(inArray(profiles.userId, ids));
+  const map = new Map(rows.map((p) => [p.userId, { userId: p.userId, username: p.username }]));
+  for (const id of ids) if (!map.has(id)) map.set(id, { userId: id, username: "Un ami" });
+  return map;
+}
+
 /** Exact lookup by friend code (any case / spacing) or by pseudo (case-insensitive). */
 export async function findProfileByCodeOrUsername(query: string): Promise<Profile | null> {
   const trimmed = query.trim();

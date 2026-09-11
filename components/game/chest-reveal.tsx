@@ -19,10 +19,21 @@ type ChestOpenerProps = {
   canEquip: boolean;
   /** A creature boarded with the user (default: the user's own creature). */
   creatureId?: string;
+  /** "chest": step chests (default). "reward": coaching surprise accessories (points = thumbs). */
+  mode?: "chest" | "reward";
+  /** Endpoint and body used to open (default: the step chest of `creatureId`). */
+  endpoint?: string;
+  body?: Record<string, unknown>;
 };
 
-/** Chest counter + opening animation + reward (spec § 3.6). */
-export function ChestOpener({ status: initial, canEquip, creatureId }: ChestOpenerProps) {
+const WORDING = {
+  chest: { one: "coffre", many: "coffres", open: "Ouvrir un coffre", next: "Ouvrir le coffre suivant", unit: "pas", each: "Chaque coffre contient un accessoire aléatoire." },
+  reward: { one: "récompense", many: "récompenses", open: "Ouvrir une récompense", next: "Ouvrir la récompense suivante", unit: "pouces", each: "Chaque récompense contient un accessoire surprise." },
+} as const;
+
+/** Chest counter + opening animation + reward (spec § 3.6); also used for coaching rewards (spec § 3.17). */
+export function ChestOpener({ status: initial, canEquip, creatureId, mode = "chest", endpoint = "/api/accessories/open", body: payload }: ChestOpenerProps) {
+  const words = WORDING[mode];
   const router = useRouter();
   const [status, setStatus] = useState(initial);
   const [phase, setPhase] = useState<Phase>("closed");
@@ -38,7 +49,7 @@ export function ChestOpener({ status: initial, canEquip, creatureId }: ChestOpen
     const wait = new Promise<void>((resolve) => setTimeout(resolve, 1300));
     try {
       const [response] = await Promise.all([
-        fetch("/api/accessories/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(creatureId ? { creatureId } : {}) }),
+        fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload ?? (creatureId ? { creatureId } : {})) }),
         wait,
       ]);
       const body = (await response.json().catch(() => null)) as Reward | { error: { message: string } } | null;
@@ -104,7 +115,7 @@ export function ChestOpener({ status: initial, canEquip, creatureId }: ChestOpen
             {status.available > 0 ? (
               <Button onClick={open} variant="secondary">
                 <Gift className="h-5 w-5" aria-hidden="true" />
-                Ouvrir le coffre suivant ({status.available})
+                {words.next} ({status.available})
               </Button>
             ) : null}
             <LinkButton href="/wardrobe" variant="ghost">
@@ -121,22 +132,28 @@ export function ChestOpener({ status: initial, canEquip, creatureId }: ChestOpen
           {status.available > 0 ? (
             <>
               <h2 className="mt-2 font-display text-2xl font-semibold text-cream-50">
-                {status.available} coffre{status.available > 1 ? "s" : ""} à ouvrir !
+                {status.available} {status.available > 1 ? words.many : words.one} à ouvrir !
               </h2>
-              <p className="mt-1 text-sm text-cream-500">Chaque coffre contient un accessoire aléatoire.</p>
+              <p className="mt-1 text-sm text-cream-500">{words.each}</p>
               <Button onClick={open} disabled={phase === "shaking"} variant="brass" className="mt-4">
                 <Gift className="h-5 w-5" aria-hidden="true" />
-                {phase === "shaking" ? "Ça s'ouvre…" : "Ouvrir un coffre"}
+                {phase === "shaking" ? "Ça s'ouvre…" : words.open}
               </Button>
             </>
           ) : (
             <>
-              <h2 className="mt-2 font-display text-xl font-semibold text-cream-50">Prochain accessoire dans {status.stepsToNext.toLocaleString("fr-FR")} pas</h2>
+              <h2 className="mt-2 font-display text-xl font-semibold text-cream-50">
+                Prochain accessoire dans {status.stepsToNext.toLocaleString("fr-FR")} {words.unit}
+              </h2>
               <div className="mx-auto mt-3 h-2.5 max-w-xs overflow-hidden rounded-full bg-ink-600" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
                 <div className="h-full rounded-full bg-gradient-to-r from-sage-600 to-brass-400" style={{ width: `${progress}%` }} />
               </div>
               <p className="mt-2 text-xs text-cream-700">
-                Un coffre tous les {status.stepsPerChest.toLocaleString("fr-FR")} pas depuis l&apos;éclosion · {status.opened} ouvert{status.opened > 1 ? "s" : ""}
+                {mode === "chest"
+                  ? `Un coffre tous les ${status.stepsPerChest.toLocaleString("fr-FR")} pas depuis l'éclosion`
+                  : `Une récompense tous les ${status.stepsPerChest.toLocaleString("fr-FR")} pouces`}
+                {" · "}
+                {status.opened} ouvert{status.opened > 1 ? "s" : ""}{mode === "reward" && status.opened > 1 ? "" : ""}
               </p>
             </>
           )}

@@ -102,6 +102,9 @@ export const profiles = pgTable(
     username: text("username").notNull(),
     friendCode: text("friend_code").notNull().unique(),
     createdAt: timestamptz("created_at").notNull().defaultNow(),
+    /** Coaching rewards already opened as a student / as a coach (migration 010). */
+    studentRewardsOpened: integer("student_rewards_opened").notNull().default(0),
+    coachRewardsOpened: integer("coach_rewards_opened").notNull().default(0),
   },
   (table) => [
     // Usernames are unique case-insensitively ("Chabond" == "chabond").
@@ -394,6 +397,59 @@ export const boardings = pgTable(
   ],
 );
 
+/**
+ * A friend coaching a player (spec § 3.17): the coach sees the student's meals
+ * and rates them with thumbs. One pending or active coaching per student.
+ */
+export const coachings = pgTable(
+  "coachings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    studentId: text("student_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    coachId: text("coach_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    status: text("status", { enum: ["pending", "active", "declined", "cancelled", "ended"] })
+      .notNull()
+      .default("pending"),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+    respondedAt: timestamptz("responded_at"),
+    endedAt: timestamptz("ended_at"),
+    endedBy: text("ended_by", { enum: ["student", "coach"] }),
+    /** Running counters of thumbs given on this relationship (kept after the meals are purged). */
+    thumbsUp: integer("thumbs_up").notNull().default(0),
+    thumbsDown: integer("thumbs_down").notNull().default(0),
+    /** When the student saw the coach's answer (accepted / declined) or the end of the coaching. */
+    studentSeenAt: timestamptz("student_seen_at"),
+  },
+  (table) => [
+    index("coachings_coach_status_idx").on(table.coachId, table.status),
+    // One coach at a time per student.
+    uniqueIndex("coachings_student_open_idx").on(table.studentId).where(sql`${table.status} IN ('pending', 'active')`),
+    check("coachings_not_self_check", sql`${table.studentId} <> ${table.coachId}`),
+    check("coachings_status_check", sql`${table.status} IN ('pending', 'active', 'declined', 'cancelled', 'ended')`),
+  ],
+);
+
+/** The coach's thumb on one meal (one per meal); goes away with the meal. */
+export const mealReviews = pgTable(
+  "meal_reviews",
+  {
+    mealId: uuid("meal_id")
+      .primaryKey()
+      .references(() => meals.id, { onDelete: "cascade" }),
+    coachingId: uuid("coaching_id")
+      .notNull()
+      .references(() => coachings.id, { onDelete: "cascade" }),
+    verdict: text("verdict", { enum: ["up", "down"] }).notNull(),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+    updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+  },
+  (table) => [index("meal_reviews_coaching_idx").on(table.coachingId), check("meal_reviews_verdict_check", sql`${table.verdict} IN ('up', 'down')`)],
+);
+
 /** Accessory swap proposed between two friends (phase 7). */
 export const trades = pgTable(
   "trades",
@@ -461,4 +517,6 @@ export type InventoryRow = typeof inventory.$inferSelect;
 export type Gift = typeof gifts.$inferSelect;
 export type Trade = typeof trades.$inferSelect;
 export type Boarding = typeof boardings.$inferSelect;
+export type Coaching = typeof coachings.$inferSelect;
+export type MealReview = typeof mealReviews.$inferSelect;
 export type StravaConnection = typeof stravaConnections.$inferSelect;

@@ -9,15 +9,33 @@ import { Button } from "@/components/ui/button";
 import type { Rarity } from "@/lib/game/config";
 import { formatPercent, PERCENT, quantizeWeight, WEIGHT_DECIMALS } from "@/lib/game/drops";
 
-export type DropRateRow = { id: string; name: string; rarity: Rarity; defaultWeight: number; weight: number; overridden: boolean };
+export type DropRateRow = {
+  id: string;
+  name: string;
+  rarity: Rarity;
+  defaultWeight: number;
+  weight: number;
+  overridden: boolean;
+  /** Pool whose total gives this row's displayed chance (default "main"). */
+  pool?: string;
+  /** Every pool the row belongs to (default: its own pool). */
+  pools?: string[];
+  /** Short label shown next to the name (e.g. "élève"). */
+  tag?: string;
+};
 
 type Props = {
   kind: "species" | "accessories";
   title: string;
   rows: DropRateRow[];
-  /** Weights of items in the same pool that are NOT shown here (other slots): keep the totals honest. */
-  hiddenPoolWeight?: number;
+  /** Weights of items in the same pool(s) that are NOT shown here (other slots): keep the totals honest. A number = the main pool. */
+  hiddenPoolWeight?: number | Record<string, number>;
+  /** Labels of the pools, for the help text. */
+  poolLabels?: Record<string, string>;
 };
+
+const poolOf = (row: DropRateRow) => row.pool ?? "main";
+const poolsOf = (row: DropRateRow) => row.pools ?? [poolOf(row)];
 
 /** Text shown in a weight field (French decimal comma); dot or comma are both accepted on input. */
 const toText = (n: number) => String(quantizeWeight(n)).replace(".", ",");
@@ -38,8 +56,10 @@ function parseWeight(raw: string): Parsed {
   return { value: n, reason: null };
 }
 
-/** Per-item drop weights in %, with the effective chance computed live. */
-export function DropRateEditor({ kind, title, rows, hiddenPoolWeight = 0 }: Props) {
+/** Per-item drop weights in %, with the effective chance computed live (per pool when rows belong to several). */
+export function DropRateEditor({ kind, title, rows, hiddenPoolWeight = 0, poolLabels = {} }: Props) {
+  const hidden: Record<string, number> = typeof hiddenPoolWeight === "number" ? { main: hiddenPoolWeight } : hiddenPoolWeight;
+  const poolKeys = [...new Set(rows.flatMap(poolsOf))];
   const router = useRouter();
   const [draft, setDraft] = useState<Record<string, string>>(() => Object.fromEntries(rows.map((r) => [r.id, toText(r.weight)])));
   const [pending, setPending] = useState(false);
@@ -54,9 +74,11 @@ export function DropRateEditor({ kind, title, rows, hiddenPoolWeight = 0 }: Prop
   const tooPrecise = rows.filter((r) => parsed[r.id].reason === "decimals").map((r) => r.name);
   // Untouched fields count with their exact weight (defaults like 60/9 are not representable in 3 decimals), so a default pool totals 100 %.
   const effective = (row: DropRateRow) => (valueOf(row) === quantizeWeight(row.weight) ? row.weight : (valueOf(row) ?? 0));
-  const total = rows.reduce((sum, r) => sum + effective(r), 0) + hiddenPoolWeight;
+  const totalOf = (key: string) => rows.filter((r) => poolsOf(r).includes(key)).reduce((sum, r) => sum + effective(r), 0) + (hidden[key] ?? 0);
+  const mainKey = poolKeys[0] ?? "main";
+  const total = totalOf(mainKey);
   const dirty = rows.some((r) => valueOf(r) !== quantizeWeight(r.weight));
-  const allZero = invalid.length === 0 && tooPrecise.length === 0 && total <= 0;
+  const allZero = invalid.length === 0 && tooPrecise.length === 0 && poolKeys.some((key) => totalOf(key) <= 0);
   const blocked = pending || invalid.length > 0 || tooPrecise.length > 0 || allZero || !dirty;
 
   async function save(reset = false) {
@@ -99,8 +121,15 @@ export function DropRateEditor({ kind, title, rows, hiddenPoolWeight = 0 }: Prop
       <div className="space-y-3 border-t border-ink-600/80 p-4">
         <p className="text-xs leading-relaxed text-cream-500">
           Poids en pourcentage (%), jusqu&apos;à {WEIGHT_DECIMALS} chiffres après la virgule. La chance réelle est le poids divisé par le total du groupe :
-          avec un total de {formatPercent(total)}, un objet à 10 % sort une fois sur {total > 0 ? (total / 10).toLocaleString("fr-FR", { maximumFractionDigits: 2 }) : "—"}. Un poids
+          avec un total de {formatPercent(total)}
+          {poolKeys.length > 1 ? ` (${poolLabels[mainKey] ?? mainKey})` : ""}, un objet à 10 % sort une fois sur {total > 0 ? (total / 10).toLocaleString("fr-FR", { maximumFractionDigits: 2 }) : "—"}. Un poids
           de 0 retire l&apos;objet des tirages. Laisse la valeur par défaut pour garder la répartition par rareté.
+          {poolKeys.length > 1
+            ? ` Totaux des autres groupes : ${poolKeys
+                .filter((key) => key !== mainKey)
+                .map((key) => `${poolLabels[key] ?? key} ${formatPercent(totalOf(key))}`)
+                .join(", ")}.`
+            : ""}
         </p>
         {message ? <Alert tone={message.tone}>{message.text}</Alert> : null}
         {invalid.length > 0 ? <Alert tone="warning">Valeur invalide (0 à 100) pour : {invalid.join(", ")}.</Alert> : null}
@@ -125,12 +154,16 @@ export function DropRateEditor({ kind, title, rows, hiddenPoolWeight = 0 }: Prop
               {rows.map((row) => {
                 const value = valueOf(row);
                 const used = effective(row);
-                const percent = value !== null && total > 0 ? (used / total) * PERCENT : 0;
-                const oneIn = value && value > 0 ? Math.max(1, Math.round(total / used)) : null;
+                const rowTotal = totalOf(poolOf(row));
+                const percent = value !== null && rowTotal > 0 ? (used / rowTotal) * PERCENT : 0;
+                const oneIn = value && value > 0 ? Math.max(1, Math.round(rowTotal / used)) : null;
                 const changed = value !== quantizeWeight(row.defaultWeight);
                 return (
                   <tr key={row.id} className="border-t border-ink-600/60">
-                    <td className="py-1.5 pr-2 font-semibold text-cream-50">{row.name}</td>
+                    <td className="py-1.5 pr-2 font-semibold text-cream-50">
+                      {row.name}
+                      {row.tag ? <span className="ml-1.5 rounded-full border border-sage-500/50 bg-sage-800/40 px-1.5 py-0.5 text-[10px] font-semibold text-sage-200">{row.tag}</span> : null}
+                    </td>
                     <td className="py-1.5 pr-2">
                       <RarityBadge rarity={row.rarity} className="text-[10px]" />
                     </td>

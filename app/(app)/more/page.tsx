@@ -99,6 +99,7 @@ export default async function MorePage() {
         <ul className="divide-y divide-ink-600/80">
           {[
             { href: "/shop", label: "Boutique et armoire à pharmacie" },
+            { href: "/coach", label: "Coaching" },
             { href: "/collection", label: "Collection" },
             { href: "/cemetery", label: "Cimetière" },
             { href: "/privacy", label: "Politique de confidentialité" },

@@ -1,4 +1,4 @@
-import type { Accessory } from "@/lib/accessories/catalog";
+import { CHEST_ACCESSORIES, type Accessory } from "@/lib/accessories/catalog";
 import { ACCESSORY_RARITY_WEIGHTS, RARITIES, STEPS, type Rarity } from "./config";
 import { accessoryWeights, pickWeighted } from "./drops";
 import { secureRandom } from "./rarity";
@@ -17,12 +17,18 @@ export function drawAccessoryRarity(random: () => number = secureRandom): Rarity
 export type AccessoryDraw = { accessory: Accessory; duplicate: boolean };
 
 /**
- * Draws an accessory with one weighted roll over the catalogue (defaults =
- * rarity shares split evenly, overrides from /admin). A duplicate is a new
- * copy: copies can be traded or given away.
+ * Draws an accessory with one weighted roll over a pool (step chests by
+ * default; a coaching reward pool otherwise). Defaults = rarity shares split
+ * evenly, overrides from /admin. A duplicate is a new copy: copies can be
+ * traded or given away.
  */
-export function drawAccessory(ownedIds: ReadonlySet<string>, random: () => number = secureRandom, overrides: Record<string, number> = {}): AccessoryDraw {
-  const accessory = pickWeighted(accessoryWeights(overrides), random);
+export function drawAccessory(
+  ownedIds: ReadonlySet<string>,
+  random: () => number = secureRandom,
+  overrides: Record<string, number> = {},
+  pool: readonly Accessory[] = CHEST_ACCESSORIES,
+): AccessoryDraw {
+  const accessory = pickWeighted(accessoryWeights(overrides, pool), random);
   return { accessory, duplicate: ownedIds.has(accessory.id) };
 }
 

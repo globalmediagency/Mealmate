@@ -33,7 +33,7 @@ Sans variable, le build passe et chaque écran explique ce qui manque au lieu de
 
 Migrations à coller dans **Neon → SQL Editor**, dans l'ordre, si `db/init.sql` a été exécuté avant la
 phase correspondante (un `init.sql` récent les contient déjà) : `001` pas crédités, `002` deuil,
-`003` règles admin, `004` coffres, `005` cadeaux et trocs, `006` prénom Strava, `007` origine des photos, `008` exemplaires d'accessoires et dons, `009` pension chez un ami.
+`003` règles admin, `004` coffres, `005` cadeaux et trocs, `006` prénom Strava, `007` origine des photos, `008` exemplaires d'accessoires et dons, `009` pension chez un ami, `010` coaching.
 
 ## 1. Mise en route (phase 1 : compte et connexion)
 
@@ -98,6 +98,7 @@ Si tu avais déjà exécuté `db/init.sql` avant une phase, colle ses migrations
 - anti-triche photo : [`db/migrations/007_meals_photo_source.sql`](./db/migrations/007_meals_photo_source.sql)
 - exemplaires et dons : [`db/migrations/008_accessory_copies_gift_kind.sql`](./db/migrations/008_accessory_copies_gift_kind.sql)
 - pension chez un ami : [`db/migrations/009_boardings.sql`](./db/migrations/009_boardings.sql)
+- coaching : [`db/migrations/010_coaching.sql`](./db/migrations/010_coaching.sql)
 
 Un `init.sql` fraîchement exécuté contient déjà toutes ces colonnes.
 
@@ -152,6 +153,15 @@ l'hôte peut aussi la rendre plus tôt, et elle rentre seule à l'échéance. Da
 par niveau, nombre de créatures hébergées au maximum par joueur (0 désactive la pension) et « Repos après une pension » :
 après X jours de pension effectifs, le propriétaire attend X × ce facteur avant de confier à nouveau (1 par défaut,
 0 pour aucun repos).
+
+**Coaching** (migration `010`) : onglet **Coaching** à côté d'Amis. Tu proposes à un ami accepté d'être ton coach ; il accepte
+ou décline. Ton coach voit tes repas des 30 derniers jours (photos, date et heure, note de l'application) et met un pouce
+vert ou rouge à chacun ; tu vois ces pouces dans ton historique. Tous les 5 pouces nets (verts moins rouges) tu ouvres un
+accessoire surprise ; ton coach en ouvre un tous les 10 pouces donnés, tous élèves confondus. Six accessoires n'existent que
+là : toque d'étudiant·e, cartable et médaille de progrès pour l'élève, sifflet, casquette et fouet pour le coach. Chacun peut
+mettre fin au coaching quand il veut ; les compteurs et les récompenses restent acquis. Les repas (photos comprises) sont
+supprimés au bout de 30 jours, pour toi comme pour ton coach. Dans **Admin › Règles de jeu** : pouces par récompense
+(élève, coach) et durée de conservation des repas.
 
 ## 2. Cycle de travail
 

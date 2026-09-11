@@ -5,6 +5,11 @@ export type Slot = (typeof SLOTS)[number];
 
 export const SLOT_LABELS: Record<Slot, string> = { head: "Tête", eyes: "Yeux", neck: "Cou", body: "Corps" };
 
+/** Where an accessory can be won: step chests (default), or only as a coaching reward for the student / the coach. */
+export const ACCESSORY_SOURCES = ["chest", "student", "coach"] as const;
+export type AccessorySource = (typeof ACCESSORY_SOURCES)[number];
+export const SOURCE_LABELS: Record<AccessorySource, string> = { chest: "Coffres", student: "Récompense d'élève", coach: "Récompense de coach" };
+
 export type Accessory = {
   id: string;
   name: string;
@@ -12,9 +17,11 @@ export type Accessory = {
   rarity: Rarity;
   /** One-line flavour text shown in the wardrobe / reward screen. */
   tagline: string;
+  /** Omitted = "chest". Coaching-only accessories never drop from step chests. */
+  source?: AccessorySource;
 };
 
-/** ~30 accessories (spec § 5.2). Rendering lives in components/accessories/. */
+/** 30 chest accessories + 6 coaching rewards (spec § 5.2, § 3.17). Rendering lives in components/accessories/. */
 export const ACCESSORIES: readonly Accessory[] = [
   // Head
   { id: "straw_hat", name: "Chapeau de paille", slot: "head", rarity: "commun", tagline: "Pour les balades au soleil." },
@@ -50,6 +57,14 @@ export const ACCESSORIES: readonly Accessory[] = [
   { id: "backpack", name: "Sac à dos", slot: "body", rarity: "rare", tagline: "Pour les randonnées." },
   { id: "cape", name: "Cape", slot: "body", rarity: "tres_rare", tagline: "Flotte au vent." },
   { id: "butterfly_wings", name: "Ailes de papillon", slot: "body", rarity: "legendaire", tagline: "Légères comme un rêve." },
+  // Coaching rewards — student only
+  { id: "graduation_cap", name: "Toque d'étudiant·e", slot: "head", rarity: "rare", tagline: "Diplômée en assiettes équilibrées.", source: "student" },
+  { id: "student_satchel", name: "Cartable", slot: "body", rarity: "commun", tagline: "Les leçons de ton coach dedans.", source: "student" },
+  { id: "progress_medal", name: "Médaille de progrès", slot: "neck", rarity: "tres_rare", tagline: "Un pouce vert après l'autre.", source: "student" },
+  // Coaching rewards — coach only
+  { id: "coach_whistle", name: "Sifflet de coach", slot: "neck", rarity: "commun", tagline: "Un coup de sifflet, une assiette.", source: "coach" },
+  { id: "coach_cap", name: "Casquette de coach", slot: "head", rarity: "rare", tagline: "Visière baissée, œil sur les repas.", source: "coach" },
+  { id: "coach_whip", name: "Fouet de coach", slot: "body", rarity: "tres_rare", tagline: "Pour la forme, jamais pour de vrai.", source: "coach" },
 ];
 
 const BY_ID = new Map(ACCESSORIES.map((a) => [a.id, a]));
@@ -62,8 +77,18 @@ export function accessoriesForSlot(slot: Slot): Accessory[] {
   return ACCESSORIES.filter((a) => a.slot === slot);
 }
 
-export function accessoriesByRarity(): Record<Rarity, Accessory[]> {
+export const sourceOf = (accessory: Accessory): AccessorySource => accessory.source ?? "chest";
+
+/** Accessories that drop from step chests (everything not reserved to coaching). */
+export const CHEST_ACCESSORIES: readonly Accessory[] = ACCESSORIES.filter((a) => sourceOf(a) === "chest");
+
+/** Pool of a coaching reward: every chest accessory plus the ones reserved to that role. */
+export function rewardPool(role: "student" | "coach"): readonly Accessory[] {
+  return ACCESSORIES.filter((a) => sourceOf(a) === "chest" || sourceOf(a) === role);
+}
+
+export function accessoriesByRarity(pool: readonly Accessory[] = CHEST_ACCESSORIES): Record<Rarity, Accessory[]> {
   const groups: Record<Rarity, Accessory[]> = { commun: [], rare: [], tres_rare: [], legendaire: [] };
-  for (const accessory of ACCESSORIES) groups[accessory.rarity].push(accessory);
+  for (const accessory of pool) groups[accessory.rarity].push(accessory);
   return groups;
 }

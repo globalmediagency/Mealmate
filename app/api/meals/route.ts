@@ -5,7 +5,7 @@ import { getSession } from "@/lib/auth/session";
 import { FEEDING } from "@/lib/game/config";
 import { toCreatureView } from "@/lib/game/creature-view";
 import { getGameRules } from "@/lib/game/rules-service";
-import { feedCreature, listMeals, mealStats, toMealView } from "@/lib/meals/service";
+import { feedCreature, listMeals, mealStats, purgeExpiredMeals, toMealView } from "@/lib/meals/service";
 import { r2Storage } from "@/lib/storage/r2";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +20,7 @@ export async function GET() {
   try {
     const session = await getSession();
     if (!session) return fail("unauthorized", "Connecte-toi pour continuer.", 401);
+    await purgeExpiredMeals(session.user.id, r2Storage, new Date(), (await getGameRules()).feeding.mealRetentionDays);
     const [meals, stats] = await Promise.all([listMeals(session.user.id, r2Storage), mealStats(session.user.id)]);
     return ok({ meals, stats });
   } catch (error) {
