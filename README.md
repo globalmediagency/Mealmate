@@ -126,7 +126,7 @@ valeurs par défaut et l'admin affiche une erreur à l'enregistrement.
 
 Astuce : les mêmes identifiants fonctionnent depuis la page de connexion normale de l'app (champ Email = `ADMIN_USERNAME`) et mènent directement à `/admin`. Aucun joueur ne peut créer un compte ou un pseudo avec cet identifiant.
 
-Onglets **Créatures** et **Accessoires** : chaque espèce et chaque accessoire affiche sa chance d'obtention en millièmes (ex. 66,7 ‰ = 1 chance sur 15). Déplie « Probabilités » sous un niveau (ou en haut de la page Accessoires, filtrable par emplacement) pour modifier les poids : 0 retire l'objet des tirages (mais un groupe entier à 0 est refusé : au moins un objet doit pouvoir sortir), « Valeurs par défaut » revient à la répartition par rareté. Les poids sont arrondis à 0,01 ‰. Les changements s'appliquent au plus tard une minute après.
+Onglets **Créatures** et **Accessoires** : chaque espèce et chaque accessoire affiche sa chance d'obtention en pourcentage (ex. 6,667 % = 1 chance sur 15). Déplie « Probabilités » sous un niveau (ou en haut de la page Accessoires, filtrable par emplacement) pour modifier les poids, avec jusqu'à 3 chiffres après la virgule (0,001 %) : 0 retire l'objet des tirages (mais un groupe entier à 0 est refusé : au moins un objet doit pouvoir sortir), « Valeurs par défaut » revient à la répartition par rareté. Les changements s'appliquent au plus tard une minute après. Si tu modifies un jour la ligne `drops` de `game_settings` à la main dans Neon, garde `"unit": "percent"` dans le JSON : sans lui, les valeurs sont lues comme des millièmes (ancien format) et divisées par 10.
 
 ### Étape H — Jouer et accessoires (phase 5)
 

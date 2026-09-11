@@ -49,7 +49,7 @@ export default async function AdminCreaturesPage({ searchParams }: { searchParam
         <h1 className="font-display text-3xl font-semibold text-cream-50">Créatures</h1>
         <p className="mt-1 text-sm text-cream-500">
           {ALL_SPECIES.length} espèces, {TIERS.length} niveaux, {STAGES.length} stades d&apos;âge et {STATES.length} états. Touche une espèce pour voir tous ses visuels ;
-          la chance d&apos;éclosion (en millièmes) se règle sous chaque niveau.
+          la chance d&apos;éclosion (en pourcentage) se règle sous chaque niveau.
         </p>
       </div>
 

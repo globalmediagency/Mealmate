@@ -59,7 +59,7 @@ describe("drawSpecies", () => {
     for (const roll of [0.985, 0.999, 0.999999]) {
       expect(drawSpecies("facile", sequence([roll]), { [legendary.id]: 0 }).rarity).not.toBe("legendaire");
     }
-    const only = Object.fromEntries(pool.map((s) => [s.id, s.id === legendary.id ? 1000 : 0]));
+    const only = Object.fromEntries(pool.map((s) => [s.id, s.id === legendary.id ? 100 : 0]));
     for (const roll of [0, 0.5, 0.999]) expect(drawSpecies("facile", sequence([roll]), only).id).toBe(legendary.id);
   });
 

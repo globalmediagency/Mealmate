@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ACCESSORIES, accessoriesByRarity } from "@/lib/accessories/catalog";
 import { speciesForTier } from "@/lib/creatures";
 import { ACCESSORY_RARITY_WEIGHTS, RARITIES, RARITY_WEIGHTS, TIERS } from "./config";
-import { accessoryWeights, compactOverrides, defaultSpeciesWeight, dropWeightsSchema, effectiveWeights, formatChance, isAllZero, PER_MILLE, pickWeighted, speciesWeights } from "./drops";
+import { accessoryWeights, compactOverrides, defaultSpeciesWeight, dropWeightsSchema, effectiveWeights, formatChance, formatPercent, isAllZero, PERCENT, pickWeighted, speciesWeights } from "./drops";
 
 function sequence(values: number[]): () => number {
   let i = 0;
@@ -10,14 +10,14 @@ function sequence(values: number[]): () => number {
 }
 
 describe("default weights", () => {
-  it("sum to 1000 ‰ per tier and reproduce the rarity shares", () => {
+  it("sum to 100 % per tier and reproduce the rarity shares", () => {
     for (const tier of TIERS) {
       const rows = speciesWeights(tier);
       expect(rows).toHaveLength(speciesForTier(tier).length);
-      expect(rows.reduce((s, r) => s + r.weight, 0)).toBeCloseTo(PER_MILLE, 0);
+      expect(rows.reduce((s, r) => s + r.weight, 0)).toBeCloseTo(PERCENT, 6);
       for (const rarity of RARITIES) {
-        const share = rows.filter((r) => r.item.rarity === rarity).reduce((s, r) => s + r.perMille, 0);
-        expect(share).toBeCloseTo(RARITY_WEIGHTS[rarity] * PER_MILLE, 0);
+        const share = rows.filter((r) => r.item.rarity === rarity).reduce((s, r) => s + r.percent, 0);
+        expect(share).toBeCloseTo(RARITY_WEIGHTS[rarity] * PERCENT, 6);
       }
       expect(rows.every((r) => !r.overridden)).toBe(true);
     }
@@ -26,10 +26,10 @@ describe("default weights", () => {
   it("do the same for accessories, commons first", () => {
     const rows = accessoryWeights();
     expect(rows).toHaveLength(ACCESSORIES.length);
-    expect(rows.reduce((s, r) => s + r.weight, 0)).toBeCloseTo(PER_MILLE, 0);
+    expect(rows.reduce((s, r) => s + r.weight, 0)).toBeCloseTo(PERCENT, 6);
     for (const rarity of RARITIES) {
-      const share = rows.filter((r) => r.item.rarity === rarity).reduce((s, r) => s + r.perMille, 0);
-      expect(share).toBeCloseTo(ACCESSORY_RARITY_WEIGHTS[rarity] * PER_MILLE, 0);
+      const share = rows.filter((r) => r.item.rarity === rarity).reduce((s, r) => s + r.percent, 0);
+      expect(share).toBeCloseTo(ACCESSORY_RARITY_WEIGHTS[rarity] * PERCENT, 6);
     }
     expect(rows[0].item.id).toBe(accessoriesByRarity().commun[0].id);
     expect(rows[rows.length - 1].item.rarity).toBe("legendaire");
@@ -38,24 +38,27 @@ describe("default weights", () => {
   it("express a common easy species as roughly 1 chance in 15", () => {
     const common = speciesWeights("facile").find((r) => r.item.rarity === "commun")!;
     expect(common.oneIn).toBe(15);
-    expect(formatChance(common)).toBe("66,7 ‰ · 1 chance sur 15");
+    expect(formatChance(common)).toBe("6,667 % · 1 chance sur 15");
     const legendary = speciesWeights("facile").find((r) => r.item.rarity === "legendaire")!;
     expect(legendary.oneIn).toBe(50);
+    expect(formatChance(legendary)).toBe("2 % · 1 chance sur 50");
+    expect(formatPercent(0.5)).toBe("0,5 %");
+    expect(formatPercent(1.23456)).toBe("1,235 %");
   });
 });
 
 describe("overrides", () => {
   it("renormalise the pool and can remove an item", () => {
     const [first, ...rest] = speciesForTier("facile");
-    const rows = speciesWeights("facile", { [first.id]: 0, [rest[0].id]: 500 });
+    const rows = speciesWeights("facile", { [first.id]: 0, [rest[0].id]: 50 });
     const removed = rows.find((r) => r.item.id === first.id)!;
     expect(removed.weight).toBe(0);
     expect(removed.oneIn).toBeNull();
-    expect(formatChance(removed)).toBe("jamais (0 ‰)");
+    expect(formatChance(removed)).toBe("jamais (0 %)");
     const boosted = rows.find((r) => r.item.id === rest[0].id)!;
     expect(boosted.overridden).toBe(true);
-    expect(rows.reduce((s, r) => s + r.perMille, 0)).toBeCloseTo(PER_MILLE, 0);
-    expect(boosted.perMille).toBeGreaterThan(300);
+    expect(rows.reduce((s, r) => s + r.percent, 0)).toBeCloseTo(PERCENT, 6);
+    expect(boosted.percent).toBeGreaterThan(30);
   });
 
   it("compactOverrides keeps only real changes", () => {
@@ -71,16 +74,17 @@ describe("overrides", () => {
     const rows = speciesWeights("facile", zero);
     expect(isAllZero(rows)).toBe(true);
     expect(isAllZero(speciesWeights("facile"))).toBe(false);
-    for (const row of rows) expect(row.perMille).toBeCloseTo(row.defaultWeight, 6);
+    for (const row of rows) expect(row.percent).toBeCloseTo(row.defaultWeight, 6);
     expect(rows.find((r) => r.item.rarity === "commun")!.oneIn).toBe(15);
     expect(pickWeighted(rows, sequence([0])).rarity).toBe("commun");
     expect(pickWeighted(rows, sequence([0.999])).rarity).toBe("legendaire");
   });
 
-  it("stores weights quantised to 0.01 ‰", () => {
-    const parsed = dropWeightsSchema.parse({ species: { a: 12.345, b: "7,5".replace(",", ".") }, accessories: { c: 1e-9 } });
-    expect(parsed).toEqual({ species: { a: 12.35, b: 7.5 }, accessories: { c: 0 } });
-    expect(() => dropWeightsSchema.parse({ species: { a: 1000.001 } })).toThrow();
+  it("stores weights quantised to 0.001 %", () => {
+    const parsed = dropWeightsSchema.parse({ species: { a: 1.23456, b: "7.5" }, accessories: { c: 1e-9 } });
+    expect(parsed).toEqual({ species: { a: 1.235, b: 7.5 }, accessories: { c: 0 } });
+    expect(() => dropWeightsSchema.parse({ species: { a: 100.001 } })).toThrow();
+    expect(() => dropWeightsSchema.parse({ species: { a: -0.001 } })).toThrow();
   });
 });
 

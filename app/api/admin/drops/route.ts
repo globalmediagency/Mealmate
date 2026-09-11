@@ -10,12 +10,12 @@ export const dynamic = "force-dynamic";
 
 const patchSchema = z.object({
   kind: z.enum(["species", "accessories"]),
-  /** id → weight in ‰, or null to go back to the rarity default. */
+  /** id → weight in % (up to 3 decimals), or null to go back to the rarity default. */
   weights: z.record(z.string().min(1).max(80), weightEntrySchema.nullable()),
 });
 
 const view = (rows: ReturnType<typeof speciesWeights> | ReturnType<typeof accessoryWeights>) =>
-  rows.map((r) => ({ id: r.item.id, name: r.item.name, rarity: r.item.rarity, weight: r.weight, defaultWeight: r.defaultWeight, overridden: r.overridden, perMille: r.perMille, oneIn: r.oneIn }));
+  rows.map((r) => ({ id: r.item.id, name: r.item.name, rarity: r.item.rarity, weight: r.weight, defaultWeight: r.defaultWeight, overridden: r.overridden, percent: r.percent, oneIn: r.oneIn }));
 
 /** GET /api/admin/drops → effective weights per tier and for accessories. */
 export async function GET() {

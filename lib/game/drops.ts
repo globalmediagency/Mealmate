@@ -4,17 +4,19 @@ import { speciesForTier } from "@/lib/creatures";
 import type { Species } from "@/lib/creatures/types";
 import { ACCESSORY_RARITY_WEIGHTS, RARITIES, RARITY_WEIGHTS, TIERS, type Tier } from "./config";
 
-/** Weights are expressed "per mille" of the pool (‰): 1000 ‰ = the whole pool. */
-export const PER_MILLE = 1000;
+/** Weights are expressed as a percentage of the pool: 100 % = the whole pool. */
+export const PERCENT = 100;
 
-/** Stored precision: two decimals of a per-mille (0.01 ‰), well above the RNG resolution (1e-9). */
-export const quantizeWeight = (n: number) => Math.round(n * 100) / 100;
+/** Stored precision: three decimals of a percent (0.001 %), well above the RNG resolution (1e-9). */
+export const WEIGHT_DECIMALS = 3;
+const WEIGHT_STEP = 10 ** WEIGHT_DECIMALS;
+export const quantizeWeight = (n: number) => Math.round(n * WEIGHT_STEP) / WEIGHT_STEP;
 
-/** One stored weight: 0..1000 ‰, quantised to 0.01 ‰. */
-export const weightEntrySchema = z.coerce.number().min(0).max(PER_MILLE).transform(quantizeWeight);
+/** One stored weight: 0..100 %, quantised to 0.001 %. */
+export const weightEntrySchema = z.coerce.number().min(0).max(PERCENT).transform(quantizeWeight);
 const weightMap = z.record(z.string(), weightEntrySchema);
 
-/** Admin overrides: item id → weight in ‰. Anything absent uses the rarity-based default. */
+/** Admin overrides: item id → weight in %. Anything absent uses the rarity-based default. */
 export const dropWeightsSchema = z.object({
   species: weightMap.default({}),
   accessories: weightMap.default({}),
@@ -22,11 +24,14 @@ export const dropWeightsSchema = z.object({
 export type DropWeights = z.infer<typeof dropWeightsSchema>;
 export const EMPTY_DROP_WEIGHTS: DropWeights = { species: {}, accessories: {} };
 
-const round1 = (n: number) => Math.round(n * 10) / 10;
+/** "6,667 %" — up to three decimals, trailing zeros dropped. */
+export function formatPercent(n: number): string {
+  return `${quantizeWeight(n).toLocaleString("fr-FR", { maximumFractionDigits: WEIGHT_DECIMALS })} %`;
+}
 
 function shareOfRarity(rarityWeight: number, count: number): number {
-  // Exact share (no rounding) so a pool's defaults sum to exactly 1000 ‰; display rounds.
-  return count === 0 ? 0 : (rarityWeight * PER_MILLE) / count;
+  // Exact share (no rounding) so a pool's defaults sum to exactly 100 %; display rounds.
+  return count === 0 ? 0 : (rarityWeight * PERCENT) / count;
 }
 
 /** Default weight of a species: its rarity's share of the tier, split evenly inside the rarity. */
@@ -41,12 +46,12 @@ export function defaultAccessoryWeight(accessory: Accessory, pool: readonly Acce
 
 export type Weighted<T> = {
   item: T;
-  /** Weight in ‰ actually used by the draw. */
+  /** Weight in % actually used by the draw. */
   weight: number;
   defaultWeight: number;
   overridden: boolean;
-  /** Effective chance once the pool is normalised (‰ of the pool). */
-  perMille: number;
+  /** Effective chance once the pool is normalised (% of the pool). */
+  percent: number;
   /** "1 chance sur N", null when the weight is zero. */
   oneIn: number | null;
 };
@@ -78,7 +83,7 @@ function withChances<T>(rows: Array<Pick<Weighted<T>, "item" | "weight" | "defau
   const total = positiveSum(used);
   return rows.map((row, i) => ({
     ...row,
-    perMille: total > 0 ? (used[i] / total) * PER_MILLE : 0,
+    percent: total > 0 ? (used[i] / total) * PERCENT : 0,
     oneIn: used[i] > 0 ? Math.max(1, Math.round(total / used[i])) : null,
   }));
 }
@@ -117,7 +122,7 @@ export function pickWeighted<T>(rows: ReadonlyArray<{ item: T } & PoolRow>, rand
   const total = positiveSum(weights);
   const roll = Math.min(0.999_999_999, Math.max(0, random()));
   const target = roll * total;
-  // Tiny epsilon so an exact boundary roll (0.6 on a 600 ‰ block) is not swallowed by float noise.
+  // Tiny epsilon so an exact boundary roll (0.6 on a 60 % block) is not swallowed by float noise.
   const epsilon = 1e-9;
   let cumulative = 0;
   let last: T | null = null;
@@ -130,10 +135,10 @@ export function pickWeighted<T>(rows: ReadonlyArray<{ item: T } & PoolRow>, rand
   return last ?? rows[rows.length - 1].item;
 }
 
-/** "66,7 ‰ · 1 chance sur 15" for the admin pages. */
-export function formatChance(row: Pick<Weighted<unknown>, "perMille" | "oneIn">): string {
-  if (row.oneIn === null || row.perMille <= 0) return "jamais (0 ‰)";
-  return `${round1(row.perMille).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} ‰ · 1 chance sur ${row.oneIn.toLocaleString("fr-FR")}`;
+/** "6,667 % · 1 chance sur 15" for the admin pages. */
+export function formatChance(row: Pick<Weighted<unknown>, "percent" | "oneIn">): string {
+  if (row.oneIn === null || row.percent <= 0) return "jamais (0 %)";
+  return `${formatPercent(row.percent)} · 1 chance sur ${row.oneIn.toLocaleString("fr-FR")}`;
 }
 
 /** Strips overrides equal to the default so the stored document only holds real changes. */

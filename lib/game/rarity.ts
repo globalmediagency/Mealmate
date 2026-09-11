@@ -1,9 +1,9 @@
 import { randomInt } from "node:crypto";
 import type { Species } from "@/lib/creatures/types";
 import { RARITIES, RARITY_WEIGHTS, type Rarity, type Tier } from "./config";
-import { PER_MILLE, pickWeighted, speciesWeights } from "./drops";
+import { PERCENT, pickWeighted, speciesWeights } from "./drops";
 
-/** Uniform random in [0, 1) backed by `crypto.randomInt` (1e-9 resolution: the smallest storable weight, 0.01 ‰, spans 10 000 roll values). */
+/** Uniform random in [0, 1) backed by `crypto.randomInt` (1e-9 resolution: the smallest storable weight, 0.001 %, spans 10 000 roll values). */
 export function secureRandom(): number {
   return randomInt(0, 1_000_000_000) / 1_000_000_000;
 }
@@ -32,5 +32,5 @@ export function drawSpecies(tier: Tier, random: () => number = secureRandom, ove
 /** Probability (0–1) of hatching a given species under the current weights. */
 export function speciesProbability(species: Species, overrides: Record<string, number> = {}): number {
   const row = speciesWeights(species.tier, overrides).find((r) => r.item.id === species.id);
-  return row ? row.perMille / PER_MILLE : 0;
+  return row ? row.percent / PERCENT : 0;
 }

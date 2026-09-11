@@ -16,23 +16,55 @@ export function invalidateDropWeightsCache(): void {
   memo = null;
 }
 
+/** Stored documents carry `unit: "percent"`; the first version stored per-mille values (÷ 10 on read). */
+const UNIT = "percent";
+const LEGACY_PER_MILLE_FACTOR = 0.1;
+
+const asObject = (value: unknown): Record<string, unknown> => (value && typeof value === "object" ? (value as Record<string, unknown>) : {});
+const hasEntries = (map: unknown) => map !== null && typeof map === "object" && Object.keys(map as object).length > 0;
+
+/**
+ * Brings a stored document to percent: a legacy per-mille document (no `unit`)
+ * is scaled on read and reported once in the logs, so a row written by hand in
+ * percent without `unit` is not silently misread. Non-numeric entries become
+ * NaN so the salvage path drops and logs them instead of coercing them.
+ */
+function toPercentDocument(document: unknown): Record<string, unknown> {
+  const source = asObject(document);
+  if (source.unit === UNIT) return source;
+  const scaled: Record<string, unknown> = { ...source, unit: UNIT };
+  if (hasEntries(source.species) || hasEntries(source.accessories)) {
+    console.warn(`[drops] stored document has no "unit": read as legacy per-mille values (divided by 10). Add "unit": "percent" when editing the row by hand.`);
+  }
+  for (const kind of ["species", "accessories"] as const) {
+    if (!hasEntries(source[kind])) continue;
+    scaled[kind] = Object.fromEntries(
+      Object.entries(asObject(source[kind])).map(([id, value]) => {
+        const n = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : Number.NaN;
+        return [id, Number.isFinite(n) ? n * LEGACY_PER_MILLE_FACTOR : Number.NaN];
+      }),
+    );
+  }
+  return scaled;
+}
+
 /**
  * Parses the stored document. A hand-edited row (Neon's SQL editor) with one
  * bad entry must not wipe every override: invalid entries are dropped one by
- * one and logged, valid ones survive.
+ * one and logged (with the value as stored), valid ones survive.
  */
 function parse(document: unknown): DropWeights {
-  const whole = dropWeightsSchema.safeParse(document ?? {});
+  const source = toPercentDocument(document);
+  const whole = dropWeightsSchema.safeParse(source);
   if (whole.success) return whole.data;
   const salvaged: DropWeights = { species: {}, accessories: {} };
-  const source = (document && typeof document === "object" ? document : {}) as Record<string, unknown>;
   for (const kind of ["species", "accessories"] as const) {
-    const map = source[kind];
-    if (!map || typeof map !== "object") continue;
-    for (const [id, value] of Object.entries(map as Record<string, unknown>)) {
+    if (!hasEntries(source[kind])) continue;
+    const stored = asObject(asObject(document)[kind]);
+    for (const [id, value] of Object.entries(asObject(source[kind]))) {
       const entry = weightEntrySchema.safeParse(value);
       if (entry.success) salvaged[kind][id] = entry.data;
-      else console.error(`[drops] ignoring invalid stored weight ${kind}.${id}:`, value);
+      else console.error(`[drops] ignoring invalid stored weight ${kind}.${id}:`, stored[id]);
     }
   }
   return salvaged;
@@ -43,7 +75,7 @@ async function readWeights(): Promise<DropWeights> {
   return rows[0] ? parse(rows[0].data) : EMPTY_DROP_WEIGHTS;
 }
 
-/** Admin drop-weight overrides (‰ per item). Cached per request and for one minute per instance. */
+/** Admin drop-weight overrides (% per item). Cached per request and for one minute per instance. */
 export const getDropWeights = cache(async (): Promise<DropWeights> => {
   if (memo && Date.now() - memo.at < CACHE_TTL_MS) return memo.weights;
   try {
@@ -77,7 +109,7 @@ function emptyPools(next: DropWeights): string[] {
 
 /**
  * Merges a patch into one map: a number sets the override (quantised to
- * 0.01 ‰, dropped when equal to the rarity default), null removes it. Unknown
+ * 0.001 %, dropped when equal to the rarity default), null removes it. Unknown
  * ids are ignored, the other map is untouched, and a pool whose weights would
  * all be 0 is refused so the game never silently falls back to the defaults.
  */
@@ -96,7 +128,7 @@ export async function saveDropWeights(patch: DropWeightsPatch, updatedBy: string
   if (empty.length > 0) {
     throw new DomainError("empty_pool", `Impossible de tout mettre à 0 (${empty.join(", ")}) : au moins un objet du groupe doit pouvoir sortir.`, 400);
   }
-  const data = next as Record<string, unknown>;
+  const data: Record<string, unknown> = { unit: UNIT, ...next };
   await getDb()
     .insert(gameSettings)
     .values({ id: SETTINGS_ID, data, updatedAt: now, updatedBy })

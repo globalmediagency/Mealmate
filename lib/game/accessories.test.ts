@@ -58,7 +58,7 @@ describe("drawAccessory", () => {
     const groups = accessoriesByRarity();
     const halo = groups.legendaire[0];
     expect(drawAccessory(new Set(), sequence([0.999]), { [halo.id]: 0 }).accessory.id).not.toBe(halo.id);
-    const only = Object.fromEntries(ACCESSORIES.map((a) => [a.id, a.id === halo.id ? 1000 : 0]));
+    const only = Object.fromEntries(ACCESSORIES.map((a) => [a.id, a.id === halo.id ? 100 : 0]));
     expect(drawAccessory(new Set(), sequence([0.2]), only).accessory.id).toBe(halo.id);
   });
 });
