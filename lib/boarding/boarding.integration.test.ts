@@ -8,6 +8,7 @@ import { getDb } from "@/lib/db";
 import { boardings, creatures, meals, profiles } from "@/lib/db/schema";
 import { acceptFriendRequest, listRequests, sendFriendRequest } from "@/lib/friends/service";
 import { BOARDING } from "@/lib/game/config";
+import { DEFAULT_RULES, mergeRules } from "@/lib/game/rules";
 import { gameDate, shiftDate } from "@/lib/game/time";
 import { feedCreature } from "@/lib/meals/service";
 import { recordPlay } from "@/lib/play/service";
@@ -16,7 +17,7 @@ import { saveManualSteps } from "@/lib/steps/service";
 import type { ObjectStorage } from "@/lib/storage/r2";
 import { createTestDatabase, insertTestUser, type TestDatabase } from "@/lib/test/pglite";
 import { creatureStepsSince } from "./custody-service";
-import { countUnseenBoardings, endBoarding, getHeldCreature, getHeldCreatures, livingHeld, markBoardingsSeen, saveStepsForHeld, startBoarding } from "./service";
+import { boardingCooldownUntil, boardingLimits, cooldownEnd, countUnseenBoardings, endBoarding, getHeldCreature, getHeldCreatures, livingHeld, markBoardingsSeen, saveStepsForHeld, startBoarding } from "./service";
 
 let tdb: TestDatabase;
 let alice: string;
@@ -90,11 +91,18 @@ afterAll(async () => {
 });
 
 describe("starting a stay", () => {
-  it("validates the duration, the friendship and the creature", async () => {
+  it("validates the duration (per-tier admin rule), the friendship and the creature", async () => {
     await expect(startBoarding(alice, friendship, 0, T1)).rejects.toMatchObject({ code: "validation_error" });
-    await expect(startBoarding(alice, friendship, BOARDING.maxDays + 1, T1)).rejects.toMatchObject({ code: "validation_error" });
+    await expect(startBoarding(alice, friendship, DEFAULT_RULES.tiers.facile.boardingMaxDays + 1, T1)).rejects.toMatchObject({ code: "validation_error" });
+    await expect(startBoarding(alice, friendship, BOARDING.absoluteMaxDays + 1, T1)).rejects.toMatchObject({ code: "validation_error" });
+    const strict = mergeRules({ tiers: { facile: { boardingMaxDays: 10 } } });
+    await expect(startBoarding(alice, friendship, 11, T1, strict)).rejects.toMatchObject({ code: "validation_error" });
+    expect(boardingLimits("facile", strict)).toEqual({ maxDays: 10, durations: [3, 7, 10] });
+    expect(boardingLimits("moyen", DEFAULT_RULES)).toEqual({ maxDays: 30, durations: [3, 7, 14, 21, 30] });
     await expect(startBoarding(carol, friendship, 7, T1)).rejects.toMatchObject({ code: "not_found" });
     await expect(startBoarding(alice, "00000000-0000-4000-8000-000000000000", 7, T1)).rejects.toMatchObject({ code: "not_found" });
+    const closed = mergeRules({ boarding: { maxPerHost: 0 } });
+    await expect(startBoarding(alice, friendship, 7, T1, closed)).rejects.toMatchObject({ code: "host_full" });
   });
 
   it("sends the creature to the friend's home, who is notified", async () => {
@@ -204,8 +212,20 @@ describe("the host takes care of the creature", () => {
 });
 
 describe("the stay ends on its own", () => {
+  it("makes the owner wait after a stay (admin multiplier) before lending again", async () => {
+    // The last stay lasted one hour (recovered at T1 + 1 h): with the default multiplier of 1 the wait ends at T1 + 2 h.
+    const soon = new Date(T1.getTime() + 90 * 60_000);
+    expect((await boardingCooldownUntil(alice, soon, DEFAULT_RULES))?.getTime()).toBe(T1.getTime() + 2 * 3_600_000);
+    await expect(startBoarding(alice, friendship, 1, soon)).rejects.toMatchObject({ code: "boarding_cooldown" });
+    expect(await boardingCooldownUntil(alice, soon, mergeRules({ boarding: { cooldownMultiplier: 0 } }))).toBeNull();
+    expect((await boardingCooldownUntil(alice, soon, mergeRules({ boarding: { cooldownMultiplier: 3 } })))?.getTime()).toBe(T1.getTime() + 4 * 3_600_000);
+    expect(await boardingCooldownUntil(alice, new Date(T1.getTime() + 3 * 3_600_000), DEFAULT_RULES)).toBeNull();
+    expect(cooldownEnd(new Date(0), new Date(DAY), 2)?.getTime()).toBe(3 * DAY);
+    expect(cooldownEnd(new Date(0), new Date(DAY), 0)).toBeNull();
+  });
+
   it("expires after the agreed duration", async () => {
-    const stay = await startBoarding(alice, friendship, 1, T1);
+    const stay = await startBoarding(alice, friendship, 1, new Date(T1.getTime() + 3 * 3_600_000));
     const later = new Date(T1.getTime() + 2 * DAY);
     expect((await getHeldCreatures(bob, later)).boarded).toEqual([]);
     expect((await getHeldCreatures(alice, later)).away).toBeNull();
@@ -215,7 +235,8 @@ describe("the stay ends on its own", () => {
   });
 
   it("sends a creature that died at the host's back to its owner, dead", async () => {
-    const T2 = new Date(T1.getTime() + 2 * DAY);
+    // The expired stay lasted a day: with the multiplier of 1 the owner waits another day.
+    const T2 = new Date(T1.getTime() + 4 * DAY);
     const stay = await startBoarding(alice, friendship, 30, T2);
     // Sick for a month with no care: the next tick is fatal.
     await getDb().update(creatures).set({ health: 1, sickSince: new Date(T2.getTime() - 30 * DAY), lastTickAt: T2, protectedUntil: null }).where(eq(creatures.id, misoId));

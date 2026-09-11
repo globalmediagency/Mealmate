@@ -33,6 +33,8 @@ type Draft = {
   slowRatePercent: string;
   maxMealsPerDay: string;
   rejectScreenPhotos: boolean;
+  maxPerHost: string;
+  cooldownMultiplier: string;
 };
 
 function toDraft(rules: GameRules): Draft {
@@ -45,6 +47,8 @@ function toDraft(rules: GameRules): Draft {
     slowRatePercent: String(Math.round(rules.tick.slowRate * 100)),
     maxMealsPerDay: String(rules.feeding.maxMealsPerDay),
     rejectScreenPhotos: rules.feeding.rejectScreenPhotos,
+    maxPerHost: String(rules.boarding.maxPerHost),
+    cooldownMultiplier: String(rules.boarding.cooldownMultiplier),
   };
 }
 
@@ -57,6 +61,7 @@ function toPatch(draft: Draft): GameRulesPatch {
     hungerDamageThreshold: num(draft.hungerDamageThreshold),
     tick: { fullRateHoursCap: num(draft.fullRateHoursCap), slowRate: num(draft.slowRatePercent) / 100 },
     feeding: { maxMealsPerDay: num(draft.maxMealsPerDay), rejectScreenPhotos: draft.rejectScreenPhotos },
+    boarding: { maxPerHost: num(draft.maxPerHost), cooldownMultiplier: num(draft.cooldownMultiplier) },
   };
 }
 
@@ -69,6 +74,8 @@ function safePreview(draft: Draft): GameRules | null {
       patch.tick?.fullRateHoursCap,
       patch.tick?.slowRate,
       patch.feeding?.maxMealsPerDay,
+      patch.boarding?.maxPerHost,
+      patch.boarding?.cooldownMultiplier,
     ];
     if (flat.some((v) => v === undefined || Number.isNaN(v))) return null;
     return mergeRules(patch);
@@ -215,6 +222,25 @@ export function RulesForm({ initialRules, storedPatch, updatedAt, updatedBy }: R
           <span className="text-cream-100">Rythme ralenti au-delà (%)</span>
           <input type="text" inputMode="decimal" value={draft.slowRatePercent} onChange={(e) => setDraft((d) => ({ ...d, slowRatePercent: e.target.value }))} className={inputClass} />
           <span className="block text-[11px] text-cream-700">défaut {Math.round(DEFAULT_RULES.tick.slowRate * 100)} %</span>
+        </label>
+      </section>
+
+      <section className="grid gap-3 rounded-3xl border border-ink-600/80 bg-ink-800/90 p-4 shadow-card sm:grid-cols-2">
+        <h2 className="font-display text-xl text-cream-50 sm:col-span-2">Pension chez un ami</h2>
+        <p className="-mt-2 text-xs text-cream-500 sm:col-span-2">
+          La durée maximale d&apos;une pension se règle par niveau, dans le tableau ci-dessus (« Pension maximale »).
+        </p>
+        <label className="space-y-1 text-sm">
+          <span className="text-cream-100">Créatures hébergées au maximum par joueur</span>
+          <input type="text" inputMode="numeric" value={draft.maxPerHost} onChange={(e) => setDraft((d) => ({ ...d, maxPerHost: e.target.value }))} className={inputClass} />
+          <span className="block text-[11px] text-cream-700">0 désactive la pension · défaut {DEFAULT_RULES.boarding.maxPerHost}</span>
+        </label>
+        <label className="space-y-1 text-sm">
+          <span className="text-cream-100">Repos après une pension (× sa durée)</span>
+          <input type="text" inputMode="decimal" value={draft.cooldownMultiplier} onChange={(e) => setDraft((d) => ({ ...d, cooldownMultiplier: e.target.value }))} className={inputClass} />
+          <span className="block text-[11px] text-cream-700">
+            Après X jours de pension effectifs, le propriétaire ne peut plus confier sa créature pendant X × cette valeur (0 = aucun repos) · défaut {DEFAULT_RULES.boarding.cooldownMultiplier}
+          </span>
         </label>
       </section>
 

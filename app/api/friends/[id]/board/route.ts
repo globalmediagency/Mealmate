@@ -7,7 +7,7 @@ import { BOARDING } from "@/lib/game/config";
 export const dynamic = "force-dynamic";
 
 const idSchema = z.string().uuid();
-const bodySchema = z.object({ days: z.coerce.number().int().min(1).max(BOARDING.maxDays) });
+const bodySchema = z.object({ days: z.coerce.number().int().min(1).max(BOARDING.absoluteMaxDays) });
 
 /** POST /api/friends/:id/board { days } → entrusts the user's creature to this friend for `days` days. */
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {

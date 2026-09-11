@@ -142,12 +142,15 @@ code ou pseudo exact, les demandes reçues / envoyées, puis les cartes de tes a
 Une pastille sur l'onglet indique les demandes reçues.
 
 **Pension** (migration `009`) : sur la carte d'un ami, « Confier en pension » envoie ta créature vivante chez lui pour 3 à
-30 jours, sans validation de sa part. Il la voit sur son écran Créature (section « En pension chez toi », pastille) :
+30 jours (durée maximale réglable par niveau dans l'admin), sans validation de sa part. Il la voit sur son écran Créature (section « En pension chez toi », pastille) :
 ses repas et ses pas la nourrissent et la renforcent comme les siennes, il peut jouer avec elle, la soigner avec son
 armoire et ouvrir les coffres qu'elle gagne chez lui (les accessoires sont pour lui) ; il ne peut ni lui retirer ni lui
 ajouter d'accessoire. Elle continue de vivre, de tomber malade ou de mourir. Ton écran Créature montre où elle est et un
 bouton « Récupérer ma créature en pension chez … » la ramène aussitôt (morte si elle est morte entre-temps) ; l'hôte
-peut aussi la rendre plus tôt, et elle rentre seule à l'échéance.
+peut aussi la rendre plus tôt, et elle rentre seule à l'échéance. Dans **Admin › Règles de jeu** : « Pension maximale »
+par niveau, nombre de créatures hébergées au maximum par joueur (0 désactive la pension) et « Repos après une pension » :
+après X jours de pension effectifs, le propriétaire attend X × ce facteur avant de confier à nouveau (1 par défaut,
+0 pour aucun repos).
 
 ## 2. Cycle de travail
 

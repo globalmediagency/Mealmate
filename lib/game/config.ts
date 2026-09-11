@@ -24,6 +24,8 @@ export type TierConfig = {
   moodLossPerHour: number;
   /** Consecutive days in the "sick" state before death. */
   sickDaysBeforeDeath: number;
+  /** Longest stay at a friend's, in days (spec § 3.16). */
+  boardingMaxDays: number;
   /** Universe of species, shown on the egg choice screen. */
   universe: string;
   /** Short pitch shown on the egg card. */
@@ -40,6 +42,7 @@ export const TIER_CONFIG: Record<Tier, TierConfig> = {
     healthLossPerHourWhenStarving: 0.5,
     moodLossPerHour: 0.5,
     sickDaysBeforeDeath: 7,
+    boardingMaxDays: 30,
     universe: "Compagnons domestiques et rondouillards",
     description:
       "Chats, lapins, hamsters, canards… Des compagnons indulgents qui pardonnent les écarts.",
@@ -53,6 +56,7 @@ export const TIER_CONFIG: Record<Tier, TierConfig> = {
     healthLossPerHourWhenStarving: 1,
     moodLossPerHour: 1,
     sickDaysBeforeDeath: 5,
+    boardingMaxDays: 30,
     universe: "Créatures de la forêt",
     description:
       "Renard, loup, cerf, hibou, blaireau… Des créatures qui attendent une vraie régularité.",
@@ -66,6 +70,7 @@ export const TIER_CONFIG: Record<Tier, TierConfig> = {
     healthLossPerHourWhenStarving: 1.5,
     moodLossPerHour: 1.5,
     sickDaysBeforeDeath: 3,
+    boardingMaxDays: 30,
     universe: "Créatures mythiques",
     description:
       "Dragon, phénix, kitsune, golem, licorne… Des êtres exigeants qui tombent vite malades si on les néglige.",
@@ -163,14 +168,16 @@ export const STEPS = {
 } as const;
 
 /** Mini-game rules (spec § 3.7). */
-/** Boarding a creature at a friend's (spec § 3.16). */
+/** Boarding a creature at a friend's (spec § 3.16). The per-tier maximum stay lives in TIER_CONFIG. */
 export const BOARDING = {
-  /** Longest stay, in days. */
-  maxDays: 30,
-  /** Durations offered in the dialog (days). */
+  /** Hard ceiling accepted by the API whatever the admin rules say (days). */
+  absoluteMaxDays: 365,
+  /** Durations offered in the dialog (days), trimmed to the tier's maximum. */
   durations: [3, 7, 14, 21, 30],
-  /** How many creatures one player can host at the same time. */
+  /** How many creatures one player can host at the same time (admin-tunable default). */
   maxPerHost: 5,
+  /** After a stay of X days, the owner waits X × this before lending again (admin-tunable default; 0 = no wait). */
+  cooldownMultiplier: 1,
 } as const;
 
 export const PLAY = {

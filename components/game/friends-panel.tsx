@@ -24,13 +24,16 @@ type FriendsPanelProps = {
   /** My medicine, to send to friends whose creature is tired or sick. */
   inventory: Inventory;
   trades: TradesOverview;
-  /** My living, named creature when it is home: it can be entrusted to a friend. */
-  boardable?: { creatureName: string } | null;
+  /** My living, named creature when it is home: it can be entrusted to a friend (durations allowed for its tier). */
+  boardable?: { creatureName: string; maxDays: number; durations: number[] } | null;
+  /** Until when the previous stay blocks a new one (admin "repos" rule). */
+  cooldownUntil?: string | null;
   /** Dev gallery only: pre-loaded trade dialog for the first friend. */
   demoTrade?: TradeableAccessories;
 };
 
-export function FriendsPanel({ me, friends, incoming, outgoing, inventory, trades, boardable = null, demoTrade }: FriendsPanelProps) {
+export function FriendsPanel({ me, friends, incoming, outgoing, inventory, trades, boardable = null, cooldownUntil = null, demoTrade }: FriendsPanelProps) {
+  const cooldownActive = cooldownUntil !== null && new Date(cooldownUntil).getTime() > Date.now();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState<string | null>(null);
@@ -168,6 +171,12 @@ export function FriendsPanel({ me, friends, incoming, outgoing, inventory, trade
         <h2 className="mb-2 font-display text-xl font-semibold text-cream-50">
           Mes amis <span className="text-sm font-normal text-cream-500">({friends.length})</span>
         </h2>
+        {boardable && cooldownActive && cooldownUntil ? (
+          <p className="mb-2 text-xs text-cream-500">
+            Après sa dernière pension, {boardable.creatureName} reste à la maison jusqu&apos;au{" "}
+            {new Date(cooldownUntil).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}.
+          </p>
+        ) : null}
         {friends.length === 0 ? (
           <Card className="text-center">
             <CardTitle className="text-lg">Personne pour l&apos;instant</CardTitle>
@@ -183,7 +192,7 @@ export function FriendsPanel({ me, friends, incoming, outgoing, inventory, trade
                   <div className="flex flex-col gap-2">
                     <HealFriend friend={friend} inventory={inventory} notify={notify} />
                     <TradeWithFriend friend={friend} notify={notify} initialData={index === 0 ? demoTrade : undefined} />
-                    {boardable ? <BoardWithFriend friend={friend} creatureName={boardable.creatureName} notify={notify} /> : null}
+                    {boardable && !cooldownActive ? <BoardWithFriend friend={friend} creatureName={boardable.creatureName} durations={boardable.durations} notify={notify} /> : null}
                   </div>
                 }
               >

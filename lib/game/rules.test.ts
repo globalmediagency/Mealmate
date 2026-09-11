@@ -7,6 +7,17 @@ describe("rules", () => {
     expect(DEFAULT_RULES.tiers.difficile.sickDaysBeforeDeath).toBe(3);
     expect(DEFAULT_RULES.hungerDamageThreshold).toBe(80);
     expect(DEFAULT_RULES.feeding.maxMealsPerDay).toBe(5);
+    expect(DEFAULT_RULES.tiers.moyen.boardingMaxDays).toBe(30);
+    expect(DEFAULT_RULES.boarding).toEqual({ maxPerHost: 5, cooldownMultiplier: 1 });
+  });
+
+  it("tunes the boarding rules", () => {
+    const rules = mergeRules({ tiers: { difficile: { boardingMaxDays: 7 } }, boarding: { cooldownMultiplier: 2.5 } });
+    expect(rules.tiers.difficile.boardingMaxDays).toBe(7);
+    expect(rules.tiers.facile.boardingMaxDays).toBe(30);
+    expect(rules.boarding).toEqual({ maxPerHost: 5, cooldownMultiplier: 2.5 });
+    expect(gameRulesPatchSchema.safeParse({ boarding: { maxPerHost: -1 } }).success).toBe(false);
+    expect(gameRulesPatchSchema.safeParse({ tiers: { facile: { boardingMaxDays: 400 } } }).success).toBe(false);
   });
 
   it("merges a partial patch over the defaults", () => {

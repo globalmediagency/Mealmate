@@ -1,11 +1,11 @@
-import { and, asc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { DomainError } from "@/lib/api/errors";
 import { applyStepGains, getActiveCreatureTicked, refreshEggSteps } from "@/lib/creatures/service";
 import { tickCreature } from "@/lib/creatures/tick-service";
 import { getDb } from "@/lib/db";
 import { boardings, creatures, profiles, type Boarding, type Creature } from "@/lib/db/schema";
 import { getAcceptedFriend, type PublicProfile } from "@/lib/friends/service";
-import { BOARDING } from "@/lib/game/config";
+import { BOARDING, type Tier } from "@/lib/game/config";
 import type { GameRules } from "@/lib/game/rules";
 import { getGameRules } from "@/lib/game/rules-service";
 import { gameDate } from "@/lib/game/time";
@@ -190,6 +190,42 @@ export async function getAwayStatus(userId: string, now: Date = new Date(), rule
   return (await getHeldCreatures(userId, now, rules)).away;
 }
 
+/** What the owner may choose for a creature of this tier under the current rules. */
+export type BoardingLimits = { maxDays: number; durations: number[] };
+
+export function boardingLimits(tier: Tier, rules: GameRules): BoardingLimits {
+  const maxDays = Math.max(1, Math.floor(rules.tiers[tier].boardingMaxDays));
+  const durations: number[] = BOARDING.durations.filter((d) => d < maxDays);
+  durations.push(maxDays);
+  return { maxDays, durations };
+}
+
+/** Instant after which a stay that lasted `effectiveMs` no longer blocks the owner (null when there is no wait). */
+export function cooldownEnd(startedAt: Date, endedAt: Date, multiplier: number): Date | null {
+  const effectiveMs = Math.max(0, endedAt.getTime() - startedAt.getTime());
+  const waitMs = effectiveMs * Math.max(0, multiplier);
+  return waitMs > 0 ? new Date(endedAt.getTime() + waitMs) : null;
+}
+
+/**
+ * When the owner may lend a creature again: after a stay of X days they wait
+ * X × `rules.boarding.cooldownMultiplier` (whatever creature, whatever end
+ * reason). Null when nothing blocks them now.
+ */
+export async function boardingCooldownUntil(ownerId: string, now: Date, rules: GameRules): Promise<Date | null> {
+  if (rules.boarding.cooldownMultiplier <= 0) return null;
+  const rows = await getDb()
+    .select({ startedAt: boardings.startedAt, endedAt: boardings.endedAt })
+    .from(boardings)
+    .where(and(eq(boardings.ownerId, ownerId), isNotNull(boardings.endedAt)))
+    .orderBy(desc(boardings.endedAt))
+    .limit(1);
+  const last = rows[0];
+  if (!last?.endedAt) return null;
+  const until = cooldownEnd(last.startedAt, last.endedAt, rules.boarding.cooldownMultiplier);
+  return until && until.getTime() > now.getTime() ? until : null;
+}
+
 export type StartBoardingOutcome = { boarding: Boarding; creature: Creature; friend: PublicProfile };
 
 function isUniqueViolation(error: unknown): boolean {
@@ -197,29 +233,47 @@ function isUniqueViolation(error: unknown): boolean {
   return code === "23505";
 }
 
+const formatDay = (date: Date) => date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Paris" });
+
 /**
  * Entrusts the user's living, named creature to an accepted friend for
- * `days` days (1–30). No acceptance needed: the friend is told on their home
- * screen and the owner can take the creature back at any time.
+ * `days` days (1 to the tier's maximum, admin rule). No acceptance needed:
+ * the friend is told on their home screen and the owner can take the
+ * creature back at any time. Admin rules also cap how many creatures the
+ * friend hosts and impose a wait after the owner's previous stay.
  */
-export async function startBoarding(userId: string, friendshipId: string, days: number, now: Date = new Date()): Promise<StartBoardingOutcome> {
-  if (!Number.isInteger(days) || days < 1 || days > BOARDING.maxDays) {
-    throw new DomainError("validation_error", `La pension dure entre 1 et ${BOARDING.maxDays} jours.`, 400);
+export async function startBoarding(userId: string, friendshipId: string, days: number, now: Date = new Date(), rules?: GameRules): Promise<StartBoardingOutcome> {
+  const gameRules = rules ?? (await getGameRules());
+  if (!Number.isInteger(days) || days < 1 || days > BOARDING.absoluteMaxDays) {
+    throw new DomainError("validation_error", `La pension dure entre 1 et ${BOARDING.absoluteMaxDays} jours.`, 400);
   }
   const { friend } = await getAcceptedFriend(userId, friendshipId);
-  const held = await getHeldCreatures(userId, now);
+  const held = await getHeldCreatures(userId, now, gameRules);
   const creature = held.own;
   if (!creature || creature.status !== "alive" || !creature.name) {
     throw new DomainError("no_creature", "Il te faut une créature vivante, avec un prénom, pour la confier.", 409);
   }
   if (held.away) throw new DomainError("already_boarded", `${creature.name} est déjà en pension chez ${held.away.host.username}.`, 409);
+  const { maxDays } = boardingLimits(creature.tier as Tier, gameRules);
+  if (days > maxDays) {
+    throw new DomainError("validation_error", `Une créature de ce niveau peut être confiée ${maxDays} jour${maxDays > 1 ? "s" : ""} au plus.`, 400);
+  }
+  const cooldown = await boardingCooldownUntil(userId, now, gameRules);
+  if (cooldown) {
+    throw new DomainError("boarding_cooldown", `Après une pension, il faut souffler un peu : tu pourras confier ${creature.name} à nouveau à partir du ${formatDay(cooldown)}.`, 409);
+  }
 
+  const maxPerHost = gameRules.boarding.maxPerHost;
   const hosting = await getDb()
     .select({ count: sql<number>`count(*)` })
     .from(boardings)
     .where(and(eq(boardings.hostId, friend.userId), isNull(boardings.endedAt), gt(boardings.endsAt, now)));
-  if (Number(hosting[0]?.count ?? 0) >= BOARDING.maxPerHost) {
-    throw new DomainError("host_full", `${friend.username} héberge déjà ${BOARDING.maxPerHost} créatures : c'est complet chez ${friend.username}.`, 409);
+  if (Number(hosting[0]?.count ?? 0) >= maxPerHost) {
+    throw new DomainError(
+      "host_full",
+      maxPerHost === 0 ? "La pension est désactivée pour le moment." : `${friend.username} héberge déjà ${maxPerHost} créature${maxPerHost > 1 ? "s" : ""} : c'est complet chez ${friend.username}.`,
+      409,
+    );
   }
 
   try {

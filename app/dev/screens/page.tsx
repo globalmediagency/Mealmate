@@ -189,7 +189,7 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
         <FriendsPanel
           me={{ username: "Chabond_42", friendCode: "MM-7K3Q2X" }}
           inventory={{ sirop: 2, antibiotique: 1, talisman: 0 }}
-          boardable={{ creatureName: "Miso" }}
+          boardable={{ creatureName: "Miso", maxDays: 30, durations: [3, 7, 14, 21, 30] }}
           demoTrade={{
             friend: { userId: "u1", username: "Marion" },
             mine: ACCESSORIES.filter((a) => ["beret", "scarf", "sunglasses"].includes(a.id)).map((a) => ({ accessory: a, qty: a.id === "scarf" ? 2 : 1 })),

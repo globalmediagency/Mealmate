@@ -6,7 +6,6 @@ import { useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { FriendView } from "@/lib/friends/service";
-import { BOARDING } from "@/lib/game/config";
 import { cn } from "@/lib/utils/cn";
 import type { Notify } from "./friend-actions";
 
@@ -17,11 +16,11 @@ async function readError(response: Response, fallback: string): Promise<string> 
   return body?.error?.message ?? fallback;
 }
 
-/** "Confier en pension" on a friend card: the creature goes to live at the friend's for a few days. */
-export function BoardWithFriend({ friend, creatureName, notify }: { friend: FriendView; creatureName: string; notify: Notify }) {
+/** "Confier en pension" on a friend card: the creature goes to live at the friend's for a few days (`durations` = choices allowed for its tier). */
+export function BoardWithFriend({ friend, creatureName, durations, notify }: { friend: FriendView; creatureName: string; durations: number[]; notify: Notify }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [days, setDays] = useState<number>(7);
+  const [days, setDays] = useState<number>(() => durations.find((d) => d >= 7) ?? durations[durations.length - 1] ?? 1);
   const [pending, setPending] = useState(false);
 
   async function confirm() {
@@ -68,7 +67,7 @@ export function BoardWithFriend({ friend, creatureName, notify }: { friend: Frie
             coffres qu&apos;elle gagne là-bas reviennent à {friend.user.username}. Elle continue de vivre normalement : elle peut tomber malade. Tu la récupères quand tu veux.
           </p>
           <div className="mt-3 flex flex-wrap gap-1.5" role="radiogroup" aria-label="Durée de la pension">
-            {BOARDING.durations.map((d) => (
+            {durations.map((d) => (
               <button
                 key={d}
                 type="button"
