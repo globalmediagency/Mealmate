@@ -4,7 +4,7 @@ import { countPlaysToday, recordPlay } from "@/lib/play/service";
 import { saveManualSteps } from "@/lib/steps/service";
 import { createTestDatabase, insertTestUser, type TestDatabase } from "@/lib/test/pglite";
 import { accessoriesByRarity } from "./catalog";
-import { equipAccessory, getChestStatus, getOutfit, getOwnedAccessories, openChest } from "./service";
+import { addAccessoryCopies, equipAccessory, getChestStatus, getOutfit, getOwnedAccessories, openChest, takeAccessoryCopy } from "./service";
 
 let tdb: TestDatabase;
 let userId: string;
@@ -42,15 +42,34 @@ describe("chests", () => {
     const first = await openChest(userId, creature, sequence([0, 0]));
     expect(first.accessory.id).toBe(groups.commun[0].id);
     expect(first.duplicate).toBe(false);
+    expect(first.equipped).toBe(false);
     expect(first.status.available).toBe(2);
     expect((await getOwnedAccessories(userId)).map((o) => o.accessory.id)).toEqual([groups.commun[0].id]);
 
     creature = (await getActiveCreature(userId))!;
+    await equipAccessory(userId, creature, groups.commun[0].slot, groups.commun[0].id);
     const xpBefore = creature.xp;
     const second = await openChest(userId, creature, sequence([0, 0]));
     expect(second.duplicate).toBe(true);
-    expect(second.xpGain).toBe(20);
-    expect((await getActiveCreature(userId))!.xp).toBe(xpBefore + 20);
+    expect(second.copies).toBe(2);
+    expect(second.equipped).toBe(true); // already worn: the reveal shows "Déjà porté" instead of "Équiper"
+    expect((await getActiveCreature(userId))!.xp).toBe(xpBefore);
+    const owned = await getOwnedAccessories(userId);
+    expect(owned.find((o) => o.accessory.id === groups.commun[0].id)?.qty).toBe(2);
+  });
+
+  it("takes copies one by one and unequips the accessory when the last copy leaves", async () => {
+    const groups = accessoriesByRarity();
+    const id = groups.commun[0].id;
+    const creature = (await getActiveCreature(userId))!;
+    await equipAccessory(userId, creature, groups.commun[0].slot, id);
+    expect(await takeAccessoryCopy(userId, id)).toBe(1);
+    expect((await getOutfit(creature.id))[groups.commun[0].slot]).toBe(id);
+    expect(await takeAccessoryCopy(userId, id)).toBe(0);
+    expect((await getOutfit(creature.id))[groups.commun[0].slot]).toBeUndefined();
+    expect((await getOwnedAccessories(userId)).some((o) => o.accessory.id === id)).toBe(false);
+    await expect(takeAccessoryCopy(userId, id)).rejects.toMatchObject({ code: "not_owned" });
+    expect(await addAccessoryCopies(userId, id)).toBe(1);
   });
 
   it("refuses to open the same chest twice concurrently", async () => {

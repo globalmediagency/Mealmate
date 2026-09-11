@@ -4,6 +4,7 @@ import { DomainError } from "@/lib/api/errors";
 import { getDb } from "@/lib/db";
 import { creatures, type Creature } from "@/lib/db/schema";
 import { CREATURE_NAME, TIERS, type Tier } from "@/lib/game/config";
+import { getDropWeights } from "@/lib/game/drops-service";
 import { drawSpecies } from "@/lib/game/rarity";
 import type { GameRules } from "@/lib/game/rules";
 import { getGameRules } from "@/lib/game/rules-service";
@@ -112,7 +113,7 @@ export async function hatchEgg(userId: string, now: Date = new Date()): Promise<
   if (egg.eggSteps < rules.tiers[tier].hatchSteps) {
     throw new DomainError("egg_not_ready", "L'œuf a encore besoin de pas pour éclore.", 409);
   }
-  const species = drawSpecies(tier);
+  const species = drawSpecies(tier, undefined, (await getDropWeights()).species);
   const rows = await getDb()
     .update(creatures)
     .set({

@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { getAccessory, type Accessory } from "@/lib/accessories/catalog";
 import { DomainError } from "@/lib/api/errors";
 import { getActiveCreature } from "@/lib/creatures/service";
 import { tickCreature } from "@/lib/creatures/tick-service";
@@ -169,7 +170,7 @@ export async function healFriendCreature(userId: string, friendshipId: string, i
   await consumeDose(userId, item);
   const result = applyMedicine(creature, item, now);
   const saved = await persistMedicine(result.creature);
-  await getDb().insert(gifts).values({ fromUserId: userId, toUserId: friend.userId, creatureId: creature.id, item });
+  await getDb().insert(gifts).values({ fromUserId: userId, toUserId: friend.userId, creatureId: creature.id, item, kind: "medicine" });
   return { ...result, creature: saved, friend, creatureName: creature.name, inventory: await getInventory(userId) };
 }
 
@@ -177,7 +178,9 @@ export async function healFriendCreature(userId: string, friendshipId: string, i
 // Gifts received
 // ---------------------------------------------------------------------------
 
-export type GiftView = { id: string; from: PublicProfile; item: ShopItemId; createdAt: string };
+export type GiftView =
+  | { id: string; from: PublicProfile; createdAt: string; kind: "medicine"; item: ShopItemId }
+  | { id: string; from: PublicProfile; createdAt: string; kind: "accessory"; accessory: Accessory };
 
 /** Medicine received and not yet acknowledged on the home screen. */
 export async function listUnseenGifts(userId: string): Promise<GiftView[]> {
@@ -191,10 +194,21 @@ export async function listUnseenGifts(userId: string): Promise<GiftView[]> {
   if (rows.length === 0) return [];
   const senders = await db.select().from(profiles).where(inArray(profiles.userId, [...new Set(rows.map((r) => r.fromUserId))]));
   const byId = new Map(senders.map((p) => [p.userId, { userId: p.userId, username: p.username }]));
-  return rows.flatMap((r) => {
+  return rows.flatMap((r): GiftView[] => {
     const from = byId.get(r.fromUserId);
-    return from && isShopItem(r.item) ? [{ id: r.id, from, item: r.item, createdAt: r.createdAt.toISOString() }] : [];
+    if (!from) return [];
+    const base = { id: r.id, from, createdAt: r.createdAt.toISOString() };
+    if (r.kind === "accessory") {
+      const accessory = getAccessory(r.item);
+      return accessory ? [{ ...base, kind: "accessory", accessory }] : [];
+    }
+    return isShopItem(r.item) ? [{ ...base, kind: "medicine", item: r.item }] : [];
   });
+}
+
+/** Unseen gifts of any kind (badge on the creature tab): the same rows the notice can show and acknowledge. */
+export async function countUnseenGifts(userId: string): Promise<number> {
+  return (await listUnseenGifts(userId)).length;
 }
 
 export async function markGiftsSeen(userId: string, now: Date = new Date()): Promise<void> {

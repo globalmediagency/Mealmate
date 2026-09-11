@@ -1,8 +1,9 @@
-import { ACCESSORIES, accessoriesByRarity, type Accessory } from "@/lib/accessories/catalog";
+import type { Accessory } from "@/lib/accessories/catalog";
 import { ACCESSORY_RARITY_WEIGHTS, RARITIES, STEPS, type Rarity } from "./config";
+import { accessoryWeights, pickWeighted } from "./drops";
 import { secureRandom } from "./rarity";
 
-/** Draws an accessory rarity (65 / 25 / 8 / 2 %). */
+/** Draws an accessory rarity (65 / 25 / 8 / 2 %). Kept for simulations. */
 export function drawAccessoryRarity(random: () => number = secureRandom): Rarity {
   const roll = random();
   let cumulative = 0;
@@ -13,19 +14,16 @@ export function drawAccessoryRarity(random: () => number = secureRandom): Rarity
   return RARITIES[RARITIES.length - 1];
 }
 
-export type AccessoryDraw = { accessory: Accessory; duplicate: boolean; xpGain: number };
+export type AccessoryDraw = { accessory: Accessory; duplicate: boolean };
 
 /**
- * Draws an accessory: rarity first, then uniformly inside the rarity.
- * Duplicates are possible (spec § 3.6) and give XP instead.
+ * Draws an accessory with one weighted roll over the catalogue (defaults =
+ * rarity shares split evenly, overrides from /admin). A duplicate is a new
+ * copy: copies can be traded or given away.
  */
-export function drawAccessory(ownedIds: ReadonlySet<string>, random: () => number = secureRandom, groups = accessoriesByRarity()): AccessoryDraw {
-  const rarity = drawAccessoryRarity(random);
-  const pool = groups[rarity].length > 0 ? groups[rarity] : ACCESSORIES;
-  const index = Math.min(pool.length - 1, Math.floor(random() * pool.length));
-  const accessory = pool[index];
-  const duplicate = ownedIds.has(accessory.id);
-  return { accessory, duplicate, xpGain: duplicate ? STEPS.duplicateAccessoryXp : 0 };
+export function drawAccessory(ownedIds: ReadonlySet<string>, random: () => number = secureRandom, overrides: Record<string, number> = {}): AccessoryDraw {
+  const accessory = pickWeighted(accessoryWeights(overrides), random);
+  return { accessory, duplicate: ownedIds.has(accessory.id) };
 }
 
 export type ChestStatus = {

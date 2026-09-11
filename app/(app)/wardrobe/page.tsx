@@ -16,7 +16,7 @@ export default async function WardrobePage() {
   return (
     <div className="space-y-4">
       <PageHeader title="Garde-robe" subtitle={`${owned.length} accessoire${owned.length > 1 ? "s" : ""} gagné${owned.length > 1 ? "s" : ""} en marchant.`} />
-      <Wardrobe creature={creature} owned={owned.map((o) => o.accessory)} outfit={outfit} />
+      <Wardrobe creature={creature} owned={owned.map((o) => o.accessory)} outfit={outfit} counts={Object.fromEntries(owned.map((o) => [o.accessory.id, o.qty]))} />
     </div>
   );
 }

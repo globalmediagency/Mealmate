@@ -1,25 +1,65 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { DomainError } from "@/lib/api/errors";
 import { getDb } from "@/lib/db";
 import { creatureOutfits, creatures, userAccessories, type Creature } from "@/lib/db/schema";
 import { chestStatus, drawAccessory, type ChestStatus } from "@/lib/game/accessories";
+import { getDropWeights } from "@/lib/game/drops-service";
 import { gameDate } from "@/lib/game/time";
 import { sumStepsSince } from "@/lib/steps/service";
 import { getAccessory, SLOTS, type Accessory, type Slot } from "./catalog";
 
-export type OwnedAccessory = { accessory: Accessory; obtainedAt: Date };
+export type OwnedAccessory = { accessory: Accessory; obtainedAt: Date; qty: number };
 export type Outfit = Partial<Record<Slot, string>>;
 export type EquippedAccessory = { slot: Slot; id: string };
 
 export async function getOwnedAccessories(userId: string): Promise<OwnedAccessory[]> {
-  const rows = await getDb().select().from(userAccessories).where(eq(userAccessories.userId, userId));
+  const rows = await getDb().select().from(userAccessories).where(and(eq(userAccessories.userId, userId), sql`${userAccessories.qty} > 0`));
   return rows
     .map((row) => {
       const accessory = getAccessory(row.accessoryId);
-      return accessory ? { accessory, obtainedAt: row.obtainedAt } : null;
+      return accessory ? { accessory, obtainedAt: row.obtainedAt, qty: row.qty } : null;
     })
     .filter((item): item is OwnedAccessory => item !== null)
     .sort((a, b) => b.obtainedAt.getTime() - a.obtainedAt.getTime());
+}
+
+/** Adds `count` copies of an accessory to a user (creates the row on the first one). Returns the new total. */
+export async function addAccessoryCopies(userId: string, accessoryId: string, count = 1, now = new Date()): Promise<number> {
+  const rows = await getDb()
+    .insert(userAccessories)
+    .values({ userId, accessoryId, qty: count, obtainedAt: now })
+    .onConflictDoUpdate({ target: [userAccessories.userId, userAccessories.accessoryId], set: { qty: sql`${userAccessories.qty} + ${count}` } })
+    .returning({ qty: userAccessories.qty });
+  return rows[0]?.qty ?? count;
+}
+
+/**
+ * Removes one copy (conditional decrement). When the last copy leaves, the row
+ * is deleted (only if still at 0: a copy arriving in between survives) and the
+ * accessory is unequipped from the user's creatures. Returns the copies left.
+ */
+export async function takeAccessoryCopy(userId: string, accessoryId: string): Promise<number> {
+  const db = getDb();
+  const rows = await db
+    .update(userAccessories)
+    .set({ qty: sql`${userAccessories.qty} - 1` })
+    .where(and(eq(userAccessories.userId, userId), eq(userAccessories.accessoryId, accessoryId), sql`${userAccessories.qty} > 0`))
+    .returning({ qty: userAccessories.qty });
+  if (rows.length === 0) throw new DomainError("not_owned", "Tu ne possèdes pas cet accessoire.", 403);
+  const left = rows[0].qty;
+  if (left <= 0) {
+    const removed = await db
+      .delete(userAccessories)
+      .where(and(eq(userAccessories.userId, userId), eq(userAccessories.accessoryId, accessoryId), sql`${userAccessories.qty} <= 0`))
+      .returning({ id: userAccessories.accessoryId });
+    if (removed.length > 0) {
+      const owned = await db.select({ id: creatures.id }).from(creatures).where(eq(creatures.userId, userId));
+      if (owned.length > 0) {
+        await db.delete(creatureOutfits).where(and(inArray(creatureOutfits.creatureId, owned.map((c) => c.id)), eq(creatureOutfits.accessoryId, accessoryId)));
+      }
+    }
+  }
+  return left;
 }
 
 export async function getOutfit(creatureId: string): Promise<Outfit> {
@@ -48,7 +88,7 @@ export async function equipAccessory(userId: string, creature: Creature, slot: S
   const owned = await db
     .select({ id: userAccessories.accessoryId })
     .from(userAccessories)
-    .where(and(eq(userAccessories.userId, userId), eq(userAccessories.accessoryId, accessoryId)))
+    .where(and(eq(userAccessories.userId, userId), eq(userAccessories.accessoryId, accessoryId), sql`${userAccessories.qty} > 0`))
     .limit(1);
   if (owned.length === 0) throw new DomainError("not_owned", "Tu ne possèdes pas encore cet accessoire.", 403);
   await db
@@ -67,12 +107,16 @@ export async function getChestStatus(creature: Creature): Promise<ChestStatus> {
 
 export type ChestReward = {
   accessory: Accessory;
+  /** Already owned: this chest adds a copy (to trade or give away). */
   duplicate: boolean;
-  xpGain: number;
+  /** Copies owned after this chest. */
+  copies: number;
+  /** The creature already wears this very accessory (nothing to equip). */
+  equipped: boolean;
   status: ChestStatus;
 };
 
-/** Opens one earned chest: draws an accessory (or +20 XP on duplicate). */
+/** Opens one earned chest: draws an accessory with the admin-tunable weights; a duplicate adds a copy. */
 export async function openChest(userId: string, creature: Creature, random?: () => number): Promise<ChestReward> {
   if (creature.userId !== userId) throw new DomainError("forbidden", "Cette créature n'est pas la tienne.", 403);
   const status = await getChestStatus(creature);
@@ -88,17 +132,15 @@ export async function openChest(userId: string, creature: Creature, random?: () 
     .returning({ drops: creatures.accessoryDrops });
   if (claimed.length === 0) throw new DomainError("no_chest", "Ce coffre a déjà été ouvert.", 409);
 
-  const owned = new Set((await getOwnedAccessories(userId)).map((o) => o.accessory.id));
-  const draw = drawAccessory(owned, random);
-  if (draw.duplicate) {
-    await db.update(creatures).set({ xp: sql`${creatures.xp} + ${draw.xpGain}` }).where(eq(creatures.id, creature.id));
-  } else {
-    await db.insert(userAccessories).values({ userId, accessoryId: draw.accessory.id }).onConflictDoNothing();
-  }
+  const [ownedList, weights, outfit] = await Promise.all([getOwnedAccessories(userId), getDropWeights(), getOutfit(creature.id)]);
+  const owned = new Set(ownedList.map((o) => o.accessory.id));
+  const draw = drawAccessory(owned, random, weights.accessories);
+  const copies = await addAccessoryCopies(userId, draw.accessory.id);
   return {
     accessory: draw.accessory,
     duplicate: draw.duplicate,
-    xpGain: draw.xpGain,
+    copies,
+    equipped: outfit[draw.accessory.slot] === draw.accessory.id,
     status: chestStatus(status.totalSteps, creature.accessoryDrops + 1),
   };
 }

@@ -14,9 +14,9 @@ import { getSpecies } from "@/lib/creatures";
 import type { CreatureView } from "@/lib/game/creature-view";
 import { cn } from "@/lib/utils/cn";
 
-type WardrobeProps = { creature: CreatureView; owned: Accessory[]; outfit: Outfit };
+type WardrobeProps = { creature: CreatureView; owned: Accessory[]; outfit: Outfit; counts?: Record<string, number> };
 
-export function Wardrobe({ creature, owned, outfit: initialOutfit }: WardrobeProps) {
+export function Wardrobe({ creature, owned, outfit: initialOutfit, counts = {} }: WardrobeProps) {
   const router = useRouter();
   const species = creature.species ? getSpecies(creature.species.id) : undefined;
   const [outfit, setOutfit] = useState<Outfit>(initialOutfit);
@@ -112,6 +112,11 @@ export function Wardrobe({ creature, owned, outfit: initialOutfit }: WardrobePro
                 >
                   <AccessoryIcon id={accessory.id} size={72} palette={species.palette} />
                   <span className="text-xs font-semibold text-cream-100">{accessory.name}</span>
+                  {(counts[accessory.id] ?? 1) > 1 ? (
+                    <span className="absolute left-1.5 top-1.5 rounded-full border border-brass-400/50 bg-ink-900/85 px-1.5 text-[10px] font-semibold text-brass-200" title="Exemplaires : à échanger ou offrir depuis l'onglet Amis">
+                      ×{counts[accessory.id]}
+                    </span>
+                  ) : null}
                   <span className="text-[10px]" style={{ color: RARITY_COLORS[accessory.rarity] }}>
                     {accessory.rarity === "tres_rare" ? "très rare" : accessory.rarity === "legendaire" ? "légendaire" : accessory.rarity}
                   </span>

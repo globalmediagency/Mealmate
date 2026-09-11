@@ -11,7 +11,7 @@ import type { Accessory } from "@/lib/accessories/catalog";
 import { SLOT_LABELS } from "@/lib/accessories/catalog";
 import type { ChestStatus } from "@/lib/game/accessories";
 
-type Reward = { accessory: Accessory; duplicate: boolean; xpGain: number; status: ChestStatus };
+type Reward = { accessory: Accessory; duplicate: boolean; copies: number; equipped?: boolean; status: ChestStatus };
 type Phase = "closed" | "shaking" | "open";
 
 type ChestOpenerProps = { status: ChestStatus; canEquip: boolean };
@@ -40,6 +40,7 @@ export function ChestOpener({ status: initial, canEquip }: ChestOpenerProps) {
         return;
       }
       setReward(body);
+      setEquipped(Boolean(body.equipped));
       setStatus(body.status);
       setPhase("open");
       router.refresh();
@@ -82,14 +83,14 @@ export function ChestOpener({ status: initial, canEquip }: ChestOpenerProps) {
           <p className="mt-2 text-sm text-cream-300">{reward.accessory.tagline}</p>
           {reward.duplicate ? (
             <p className="mt-3 rounded-2xl border border-brass-500/40 bg-brass-500/10 px-3 py-2 text-sm text-brass-200">
-              Déjà possédé · +{reward.xpGain} XP pour ta créature
+              Exemplaire n° {reward.copies} : à échanger ou à offrir à un ami depuis l&apos;onglet Amis !
             </p>
           ) : null}
           <div className="mt-4 flex flex-col gap-2">
-            {!reward.duplicate && canEquip ? (
+            {canEquip ? (
               <Button onClick={equip} disabled={equipped} variant="brass">
                 <Sparkles className="h-5 w-5" aria-hidden="true" />
-                {equipped ? "Équipé !" : "Équiper maintenant"}
+                {equipped ? (reward.equipped ? "Déjà porté" : "Équipé !") : "Équiper maintenant"}
               </Button>
             ) : null}
             {status.available > 0 ? (

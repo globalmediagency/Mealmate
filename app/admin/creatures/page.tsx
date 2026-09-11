@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { DropRateEditor } from "@/components/admin/drop-rate-editor";
 import { Creature } from "@/components/creatures/creature";
 import { RarityBadge } from "@/components/creatures/rarity-badge";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +8,8 @@ import { requireAdmin } from "@/lib/admin/auth";
 import { ALL_SPECIES, getSpecies, speciesForTier } from "@/lib/creatures";
 import { RARITIES, RARITY_LABELS, STAGES, TIER_CONFIG, TIERS, type Rarity, type Tier } from "@/lib/game/config";
 import type { CreatureState } from "@/lib/game/creature-view";
+import { formatChance, speciesWeights } from "@/lib/game/drops";
+import { getDropWeights } from "@/lib/game/drops-service";
 import { cn } from "@/lib/utils/cn";
 
 export const metadata: Metadata = { title: "Créatures" };
@@ -30,6 +33,7 @@ function href(params: { tier?: string; rarity?: string; species?: string; all?: 
 export default async function AdminCreaturesPage({ searchParams }: { searchParams: SearchParams }) {
   await requireAdmin();
   const params = await searchParams;
+  const dropWeights = await getDropWeights();
   const tier = isTier(params.tier) ? params.tier : undefined;
   const rarity = isRarity(params.rarity) ? params.rarity : undefined;
   const selected = params.species ? getSpecies(params.species) : undefined;
@@ -44,7 +48,8 @@ export default async function AdminCreaturesPage({ searchParams }: { searchParam
       <div>
         <h1 className="font-display text-3xl font-semibold text-cream-50">Créatures</h1>
         <p className="mt-1 text-sm text-cream-500">
-          {ALL_SPECIES.length} espèces, {TIERS.length} niveaux, {STAGES.length} stades d&apos;âge et {STATES.length} états. Touche une espèce pour voir tous ses visuels.
+          {ALL_SPECIES.length} espèces, {TIERS.length} niveaux, {STAGES.length} stades d&apos;âge et {STATES.length} états. Touche une espèce pour voir tous ses visuels ;
+          la chance d&apos;éclosion (en millièmes) se règle sous chaque niveau.
         </p>
       </div>
 
@@ -71,16 +76,18 @@ export default async function AdminCreaturesPage({ searchParams }: { searchParam
       {detailed.length > 0 ? (
         <div className="space-y-6">
           {detailed.map((s) => (
-            <SpeciesSheet key={s.id} id={s.id} closeHref={showAll ? undefined : href(keep)} />
+            <SpeciesSheet key={s.id} id={s.id} closeHref={showAll ? undefined : href(keep)} chance={formatChance(speciesWeights(s.tier, dropWeights.species).find((w) => w.item.id === s.id)!)} />
           ))}
         </div>
       ) : null}
 
       {tiers.map((t) => {
+        const weighted = speciesWeights(t, dropWeights.species);
+        const chanceOf = new Map(weighted.map((w) => [w.item.id, w]));
         const list = speciesForTier(t).filter((s) => !rarity || s.rarity === rarity);
         if (list.length === 0) return null;
         return (
-          <section key={t}>
+          <section key={t} className="space-y-3">
             <div className="mb-2 flex items-baseline justify-between">
               <h2 className="font-display text-2xl text-cream-50">{TIER_CONFIG[t].label}</h2>
               <span className="text-xs text-cream-500">
@@ -100,10 +107,16 @@ export default async function AdminCreaturesPage({ searchParams }: { searchParam
                     <Creature species={s} stage="adulte" state="healthy" size={88} animated={false} />
                     <span className="truncate text-sm font-semibold text-cream-50">{s.name}</span>
                     <RarityBadge rarity={s.rarity} className="text-[10px]" />
+                    <span className="text-[10px] tabular-nums text-cream-500">{chanceOf.get(s.id) ? formatChance(chanceOf.get(s.id)!) : ""}</span>
                   </Link>
                 </li>
               ))}
             </ul>
+            <DropRateEditor
+              kind="species"
+              title={`Probabilités d'éclosion · ${TIER_CONFIG[t].label}`}
+              rows={weighted.map((w) => ({ id: w.item.id, name: w.item.name, rarity: w.item.rarity, defaultWeight: w.defaultWeight, weight: w.weight, overridden: w.overridden }))}
+            />
           </section>
         );
       })}
@@ -127,7 +140,7 @@ function FilterChip({ active, href, children }: { active: boolean; href: string;
 }
 
 /** Every visual of one species: 4 age stages × 4 states, plus the silhouette. */
-function SpeciesSheet({ id, closeHref }: { id: string; closeHref?: string }) {
+function SpeciesSheet({ id, closeHref, chance }: { id: string; closeHref?: string; chance?: string }) {
   const s = getSpecies(id);
   if (!s) return null;
   return (
@@ -145,6 +158,7 @@ function SpeciesSheet({ id, closeHref }: { id: string; closeHref?: string }) {
       </div>
       <p className="mb-3 text-sm text-cream-300">
         {s.tagline} <span className="text-cream-700">· objet signature au stade Sage : {s.signature}</span>
+        {chance ? <span className="block text-xs text-cream-500">Chance d&apos;éclosion : {chance}</span> : null}
       </p>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[560px] border-separate border-spacing-2">

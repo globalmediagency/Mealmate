@@ -33,7 +33,7 @@ Sans variable, le build passe et chaque écran explique ce qui manque au lieu de
 
 Migrations à coller dans **Neon → SQL Editor**, dans l'ordre, si `db/init.sql` a été exécuté avant la
 phase correspondante (un `init.sql` récent les contient déjà) : `001` pas crédités, `002` deuil,
-`003` règles admin, `004` coffres, `005` cadeaux et trocs, `006` prénom Strava, `007` origine des photos.
+`003` règles admin, `004` coffres, `005` cadeaux et trocs, `006` prénom Strava, `007` origine des photos, `008` exemplaires d'accessoires et dons.
 
 ## 1. Mise en route (phase 1 : compte et connexion)
 
@@ -96,6 +96,7 @@ Si tu avais déjà exécuté `db/init.sql` avant une phase, colle ses migrations
 - phase 7 : [`db/migrations/005_gifts_trades.sql`](./db/migrations/005_gifts_trades.sql)
 - phase 8 : [`db/migrations/006_strava_athlete_name.sql`](./db/migrations/006_strava_athlete_name.sql)
 - anti-triche photo : [`db/migrations/007_meals_photo_source.sql`](./db/migrations/007_meals_photo_source.sql)
+- exemplaires et dons : [`db/migrations/008_accessory_copies_gift_kind.sql`](./db/migrations/008_accessory_copies_gift_kind.sql)
 
 Un `init.sql` fraîchement exécuté contient déjà toutes ces colonnes.
 
@@ -124,6 +125,8 @@ Prérequis : la migration `db/migrations/003_game_settings.sql` (voir étape E).
 valeurs par défaut et l'admin affiche une erreur à l'enregistrement.
 
 Astuce : les mêmes identifiants fonctionnent depuis la page de connexion normale de l'app (champ Email = `ADMIN_USERNAME`) et mènent directement à `/admin`. Aucun joueur ne peut créer un compte ou un pseudo avec cet identifiant.
+
+Onglets **Créatures** et **Accessoires** : chaque espèce et chaque accessoire affiche sa chance d'obtention en millièmes (ex. 66,7 ‰ = 1 chance sur 15). Déplie « Probabilités » sous un niveau (ou en haut de la page Accessoires, filtrable par emplacement) pour modifier les poids : 0 retire l'objet des tirages (mais un groupe entier à 0 est refusé : au moins un objet doit pouvoir sortir), « Valeurs par défaut » revient à la répartition par rareté. Les poids sont arrondis à 0,01 ‰. Les changements s'appliquent au plus tard une minute après.
 
 ### Étape H — Jouer et accessoires (phase 5)
 
@@ -258,8 +261,10 @@ apparaissent alors, sans connexion nécessaire :
    créature devient fatiguée puis malade ; l'accueil affiche le nombre de jours restants. Un repas
    sain ou un soin la remet d'aplomb ; sinon elle meurt et rejoint le cimetière.
 5. **Jouer et accessoires** : trois parties de 20 s par jour ; un coffre d'accessoire tous les
-   5 000 pas, à ouvrir dans Activité, à porter dans la garde-robe.
-6. **Amis** : ajoute un second compte par code ami ; soigne sa créature malade, propose un troc.
+   5 000 pas, à ouvrir dans Activité, à porter dans la garde-robe. Un accessoire déjà possédé donne
+   un deuxième exemplaire, à échanger ou à offrir.
+6. **Amis** : ajoute un second compte par code ami ; soigne sa créature malade, propose un troc ou
+   offre un accessoire (sans contrepartie, l'ami est prévenu sur son écran créature).
 7. **Boutique** : carte de test Stripe `4242 4242 4242 4242`.
 8. **Strava** : connecte ton compte, synchronise.
 9. **Plus → Mes données** : export JSON, suppression du compte (photos et lien Strava compris).

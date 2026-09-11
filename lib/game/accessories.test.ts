@@ -42,19 +42,24 @@ describe("drawAccessoryRarity", () => {
 });
 
 describe("drawAccessory", () => {
-  it("returns the item and flags duplicates with +20 xp", () => {
+  it("walks the catalogue with one weighted roll and flags copies", () => {
     const groups = accessoriesByRarity();
-    const first = drawAccessory(new Set(), sequence([0, 0]), groups);
+    const first = drawAccessory(new Set(), sequence([0]));
     expect(first.accessory.id).toBe(groups.commun[0].id);
     expect(first.duplicate).toBe(false);
-    expect(first.xpGain).toBe(0);
-    const again = drawAccessory(new Set([groups.commun[0].id]), sequence([0, 0]), groups);
+    const again = drawAccessory(new Set([groups.commun[0].id]), sequence([0]));
     expect(again.duplicate).toBe(true);
-    expect(again.xpGain).toBe(20);
+    expect(drawAccessory(new Set(), sequence([0.649])).accessory.rarity).toBe("commun");
+    expect(drawAccessory(new Set(), sequence([0.65])).accessory.rarity).toBe("rare");
+    expect(drawAccessory(new Set(), sequence([0.99])).accessory.rarity).toBe("legendaire");
   });
 
-  it("draws a legendary on a top roll", () => {
-    expect(drawAccessory(new Set(), sequence([0.99, 0.5])).accessory.rarity).toBe("legendaire");
+  it("honours admin overrides", () => {
+    const groups = accessoriesByRarity();
+    const halo = groups.legendaire[0];
+    expect(drawAccessory(new Set(), sequence([0.999]), { [halo.id]: 0 }).accessory.id).not.toBe(halo.id);
+    const only = Object.fromEntries(ACCESSORIES.map((a) => [a.id, a.id === halo.id ? 1000 : 0]));
+    expect(drawAccessory(new Set(), sequence([0.2]), only).accessory.id).toBe(halo.id);
   });
 });
 

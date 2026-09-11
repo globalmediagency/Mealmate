@@ -57,7 +57,8 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 
 - Le jeu (`components/game/food-catch-game.tsx`) ne passe pas par l'état React à chaque frame : positions écrites directement dans `style.transform` depuis `requestAnimationFrame`, éléments recyclés (pool). Garder cette discipline pour rester à 60 fps sur mobile.
 - Le serveur recalcule le score (`computePlayScore`) à partir des compteurs bruts : ne jamais faire confiance à un score client.
-- Coffres : `getChestStatus(creature)` (somme des pas depuis l'éclosion − `accessory_drops`), `openChest()` réserve le coffre par `UPDATE` conditionnel avant le tirage.
+- Coffres : `getChestStatus(creature)` (somme des pas depuis l'éclosion − `accessory_drops`), `openChest()` réserve le coffre par `UPDATE` conditionnel avant le tirage. Le tirage (`drawAccessory`, `drawSpecies`) est un jet pondéré sur tout le groupe via `lib/game/drops.ts` ; les surcharges admin viennent de `getDropWeights()` (`lib/game/drops-service.ts`), à passer explicitement. Les poids sont quantifiés à 0,01 ‰ (`quantizeWeight`), une surcharge égale au défaut n'est pas stockée, un groupe entièrement à 0 est refusé à l'enregistrement (`empty_pool`) et, s'il arrivait quand même en base, `effectiveWeights()` retombe sur les défauts : affichage admin et tirage partagent ce repli.
+- Exemplaires : `user_accessories.qty`. Toujours passer par `addAccessoryCopies()` / `takeAccessoryCopy()` (`lib/accessories/service.ts`) pour déplacer un accessoire (trocs, dons, coffres) : jamais d'`INSERT` / `DELETE` direct, la prise du dernier exemplaire retire l'accessoire des tenues. Sans transaction, un échange à deux sens prend d'abord les deux exemplaires (décréments conditionnels), rembourse et annule si le second manque, puis seulement les redistribue (`acceptTrade`).
 
 ## Amis
 
@@ -71,7 +72,7 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 - Le webhook `app/api/webhooks/stripe/route.ts` lit le corps **brut** (`request.text()`) avant `constructEvent` : ne pas le parser en JSON avant.
 - Décrémenter l'inventaire uniquement par `UPDATE … WHERE qty > 0` (`consumeDose`).
 - Soins aux amis : passer par `healFriendCreature()` (ami accepté, créature vivante et `needsCare`), qui applique le tick avant d'agir et journalise dans `gifts`.
-- Trocs : `lib/trades/service.ts`. L'acceptation bascule d'abord le statut par `UPDATE` conditionnel puis échange les lignes `user_accessories` et retire les accessoires des tenues. Ne jamais échanger sans cette bascule.
+- Trocs et dons : `lib/trades/service.ts`. L'acceptation bascule d'abord le statut par `UPDATE` conditionnel puis déplace un exemplaire dans chaque sens. `giftAccessory()` donne un exemplaire sans acceptation et journalise dans `gifts` (`kind = 'accessory'`).
 
 ## Strava
 

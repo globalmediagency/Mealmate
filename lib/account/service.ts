@@ -75,11 +75,11 @@ export async function exportAccount(userId: string, now: Date = new Date()) {
     meals: mealRows.map((m) => omit(m, ["userId", "imageKey", "imageHash"])),
     steps: stepRows.map((row) => omit(row, ["userId"])),
     playSessions: playRows.map((row) => omit(row, ["userId"])),
-    accessories: accessoryRows.map(({ accessoryId, obtainedAt }) => ({ accessoryId, obtainedAt })),
+    accessories: accessoryRows.map(({ accessoryId, obtainedAt, qty }) => ({ accessoryId, obtainedAt, qty })),
     friends: friendshipRows.map((f) => ({ username: other(f.requesterId === userId ? f.addresseeId : f.requesterId), status: f.status, direction: f.requesterId === userId ? "sent" : "received", since: f.createdAt })),
     purchases: purchaseRows.map((row) => omit(row, ["userId"])),
     inventory: inventoryRows.map(({ item, qty }) => ({ item, qty })),
-    gifts: giftRows.map((g) => ({ direction: g.fromUserId === userId ? "sent" : "received", with: other(g.fromUserId === userId ? g.toUserId : g.fromUserId), item: g.item, createdAt: g.createdAt })),
+    gifts: giftRows.map((g) => ({ direction: g.fromUserId === userId ? "sent" : "received", with: other(g.fromUserId === userId ? g.toUserId : g.fromUserId), kind: g.kind, item: g.item, createdAt: g.createdAt })),
     trades: tradeRows.map((t) => ({ direction: t.proposerId === userId ? "proposed" : "received", with: other(t.proposerId === userId ? t.receiverId : t.proposerId), offered: t.offeredAccessoryId, requested: t.requestedAccessoryId, status: t.status, createdAt: t.createdAt, resolvedAt: t.resolvedAt })),
     strava: { connected: strava.connected, athleteName: strava.athleteName, lastSyncAt: strava.lastSyncAt },
   };

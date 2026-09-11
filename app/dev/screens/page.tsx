@@ -176,6 +176,7 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
           creature={mockCreature({})}
           owned={ACCESSORIES.filter((a) => ["straw_hat", "beret", "round_glasses", "scarf", "bow_tie", "cape", "top_hat"].includes(a.id))}
           outfit={{ head: "straw_hat", neck: "scarf" }}
+          counts={{ straw_hat: 2, beret: 3 }}
         />
       );
       break;
@@ -187,8 +188,8 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
           inventory={{ sirop: 2, antibiotique: 1, talisman: 0 }}
           demoTrade={{
             friend: { userId: "u1", username: "Marion" },
-            mine: ACCESSORIES.filter((a) => ["beret", "scarf", "sunglasses"].includes(a.id)),
-            theirs: ACCESSORIES.filter((a) => ["crown", "monocle"].includes(a.id)),
+            mine: ACCESSORIES.filter((a) => ["beret", "scarf", "sunglasses"].includes(a.id)).map((a) => ({ accessory: a, qty: a.id === "scarf" ? 2 : 1 })),
+            theirs: ACCESSORIES.filter((a) => ["crown", "monocle", "scarf"].includes(a.id)).map((a) => ({ accessory: a, qty: 1 })),
           }}
           trades={{
             incoming: [{ id: "33333333-3333-4333-8333-333333333333", direction: "incoming", other: { userId: "u1", username: "Marion" }, offered: ACCESSORIES.find((a) => a.id === "crown")!, requested: ACCESSORIES.find((a) => a.id === "beret")!, status: "pending", createdAt: now, resolvedAt: null }],
@@ -231,7 +232,10 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
           creature={c}
           line={creatureLine(c)}
           doses={2}
-          gifts={[{ id: "g1", from: { userId: "u1", username: "Marion" }, item: "antibiotique", createdAt: new Date().toISOString() }]}
+          gifts={[
+            { id: "g1", from: { userId: "u1", username: "Marion" }, kind: "medicine", item: "antibiotique", createdAt: new Date().toISOString() },
+            { id: "g2", from: { userId: "u2", username: "Karim" }, kind: "accessory", accessory: ACCESSORIES.find((a) => a.id === "crown")!, createdAt: new Date().toISOString() },
+          ]}
         />
       );
       break;

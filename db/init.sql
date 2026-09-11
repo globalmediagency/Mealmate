@@ -171,6 +171,7 @@ CREATE TABLE IF NOT EXISTS user_accessories (
   user_id      text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
   accessory_id text NOT NULL,
   obtained_at  timestamptz NOT NULL DEFAULT now(),
+  qty          integer NOT NULL DEFAULT 1,
   PRIMARY KEY (user_id, accessory_id)
 );
 
@@ -232,6 +233,7 @@ CREATE TABLE IF NOT EXISTS gifts (
   item         text NOT NULL,
   created_at   timestamptz NOT NULL DEFAULT now(),
   seen_at      timestamptz,
+  kind         text NOT NULL DEFAULT 'medicine',
   CONSTRAINT gifts_not_self_check CHECK (from_user_id <> to_user_id)
 );
 CREATE INDEX IF NOT EXISTS gifts_to_user_created_idx ON gifts (to_user_id, created_at);

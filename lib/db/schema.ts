@@ -252,6 +252,8 @@ export const userAccessories = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     accessoryId: text("accessory_id").notNull(),
     obtainedAt: timestamptz("obtained_at").notNull().defaultNow(),
+    /** Copies owned (migration 008): trades and gifts move copies, chests add one. */
+    qty: integer("qty").notNull().default(1),
   },
   (table) => [primaryKey({ columns: [table.userId, table.accessoryId] })],
 );
@@ -347,6 +349,8 @@ export const gifts = pgTable(
     createdAt: timestamptz("created_at").notNull().defaultNow(),
     /** When the recipient saw the notice on their home screen. */
     seenAt: timestamptz("seen_at"),
+    /** "medicine" (item = shop item) or "accessory" (item = accessory id), migration 008. */
+    kind: text("kind", { enum: ["medicine", "accessory"] }).notNull().default("medicine"),
   },
   (table) => [
     index("gifts_to_user_created_idx").on(table.toUserId, table.createdAt),

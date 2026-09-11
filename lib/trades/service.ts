@@ -1,37 +1,38 @@
 import { and, desc, eq, gt, inArray, or, sql } from "drizzle-orm";
+import { addAccessoryCopies, getOwnedAccessories, takeAccessoryCopy } from "@/lib/accessories/service";
 import { getAccessory, type Accessory } from "@/lib/accessories/catalog";
+import { RARITIES } from "@/lib/game/config";
 import { DomainError } from "@/lib/api/errors";
 import { getDb } from "@/lib/db";
-import { creatureOutfits, creatures, profiles, trades, userAccessories, type Trade } from "@/lib/db/schema";
+import { gifts, profiles, trades, type Trade } from "@/lib/db/schema";
 import { getAcceptedFriend, type PublicProfile } from "@/lib/friends/service";
 
 const MAX_PENDING_OUTGOING = 10;
 const HISTORY_DAYS = 7;
 
-async function ownedIds(userId: string): Promise<Set<string>> {
-  const rows = await getDb().select({ id: userAccessories.accessoryId }).from(userAccessories).where(eq(userAccessories.userId, userId));
-  return new Set(rows.map((r) => r.id));
+async function ownedCounts(userId: string): Promise<Map<string, number>> {
+  return new Map((await getOwnedAccessories(userId)).map((o) => [o.accessory.id, o.qty]));
 }
+
+export type OwnedItem = { accessory: Accessory; qty: number };
 
 export type TradeableAccessories = {
   friend: PublicProfile;
-  /** Accessories the friend owns and I don't (what I can ask for). */
-  theirs: Accessory[];
-  /** Accessories I own and the friend doesn't (what I can offer). */
-  mine: Accessory[];
+  /** Everything the friend owns (with copies): what I can ask for. */
+  theirs: OwnedItem[];
+  /** Everything I own (with copies): what I can offer or give away. */
+  mine: OwnedItem[];
 };
 
-/** What can be swapped between the user and a friend: each side only wants what it lacks. */
+const byRarityThenName = (a: OwnedItem, b: OwnedItem) =>
+  RARITIES.indexOf(a.accessory.rarity) - RARITIES.indexOf(b.accessory.rarity) || a.accessory.name.localeCompare(b.accessory.name, "fr");
+
+/** Both wardrobes, copies included: with copies allowed, any owned item can change hands. */
 export async function tradeableAccessories(userId: string, friendshipId: string): Promise<TradeableAccessories> {
   const { friend } = await getAcceptedFriend(userId, friendshipId);
-  const [mineIds, theirIds] = await Promise.all([ownedIds(userId), ownedIds(friend.userId)]);
-  const toAccessories = (ids: Set<string>, exclude: Set<string>) =>
-    [...ids]
-      .filter((id) => !exclude.has(id))
-      .map((id) => getAccessory(id))
-      .filter((a): a is Accessory => a !== undefined)
-      .sort((a, b) => a.name.localeCompare(b.name, "fr"));
-  return { friend, theirs: toAccessories(theirIds, mineIds), mine: toAccessories(mineIds, theirIds) };
+  const [mine, theirs] = await Promise.all([getOwnedAccessories(userId), getOwnedAccessories(friend.userId)]);
+  const toItems = (list: typeof mine) => list.map((o) => ({ accessory: o.accessory, qty: o.qty })).sort(byRarityThenName);
+  return { friend, theirs: toItems(theirs), mine: toItems(mine) };
 }
 
 /** Proposes to give `offeredId` to the friend in exchange for `requestedId`. */
@@ -39,11 +40,9 @@ export async function proposeTrade(userId: string, friendshipId: string, offered
   const { friend } = await getAcceptedFriend(userId, friendshipId);
   if (!getAccessory(offeredId) || !getAccessory(requestedId)) throw new DomainError("unknown_accessory", "Accessoire inconnu.", 404);
   if (offeredId === requestedId) throw new DomainError("same_accessory", "Choisis deux accessoires différents.", 400);
-  const [mine, theirs] = await Promise.all([ownedIds(userId), ownedIds(friend.userId)]);
+  const [mine, theirs] = await Promise.all([ownedCounts(userId), ownedCounts(friend.userId)]);
   if (!mine.has(offeredId)) throw new DomainError("not_owned", "Tu ne possèdes pas cet accessoire.", 403);
   if (!theirs.has(requestedId)) throw new DomainError("not_owned", `${friend.username} ne possède pas cet accessoire.`, 409);
-  if (theirs.has(offeredId)) throw new DomainError("already_owned", `${friend.username} a déjà cet accessoire.`, 409);
-  if (mine.has(requestedId)) throw new DomainError("already_owned", "Tu as déjà cet accessoire.", 409);
 
   const db = getDb();
   const pending = await db
@@ -62,31 +61,25 @@ export async function proposeTrade(userId: string, friendshipId: string, offered
   return trade;
 }
 
-async function unequipEverywhere(ownerId: string, accessoryId: string): Promise<void> {
-  const db = getDb();
-  const owned = await db.select({ id: creatures.id }).from(creatures).where(eq(creatures.userId, ownerId));
-  if (owned.length === 0) return;
-  await db.delete(creatureOutfits).where(and(inArray(creatureOutfits.creatureId, owned.map((c) => c.id)), eq(creatureOutfits.accessoryId, accessoryId)));
-}
+const NO_LONGER_VALID = () => new DomainError("no_longer_valid", "Cet échange n'est plus possible : l'un des accessoires a changé de main.", 409);
 
 /**
  * The receiver accepts: ownership of the two accessories is swapped. The
- * status flip is a conditional UPDATE so the swap runs at most once.
+ * status flip is a conditional UPDATE so the swap runs at most once. Without
+ * transactions (Neon HTTP) the two conditional decrements are the atomicity
+ * point: both copies are taken first, a failed take refunds the other one and
+ * cancels the trade, and only then are the copies handed over.
  */
 export async function acceptTrade(userId: string, tradeId: string, now: Date = new Date()): Promise<Trade> {
   const db = getDb();
   const [trade] = await db.select().from(trades).where(and(eq(trades.id, tradeId), eq(trades.receiverId, userId), eq(trades.status, "pending"))).limit(1);
   if (!trade) throw new DomainError("not_found", "Proposition introuvable.", 404);
 
-  const [proposerOwns, receiverOwns] = await Promise.all([ownedIds(trade.proposerId), ownedIds(trade.receiverId)]);
-  const stillValid =
-    proposerOwns.has(trade.offeredAccessoryId) &&
-    receiverOwns.has(trade.requestedAccessoryId) &&
-    !proposerOwns.has(trade.requestedAccessoryId) &&
-    !receiverOwns.has(trade.offeredAccessoryId);
+  const [proposerOwns, receiverOwns] = await Promise.all([ownedCounts(trade.proposerId), ownedCounts(trade.receiverId)]);
+  const stillValid = proposerOwns.has(trade.offeredAccessoryId) && receiverOwns.has(trade.requestedAccessoryId);
   if (!stillValid) {
     await db.update(trades).set({ status: "cancelled", resolvedAt: now }).where(and(eq(trades.id, tradeId), eq(trades.status, "pending")));
-    throw new DomainError("no_longer_valid", "Cet échange n'est plus possible : l'un des accessoires a changé de main.", 409);
+    throw NO_LONGER_VALID();
   }
 
   const accepted = await db
@@ -95,22 +88,25 @@ export async function acceptTrade(userId: string, tradeId: string, now: Date = n
     .where(and(eq(trades.id, tradeId), eq(trades.status, "pending")))
     .returning();
   if (!accepted[0]) throw new DomainError("not_found", "Proposition déjà traitée.", 409);
+  const cancel = () => db.update(trades).set({ status: "cancelled", resolvedAt: now }).where(eq(trades.id, tradeId));
 
-  await unequipEverywhere(trade.proposerId, trade.offeredAccessoryId);
-  await unequipEverywhere(trade.receiverId, trade.requestedAccessoryId);
-  await db.delete(userAccessories).where(
-    or(
-      and(eq(userAccessories.userId, trade.proposerId), eq(userAccessories.accessoryId, trade.offeredAccessoryId)),
-      and(eq(userAccessories.userId, trade.receiverId), eq(userAccessories.accessoryId, trade.requestedAccessoryId)),
-    ),
-  );
-  await db
-    .insert(userAccessories)
-    .values([
-      { userId: trade.proposerId, accessoryId: trade.requestedAccessoryId, obtainedAt: now },
-      { userId: trade.receiverId, accessoryId: trade.offeredAccessoryId, obtainedAt: now },
-    ])
-    .onConflictDoNothing();
+  // 1. The receiver's own copy (the actor's), then the proposer's.
+  try {
+    await takeAccessoryCopy(trade.receiverId, trade.requestedAccessoryId);
+  } catch (error) {
+    await cancel();
+    throw error instanceof DomainError && error.code === "not_owned" ? NO_LONGER_VALID() : error;
+  }
+  try {
+    await takeAccessoryCopy(trade.proposerId, trade.offeredAccessoryId);
+  } catch (error) {
+    await addAccessoryCopies(trade.receiverId, trade.requestedAccessoryId, 1, now);
+    await cancel();
+    throw error instanceof DomainError && error.code === "not_owned" ? NO_LONGER_VALID() : error;
+  }
+  // 2. Both copies are held: hand them over (adds never fail on ownership).
+  await addAccessoryCopies(trade.receiverId, trade.offeredAccessoryId, 1, now);
+  await addAccessoryCopies(trade.proposerId, trade.requestedAccessoryId, 1, now);
   return accepted[0];
 }
 
@@ -184,4 +180,20 @@ export async function countIncomingTrades(userId: string): Promise<number> {
     .from(trades)
     .where(and(eq(trades.receiverId, userId), eq(trades.status, "pending")));
   return Number(row?.count ?? 0);
+}
+
+export type GiftOutcome = { friend: PublicProfile; accessory: Accessory; copiesLeft: number };
+
+/**
+ * Gives one copy of an accessory to a friend, no return expected and no
+ * acceptance needed. The friend is notified on their home screen (gifts row).
+ */
+export async function giftAccessory(userId: string, friendshipId: string, accessoryId: string, now: Date = new Date()): Promise<GiftOutcome> {
+  const { friend } = await getAcceptedFriend(userId, friendshipId);
+  const accessory = getAccessory(accessoryId);
+  if (!accessory) throw new DomainError("unknown_accessory", "Accessoire inconnu.", 404);
+  const copiesLeft = await takeAccessoryCopy(userId, accessoryId);
+  await addAccessoryCopies(friend.userId, accessoryId, 1, now);
+  await getDb().insert(gifts).values({ fromUserId: userId, toUserId: friend.userId, item: accessoryId, kind: "accessory", createdAt: now });
+  return { friend, accessory, copiesLeft };
 }

@@ -1,16 +1,15 @@
 "use client";
 
-import { ArrowLeftRight, HeartPulse, X } from "lucide-react";
+import { ArrowLeftRight, Gift, HeartPulse, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AccessoryIcon } from "@/components/accessories";
-import type { Accessory } from "@/lib/accessories/catalog";
 import { RARITY_LABELS, SHOP_ITEMS, type ShopItemId } from "@/lib/game/config";
 import { SHOP_ITEM_IDS } from "@/lib/game/medicine";
 import type { FriendView } from "@/lib/friends/service";
 import type { Inventory } from "@/lib/shop/service";
-import type { TradeableAccessories } from "@/lib/trades/service";
+import type { OwnedItem, TradeableAccessories } from "@/lib/trades/service";
 import { ItemIcon } from "@/components/shop/item-icon";
 import { cn } from "@/lib/utils/cn";
 
@@ -119,7 +118,8 @@ export function HealFriend({ friend, inventory, notify }: { friend: FriendView; 
   );
 }
 
-function AccessoryChip({ accessory, selected, onClick }: { accessory: Accessory; selected: boolean; onClick: () => void }) {
+function AccessoryChip({ item, selected, note, onClick }: { item: OwnedItem; selected: boolean; note?: string; onClick: () => void }) {
+  const { accessory, qty } = item;
   return (
     <button
       type="button"
@@ -131,18 +131,27 @@ function AccessoryChip({ accessory, selected, onClick }: { accessory: Accessory;
       )}
     >
       <AccessoryIcon id={accessory.id} size={36} className="shrink-0" />
-      <span className="min-w-0">
-        <span className="block truncate font-semibold">{accessory.name}</span>
-        <span className="block text-[10px] uppercase tracking-wider text-cream-700">{RARITY_LABELS[accessory.rarity]}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-semibold">
+          {accessory.name}
+          {qty > 1 ? <span className="ml-1 rounded-full bg-ink-700 px-1.5 text-[10px] text-cream-300">×{qty}</span> : null}
+        </span>
+        <span className="block text-[10px] uppercase tracking-wider text-cream-700">
+          {RARITY_LABELS[accessory.rarity]}
+          {note ? <span className="normal-case tracking-normal"> · {note}</span> : null}
+        </span>
       </span>
     </button>
   );
 }
 
-/** "Échanger" with a friend: pick one of my accessories and one of theirs, then propose the swap. */
+type Mode = "trade" | "gift";
+
+/** "Échanger" / "Offrir" with a friend: a swap that they accept, or a gift with nothing in return. */
 export function TradeWithFriend({ friend, notify, initialData = null }: { friend: FriendView; notify: Notify; initialData?: TradeableAccessories | null }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<Mode>("trade");
   const [data, setData] = useState<TradeableAccessories | null>(initialData);
   const [loading, setLoading] = useState(false);
   const [offered, setOffered] = useState<string | null>(null);
@@ -173,6 +182,13 @@ export function TradeWithFriend({ friend, notify, initialData = null }: { friend
     if (next && !data && !loading) void load();
   }
 
+  function reset() {
+    setOpen(false);
+    setData(null);
+    setOffered(null);
+    setRequested(null);
+  }
+
   async function propose() {
     if (!offered || !requested) return;
     setPending(true);
@@ -187,10 +203,7 @@ export function TradeWithFriend({ friend, notify, initialData = null }: { friend
         return;
       }
       notify("success", `Proposition envoyée à ${friend.user.username}. Tu seras prévenu·e de sa réponse ici.`);
-      setOpen(false);
-      setData(null);
-      setOffered(null);
-      setRequested(null);
+      reset();
       router.refresh();
     } catch {
       notify("danger", "Impossible de joindre le serveur.");
@@ -198,6 +211,33 @@ export function TradeWithFriend({ friend, notify, initialData = null }: { friend
       setPending(false);
     }
   }
+
+  async function give() {
+    if (!offered) return;
+    setPending(true);
+    try {
+      const response = await fetch(`/api/friends/${friend.friendshipId}/gift`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessoryId: offered }),
+      });
+      if (!response.ok) {
+        notify("danger", await readError(response, "Don impossible."));
+        return;
+      }
+      const body = (await response.json()) as { accessory: { name: string }; copiesLeft: number };
+      notify("success", `${body.accessory.name} offert·e à ${friend.user.username} ! ${body.copiesLeft > 0 ? `Il t'en reste ${body.copiesLeft}.` : "Tu n'en as plus dans ta garde-robe."}`);
+      reset();
+      router.refresh();
+    } catch {
+      notify("danger", "Impossible de joindre le serveur.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  const theirIds = new Set((data?.theirs ?? []).map((o) => o.accessory.id));
+  const mineIds = new Set((data?.mine ?? []).map((o) => o.accessory.id));
 
   return (
     <div className="w-full">
@@ -208,55 +248,80 @@ export function TradeWithFriend({ friend, notify, initialData = null }: { friend
         className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-ink-500 bg-ink-700 px-3 text-xs font-semibold text-cream-100 transition-colors hover:border-ink-400"
       >
         <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
-        Échanger
+        Échanger ou offrir
       </button>
       {open ? (
         <div className="mt-2 rounded-2xl border border-ink-600/80 bg-ink-900/70 p-3 animate-rise">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-cream-300">
-              Troc d&apos;accessoires avec <strong className="text-cream-50">{friend.user.username}</strong>
-            </p>
+            <div className="flex rounded-xl border border-ink-600 p-0.5 text-xs" role="tablist" aria-label="Type d'échange">
+              {(["trade", "gift"] as Mode[]).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === m}
+                  onClick={() => setMode(m)}
+                  className={cn("min-h-11 rounded-lg px-3 font-semibold", mode === m ? "bg-sage-800/60 text-sage-200" : "text-cream-500")}
+                >
+                  {m === "trade" ? "Troc" : "Don"}
+                </button>
+              ))}
+            </div>
             <button type="button" onClick={() => setOpen(false)} aria-label="Fermer" className="-m-1.5 flex h-11 w-11 items-center justify-center rounded-xl text-cream-500 hover:bg-ink-700">
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
+          <p className="mt-2 text-xs text-cream-300">
+            {mode === "trade" ? (
+              <>
+                Troc avec <strong className="text-cream-50">{friend.user.username}</strong> : un accessoire contre un autre, à accepter de son côté.
+              </>
+            ) : (
+              <>
+                Don à <strong className="text-cream-50">{friend.user.username}</strong> : sans contrepartie, reçu tout de suite.
+              </>
+            )}
+          </p>
           {loading || !data ? (
             <p className="mt-2 text-xs text-cream-500">Chargement des garde-robes…</p>
-          ) : data.mine.length === 0 || data.theirs.length === 0 ? (
-            <p className="mt-2 text-xs text-cream-500">
-              {data.theirs.length === 0
-                ? `Tu possèdes déjà tout ce que ${friend.user.username} pourrait t'échanger.`
-                : `${friend.user.username} possède déjà tous tes accessoires : rien à proposer pour l'instant.`}{" "}
-              Marche pour gagner de nouveaux coffres !
-            </p>
+          ) : data.mine.length === 0 ? (
+            <p className="mt-2 text-xs text-cream-500">Ta garde-robe est vide pour l&apos;instant. Marche pour gagner des coffres !</p>
+          ) : mode === "trade" && data.theirs.length === 0 ? (
+            <p className="mt-2 text-xs text-cream-500">{friend.user.username} n&apos;a encore aucun accessoire à échanger. Tu peux lui en offrir un.</p>
           ) : (
             <div className="mt-2 space-y-3">
               <div>
-                <p className="mb-1 text-[11px] uppercase tracking-wider text-cream-700">Je donne</p>
+                <p className="mb-1 text-[11px] uppercase tracking-wider text-cream-700">{mode === "trade" ? "Je donne" : "J'offre"}</p>
                 <div className="flex flex-col gap-1.5">
-                  {data.mine.map((a) => (
-                    <AccessoryChip key={a.id} accessory={a} selected={offered === a.id} onClick={() => setOffered(a.id)} />
+                  {data.mine.map((o) => (
+                    <AccessoryChip key={o.accessory.id} item={o} selected={offered === o.accessory.id} note={theirIds.has(o.accessory.id) ? "déjà possédé par " + friend.user.username : undefined} onClick={() => setOffered(o.accessory.id)} />
                   ))}
                 </div>
               </div>
-              <div>
-                <p className="mb-1 text-[11px] uppercase tracking-wider text-cream-700">Je reçois</p>
-                <div className="flex flex-col gap-1.5">
-                  {data.theirs.map((a) => (
-                    <AccessoryChip key={a.id} accessory={a} selected={requested === a.id} onClick={() => setRequested(a.id)} />
-                  ))}
+              {mode === "trade" ? (
+                <div>
+                  <p className="mb-1 text-[11px] uppercase tracking-wider text-cream-700">Je reçois</p>
+                  <div className="flex flex-col gap-1.5">
+                    {data.theirs.map((o) => (
+                      <AccessoryChip key={o.accessory.id} item={o} selected={requested === o.accessory.id} note={mineIds.has(o.accessory.id) ? "tu l'as déjà" : undefined} onClick={() => setRequested(o.accessory.id)} />
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ) : null}
               <button
                 type="button"
-                disabled={!offered || !requested || pending}
-                onClick={propose}
+                disabled={pending || !offered || (mode === "trade" && !requested)}
+                onClick={mode === "trade" ? propose : give}
                 className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-sage-500 px-4 text-sm font-semibold text-ink-950 hover:bg-sage-400 disabled:pointer-events-none disabled:opacity-50"
               >
-                <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
-                Proposer l&apos;échange
+                {mode === "trade" ? <ArrowLeftRight className="h-4 w-4" aria-hidden="true" /> : <Gift className="h-4 w-4" aria-hidden="true" />}
+                {mode === "trade" ? "Proposer l'échange" : "Offrir sans contrepartie"}
               </button>
-              <p className="text-[11px] text-cream-700">{friend.user.username} pourra accepter ou refuser. Un accessoire échangé est retiré de la tenue de ta créature.</p>
+              <p className="text-[11px] text-cream-700">
+                {mode === "trade"
+                  ? `${friend.user.username} pourra accepter ou refuser. Un accessoire cédé en dernier exemplaire est retiré de la tenue de ta créature.`
+                  : `${friend.user.username} sera prévenu·e sur son écran créature. Un accessoire donné en dernier exemplaire est retiré de la tenue de ta créature.`}
+              </p>
             </div>
           )}
         </div>
