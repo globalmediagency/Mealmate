@@ -109,31 +109,51 @@ export type SyncResult = {
  * day across every source so the "+10 health per day" cap holds, then all
  * entries of the day are marked credited (Σ credited = Σ steps).
  */
-async function creditDays(creature: Creature, dates: string[]): Promise<{ healthGain: number; xpGain: number }> {
+type Gains = { healthGain: number; xpGain: number };
+
+/**
+ * Converts the user's not-yet-credited steps of `dates` into gains, per day,
+ * and marks them credited. Days before a creature's hatch day are skipped for
+ * that creature by `gainsFor`.
+ */
+async function creditDays(userId: string, dates: string[]): Promise<Map<string, Gains>> {
   const db = getDb();
-  const since = creature.hatchedAt ? gameDate(creature.hatchedAt) : null;
-  const eligible = [...new Set(dates)].filter((date) => since === null || date >= since);
-  const gains = { healthGain: 0, xpGain: 0 };
-  if (eligible.length === 0) return gains;
+  const eligible = [...new Set(dates)];
+  const byDate = new Map<string, Gains>();
+  if (eligible.length === 0) return byDate;
   const rows = await db
     .select({ date: stepEntries.date, total: sql<number>`sum(${stepEntries.steps})`, credited: sql<number>`sum(${stepEntries.creditedSteps})` })
     .from(stepEntries)
-    .where(and(eq(stepEntries.userId, creature.userId), inArray(stepEntries.date, eligible)))
+    .where(and(eq(stepEntries.userId, userId), inArray(stepEntries.date, eligible)))
     .groupBy(stepEntries.date);
   for (const row of rows) {
     const credit = stepCredit(Number(row.total), Number(row.credited));
-    gains.healthGain += credit.healthGain;
-    gains.xpGain += credit.xpGain;
+    byDate.set(row.date, { healthGain: credit.healthGain, xpGain: credit.xpGain });
   }
   await db
     .update(stepEntries)
     .set({ creditedSteps: sql`${stepEntries.steps}` })
-    .where(and(eq(stepEntries.userId, creature.userId), inArray(stepEntries.date, eligible), sql`${stepEntries.creditedSteps} <> ${stepEntries.steps}`));
+    .where(and(eq(stepEntries.userId, userId), inArray(stepEntries.date, eligible), sql`${stepEntries.creditedSteps} <> ${stepEntries.steps}`));
+  return byDate;
+}
+
+function gainsFor(creature: Creature, byDate: Map<string, Gains>): Gains {
+  const since = creature.hatchedAt ? gameDate(creature.hatchedAt) : null;
+  const gains = { healthGain: 0, xpGain: 0 };
+  for (const [date, g] of byDate) {
+    if (since !== null && date < since) continue;
+    gains.healthGain += g.healthGain;
+    gains.xpGain += g.xpGain;
+  }
   return gains;
 }
 
-/** Imports recent activities as step entries and applies their effects. */
-export async function syncStrava(userId: string, api: StravaApi, creature: Creature | null, now: Date = new Date()): Promise<SyncResult> {
+/**
+ * Imports recent activities as step entries and applies their effects to
+ * `creature` (the user's own egg or creature) and to every creature of
+ * `others` (living creatures boarded with the user).
+ */
+export async function syncStrava(userId: string, api: StravaApi, creature: Creature | null, now: Date = new Date(), others: Creature[] = []): Promise<SyncResult> {
   const conn = await getConnection(userId);
   if (!conn) throw new DomainError("not_connected", "Connecte d'abord ton compte Strava.", 409);
   const gate = syncGate(conn.lastSyncAt, now);
@@ -172,9 +192,17 @@ export async function syncStrava(userId: string, api: StravaApi, creature: Creat
   let gains = { healthGain: 0, xpGain: 0 };
   let next = creature;
   if (creature?.status === "egg") next = await refreshEggSteps(creature);
-  else if (creature?.status === "alive" && imported.length > 0) {
-    gains = await creditDays(creature, imported.map((a) => a.date));
-    next = await applyStepGains(creature, gains);
+  const living = [creature, ...others].filter((c): c is Creature => c !== null && c.status === "alive");
+  if (living.length > 0 && imported.length > 0) {
+    const byDate = await creditDays(userId, imported.map((a) => a.date));
+    for (const held of living) {
+      const heldGains = gainsFor(held, byDate);
+      const updated = await applyStepGains(held, heldGains);
+      if (creature && held.id === creature.id) {
+        gains = heldGains;
+        next = updated;
+      }
+    }
   }
 
   imported.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));

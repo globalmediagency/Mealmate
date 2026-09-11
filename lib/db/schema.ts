@@ -358,6 +358,42 @@ export const gifts = pgTable(
   ],
 );
 
+/**
+ * A creature entrusted to a friend for a while (spec § 3.16). While the row is
+ * open (`ended_at IS NULL`) the host holds the creature: their meals, steps,
+ * games and medicine apply to it and its chests are theirs.
+ */
+export const boardings = pgTable(
+  "boardings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    creatureId: uuid("creature_id")
+      .notNull()
+      .references(() => creatures.id, { onDelete: "cascade" }),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    hostId: text("host_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    startedAt: timestamptz("started_at").notNull().defaultNow(),
+    /** Agreed end of the stay (≤ 30 days after the start); the creature comes home lazily after that. */
+    endsAt: timestamptz("ends_at").notNull(),
+    endedAt: timestamptz("ended_at"),
+    endReason: text("end_reason", { enum: ["recovered", "returned", "expired", "died"] }),
+    /** When the host saw the "new creature in your care" notice. */
+    hostSeenAt: timestamptz("host_seen_at"),
+  },
+  (table) => [
+    index("boardings_host_idx").on(table.hostId, table.endedAt),
+    index("boardings_owner_idx").on(table.ownerId, table.endedAt),
+    // One open boarding per creature.
+    uniqueIndex("boardings_creature_open_idx").on(table.creatureId).where(sql`${table.endedAt} IS NULL`),
+    check("boardings_not_self_check", sql`${table.ownerId} <> ${table.hostId}`),
+    check("boardings_end_reason_check", sql`${table.endReason} IS NULL OR ${table.endReason} IN ('recovered', 'returned', 'expired', 'died')`),
+  ],
+);
+
 /** Accessory swap proposed between two friends (phase 7). */
 export const trades = pgTable(
   "trades",
@@ -424,4 +460,5 @@ export type Purchase = typeof purchases.$inferSelect;
 export type InventoryRow = typeof inventory.$inferSelect;
 export type Gift = typeof gifts.$inferSelect;
 export type Trade = typeof trades.$inferSelect;
+export type Boarding = typeof boardings.$inferSelect;
 export type StravaConnection = typeof stravaConnections.$inferSelect;

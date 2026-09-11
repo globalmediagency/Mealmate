@@ -17,5 +17,6 @@ l'éditeur SQL de Neon dans l'ordre des numéros.
 | `006_strava_athlete_name.sql` | 8 | `strava_connections.athlete_name` (prénom affiché) |
 | `007_meals_photo_source.sql` | 9 | `meals.photo_source` (vraie assiette / écran / imprimé, jugé par l'IA) |
 | `008_accessory_copies_gift_kind.sql` | 9 | `user_accessories.qty` (exemplaires) et `gifts.kind` (soin ou accessoire offert) |
+| `009_boardings.sql` | 10 | table `boardings` (créature confiée en pension à un ami, 30 jours au plus) |
 
 Un `init.sql` fraîchement exécuté contient déjà toutes ces évolutions.

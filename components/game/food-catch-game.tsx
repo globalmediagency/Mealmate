@@ -34,9 +34,17 @@ type PlayResponse = {
   creature: CreatureView;
 };
 
-type FoodCatchGameProps = { creature: CreatureView; accessories: EquippedAccessory[]; playsLeft: number };
+type FoodCatchGameProps = {
+  creature: CreatureView;
+  accessories: EquippedAccessory[];
+  playsLeft: number;
+  /** A creature boarded with the user (default: the user's own creature). */
+  creatureId?: string;
+  /** Where "back" leads (the boarded creature's page, or home). */
+  homeHref?: string;
+};
 
-export function FoodCatchGame({ creature, accessories, playsLeft: initialPlaysLeft }: FoodCatchGameProps) {
+export function FoodCatchGame({ creature, accessories, playsLeft: initialPlaysLeft, creatureId, homeHref = "/home" }: FoodCatchGameProps) {
   const router = useRouter();
   const species = creature.species ? getSpecies(creature.species.id) : undefined;
   const [phase, setPhase] = useState<Phase>("intro");
@@ -85,7 +93,7 @@ export function FoodCatchGame({ creature, accessories, playsLeft: initialPlaysLe
       const response = await fetch("/api/play", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ healthySpawned: stats.current.healthySpawned, healthyCaught: stats.current.healthyCaught, junkHit: stats.current.junkHit }),
+        body: JSON.stringify({ healthySpawned: stats.current.healthySpawned, healthyCaught: stats.current.healthyCaught, junkHit: stats.current.junkHit, creatureId }),
       });
       const body = (await response.json().catch(() => null)) as PlayResponse | { error: { message: string } } | null;
       if (!response.ok || !body || "error" in body) {
@@ -302,7 +310,7 @@ export function FoodCatchGame({ creature, accessories, playsLeft: initialPlaysLe
                   Rejouer ({playsLeft})
                 </Button>
               ) : null}
-              <LinkButton href="/home" variant="secondary" className="w-auto px-5">
+              <LinkButton href={homeHref} variant="secondary" className="w-auto px-5">
                 Retour
               </LinkButton>
             </div>
@@ -311,7 +319,7 @@ export function FoodCatchGame({ creature, accessories, playsLeft: initialPlaysLe
       </div>
 
       <p className="text-center text-xs text-cream-700">
-        Maximum {PLAY.maxPerDay} parties par jour. <Link href="/home" className="underline">Retour à l&apos;accueil</Link>
+        Maximum {PLAY.maxPerDay} parties par jour. <Link href={homeHref} className="underline">{homeHref === "/home" ? "Retour à l'accueil" : "Retour à la pension"}</Link>
       </p>
     </div>
   );

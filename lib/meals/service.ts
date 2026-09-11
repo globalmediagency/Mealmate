@@ -4,7 +4,7 @@ import { and, desc, eq, gte, sql } from "drizzle-orm";
 import type { MealAnalyzer } from "@/lib/ai/gemini";
 import type { MealAnalysis } from "@/lib/ai/meal-schema";
 import { DomainError } from "@/lib/api/errors";
-import { getActiveCreatureTicked } from "@/lib/creatures/service";
+import { getHeldCreatures, livingHeld, type HeldCreature } from "@/lib/boarding/service";
 import { getDb } from "@/lib/db";
 import { creatures, meals, type Creature, type Meal } from "@/lib/db/schema";
 import { FEEDING, GAME_TIMEZONE, HEALTH_STATE, type Tier } from "@/lib/game/config";
@@ -48,32 +48,50 @@ export type FeedInput = {
   rules?: GameRules;
 };
 
+/** Effects of the meal on one creature fed by the user. */
+export type FedCreature = {
+  creature: Creature;
+  effects: MealEffects;
+  before: { health: number; hunger: number; mood: number };
+  /** Boarded with the user: the owner's name, null for the user's own creature. */
+  ownerName: string | null;
+};
+
 export type FeedResult = {
   meal: Meal;
   imageUrl: string;
   analysis: MealAnalysis;
+  /** Effects on the main creature (the user's own when home, else the first boarded one). */
   effects: MealEffects;
   before: { health: number; hunger: number; mood: number };
   creature: Creature;
   mealsToday: number;
+  /** The other creatures fed by the same meal (boarded with the user). */
+  others: FedCreature[];
 };
 
 /**
- * Feeds the user's living creature with a photo: limits, duplicate check,
- * AI analysis, storage, persistence and stat effects (spec § 3.5).
+ * Feeds every living creature the user takes care of with one photo: limits,
+ * duplicate check, AI analysis, storage, persistence and stat effects
+ * (spec § 3.5). Creatures boarded with the user eat the same meal.
  */
 export async function feedCreature(input: FeedInput): Promise<FeedResult> {
   const now = input.now ?? new Date();
   const { userId, image, analyzer, storage } = input;
   const rules = input.rules ?? (await getGameRules());
 
-  const creature = await getActiveCreatureTicked(userId, now, rules);
-  if (!creature || creature.status === "egg") {
-    throw new DomainError("no_creature", "Tu n'as pas encore de créature à nourrir.", 409);
-  }
-  if (creature.status === "dead") {
+  const held = await getHeldCreatures(userId, now, rules);
+  const fed = livingHeld(held);
+  if (fed.length === 0) {
+    if (held.own && held.away) {
+      throw new DomainError("creature_boarded", `${held.own.name ?? "Ta créature"} est en pension chez ${held.away.host.username} : c'est ${held.away.host.username} qui la nourrit pour le moment.`, 409);
+    }
+    if (!held.own || held.own.status === "egg") {
+      throw new DomainError("no_creature", "Tu n'as pas encore de créature à nourrir.", 409);
+    }
     throw new DomainError("creature_dead", "Ta créature n'est plus là… Choisis un nouvel œuf pour continuer.", 409);
   }
+  const creature = fed[0].creature;
 
   const today = gameDate(now);
   const mealsToday = await countMealsToday(userId, today);
@@ -124,29 +142,40 @@ export async function feedCreature(input: FeedInput): Promise<FeedResult> {
     })
     .returning();
 
-  const health = clamp(creature.health + effects.healthDelta, 0, 100);
-  const [updated] = await db
-    .update(creatures)
-    .set({
-      health,
-      hunger: clamp(creature.hunger + effects.hungerDelta, 0, 100),
-      mood: clamp(creature.mood + effects.moodDelta, 0, 100),
-      xp: creature.xp + effects.xpDelta,
-      sickSince: health >= HEALTH_STATE.tiredMin ? null : creature.sickSince,
-    })
-    .where(eq(creatures.id, creature.id))
-    .returning();
+  // Every creature in the user's care eats: effects depend on each one's tier and hunger.
+  const results: FedCreature[] = [];
+  for (const held of fed) {
+    const target = held.creature;
+    const own = target.id === creature.id ? effects : mealEffects({ score: analysis.score, tier: target.tier as Tier, hunger: target.hunger, rules });
+    const health = clamp(target.health + own.healthDelta, 0, 100);
+    const [updated] = await db
+      .update(creatures)
+      .set({
+        health,
+        hunger: clamp(target.hunger + own.hungerDelta, 0, 100),
+        mood: clamp(target.mood + own.moodDelta, 0, 100),
+        xp: target.xp + own.xpDelta,
+        sickSince: health >= HEALTH_STATE.tiredMin ? null : target.sickSince,
+      })
+      .where(and(eq(creatures.id, target.id), eq(creatures.status, "alive")))
+      .returning();
+    results.push({ creature: updated ?? target, effects: own, before: { health: target.health, hunger: target.hunger, mood: target.mood }, ownerName: ownerNameOf(held) });
+  }
 
+  const [main, ...others] = results;
   return {
     meal,
     imageUrl: await storage.signedUrl(key),
     analysis,
-    effects,
-    before: { health: creature.health, hunger: creature.hunger, mood: creature.mood },
-    creature: updated ?? creature,
+    effects: main.effects,
+    before: main.before,
+    creature: main.creature,
     mealsToday: mealsToday + 1,
+    others,
   };
 }
+
+const ownerNameOf = (held: HeldCreature) => held.owner?.username ?? null;
 
 export type MealView = {
   id: string;

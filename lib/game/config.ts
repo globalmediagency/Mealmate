@@ -163,6 +163,16 @@ export const STEPS = {
 } as const;
 
 /** Mini-game rules (spec § 3.7). */
+/** Boarding a creature at a friend's (spec § 3.16). */
+export const BOARDING = {
+  /** Longest stay, in days. */
+  maxDays: 30,
+  /** Durations offered in the dialog (days). */
+  durations: [3, 7, 14, 21, 30],
+  /** How many creatures one player can host at the same time. */
+  maxPerHost: 5,
+} as const;
+
 export const PLAY = {
   maxPerDay: 3,
   durationSeconds: 20,

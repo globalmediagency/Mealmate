@@ -109,7 +109,7 @@ describe("mini-game", () => {
     expect(second.effects.xpDelta).toBe(10);
     creature = second.creature;
     await recordPlay(userId, creature, 999);
-    expect(await countPlaysToday(userId)).toBe(3);
+    expect(await countPlaysToday(creature.id)).toBe(3);
     await expect(recordPlay(userId, creature, 50)).rejects.toMatchObject({ code: "play_limit", status: 429 });
   });
 });

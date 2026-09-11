@@ -1,4 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
+import { assertHolder, type HolderOptions } from "@/lib/accessories/service";
 import { DomainError } from "@/lib/api/errors";
 import { getDb } from "@/lib/db";
 import { creatures, playSessions, type Creature } from "@/lib/db/schema";
@@ -8,13 +9,14 @@ import { gameDate } from "@/lib/game/time";
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
-export async function countPlaysToday(userId: string, today = gameDate()): Promise<number> {
+/** Games played with this creature today, whoever played (the limit follows the creature). */
+export async function countPlaysToday(creatureId: string, today = gameDate()): Promise<number> {
   const rows = await getDb()
     .select({ count: sql<number>`count(*)` })
     .from(playSessions)
     .where(
       and(
-        eq(playSessions.userId, userId),
+        eq(playSessions.creatureId, creatureId),
         sql`(${playSessions.createdAt} at time zone ${sql.raw(`'${GAME_TIMEZONE}'`)})::date = ${today}::date`,
       ),
     );
@@ -23,12 +25,12 @@ export async function countPlaysToday(userId: string, today = gameDate()): Promi
 
 export type PlayResult = { effects: PlayEffects; creature: Creature; playsToday: number; playsLeft: number };
 
-/** Records a finished mini-game and applies its effects (max 3 per day). */
-export async function recordPlay(userId: string, creature: Creature, score: number, now = new Date()): Promise<PlayResult> {
-  if (creature.userId !== userId) throw new DomainError("forbidden", "Cette créature n'est pas la tienne.", 403);
+/** Records a finished mini-game and applies its effects (max 3 per day and per creature). */
+export async function recordPlay(userId: string, creature: Creature, score: number, now = new Date(), options: HolderOptions = {}): Promise<PlayResult> {
+  assertHolder(userId, creature, options);
   if (creature.status !== "alive") throw new DomainError("no_creature", "Tu n'as pas de créature avec qui jouer.", 409);
   const today = gameDate(now);
-  const playsToday = await countPlaysToday(userId, today);
+  const playsToday = await countPlaysToday(creature.id, today);
   if (playsToday >= PLAY.maxPerDay) {
     throw new DomainError("play_limit", `${PLAY.maxPerDay} parties aujourd'hui, elle a besoin de souffler. À demain !`, 429);
   }

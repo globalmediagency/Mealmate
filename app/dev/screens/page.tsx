@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BoardedAway } from "@/components/game/boarded-away";
 import { CreatureHome } from "@/components/game/creature-home";
+import { HostedCreatures } from "@/components/game/hosted-creatures";
+import { PensionHome } from "@/components/game/pension-home";
 import { EggChoice } from "@/components/game/egg-choice";
 import { HatchReveal } from "@/components/game/hatch-reveal";
 import { Incubation } from "@/components/game/incubation";
@@ -33,7 +36,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -186,6 +189,7 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
         <FriendsPanel
           me={{ username: "Chabond_42", friendCode: "MM-7K3Q2X" }}
           inventory={{ sirop: 2, antibiotique: 1, talisman: 0 }}
+          boardable={{ creatureName: "Miso" }}
           demoTrade={{
             friend: { userId: "u1", username: "Marion" },
             mine: ACCESSORIES.filter((a) => ["beret", "scarf", "sunglasses"].includes(a.id)).map((a) => ({ accessory: a, qty: a.id === "scarf" ? 2 : 1 })),
@@ -236,6 +240,50 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
             { id: "g1", from: { userId: "u1", username: "Marion" }, kind: "medicine", item: "antibiotique", createdAt: new Date().toISOString() },
             { id: "g2", from: { userId: "u2", username: "Karim" }, kind: "accessory", accessory: ACCESSORIES.find((a) => a.id === "crown")!, createdAt: new Date().toISOString() },
           ]}
+        />
+      );
+      break;
+    }
+    case "home-away": {
+      const endsAt = new Date(Date.now() + 9 * 86_400_000).toISOString();
+      content = (
+        <BoardedAway
+          creature={mockCreature({ hunger: 35, health: 88 })}
+          accessories={[{ slot: "head", id: "straw_hat" }]}
+          boarding={{ id: "66666666-6666-4666-8666-666666666666", creatureId: "demo", startedAt: new Date().toISOString(), endsAt, daysLeft: 9, seen: true }}
+          host={{ userId: "u2", username: "Karim" }}
+        />
+      );
+      break;
+    }
+    case "home-hosting": {
+      const endsAt = new Date(Date.now() + 5 * 86_400_000).toISOString();
+      const azur = mockCreature({ id: "demo-azur", name: "Azur", tier: "difficile", species: toSpeciesSummary(getSpecies("difficile-dragon-celeste")!), rarity: "legendaire", health: 24, hunger: 82, state: "sick" });
+      const roux = mockCreature({ id: "demo-roux", name: "Roux", tier: "moyen", species: toSpeciesSummary(getSpecies("moyen-renard-malin")!), health: 92, hunger: 20 });
+      content = (
+        <div className="space-y-4">
+          <CreatureHome creature={mockCreature({})} line={creatureLine(mockCreature({}))} chestsAvailable={1} />
+          <HostedCreatures
+            items={[
+              { boarding: { id: "77777777-7777-4777-8777-777777777777", creatureId: azur.id, startedAt: new Date().toISOString(), endsAt, daysLeft: 5, seen: false }, creature: azur, accessories: [], owner: { userId: "u2", username: "Karim" } },
+              { boarding: { id: "88888888-8888-4888-8888-888888888888", creatureId: roux.id, startedAt: new Date().toISOString(), endsAt, daysLeft: 12, seen: true }, creature: roux, accessories: [{ slot: "head", id: "beret" }], owner: { userId: "u1", username: "Marion" } },
+            ]}
+          />
+        </div>
+      );
+      break;
+    }
+    case "pension": {
+      const endsAt = new Date(Date.now() + 5 * 86_400_000).toISOString();
+      const azur = mockCreature({ id: "demo-azur", name: "Azur", tier: "difficile", species: toSpeciesSummary(getSpecies("difficile-dragon-celeste")!), rarity: "legendaire", health: 24, hunger: 82, state: "sick", sickSince: new Date().toISOString(), daysUntilDeath: 2.5 });
+      content = (
+        <PensionHome
+          creature={azur}
+          accessories={[{ slot: "neck", id: "scarf" }]}
+          boarding={{ id: "77777777-7777-4777-8777-777777777777", creatureId: azur.id, startedAt: new Date().toISOString(), endsAt, daysLeft: 5, seen: true }}
+          owner={{ userId: "u2", username: "Karim" }}
+          inventory={{ sirop: 2, antibiotique: 1, talisman: 0 }}
+          chest={{ totalSteps: 12_400, earned: 2, opened: 1, available: 1, stepsToNext: 2_600, stepsPerChest: 5_000 }}
         />
       );
       break;

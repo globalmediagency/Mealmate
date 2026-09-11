@@ -168,6 +168,13 @@ public/sw.js, icons/    Service worker et icônes
 - **Accessibilité** : cibles tactiles ≥ 44 px partout (boutons d'échange, de soin, de fermeture…), contour de focus clavier global (`:focus-visible`), lien « Aller au contenu », squelette de chargement annoncé (`aria-busy`), animations déjà coupées par `prefers-reduced-motion`.
 - **Performance perçue** : `app/(app)/loading.tsx` (streaming), middleware qui redirige toutes les pages privées dès la présence du cookie, requêtes de page parallélisées (`Promise.all`).
 
+### 3.16 Pension chez un ami
+- **Confier** : `POST /api/friends/:id/board { days }` (1 à 30, choix 3 / 7 / 14 / 21 / 30 dans le dialogue) envoie la créature vivante et nommée du joueur chez un ami accepté. Pas d'acceptation ; une seule pension ouverte par créature (index unique partiel `boardings_creature_open_idx`) ; `BOARDING.maxPerHost` (5) créatures hébergées au plus par joueur. L'hôte est prévenu (pastille sur l'onglet Créature = pensions non vues, section « En pension chez toi » sur son écran d'accueil, `POST /api/boardings/seen` à l'ouverture).
+- **Détention** : `getHeldCreatures(userId)` = sa créature (`own`, tick appliqué), sa créature partie (`away`) et celles hébergées (`boarded`, tick appliqué). Un repas nourrit toutes les créatures vivantes détenues avec des effets calculés par créature (`feedCreature` → `others`), les pas manuels et Strava les créditent toutes (`saveStepsForHeld`, `syncStrava(…, others)`), la limite de parties devient par créature. L'hôte joue (`/play?creature=<id>`), soigne (`POST /api/inventory/use { item, creatureId }`, doses de **son** armoire) et ouvre les coffres (`POST /api/accessories/open { creatureId }`, l'accessoire va dans **sa** garde-robe) depuis `/pension/<id>`. Il ne peut pas toucher à la tenue (`equipAccessory` reste réservé au propriétaire).
+- **Coffres et pas** : les pas d'un jour comptent pour le détenteur du jour (`lib/boarding/custody.ts` : jour d'arrivée à l'hôte, jour de retour au propriétaire) ; `getChestStatus()` somme les pas du détenteur depuis l'éclosion (`creatureStepsSince`).
+- **Propriétaire pendant la pension** : écran Créature « en pension chez X jusqu'au … » avec les stats à jour, bouton « Récupérer ma créature en pension chez X » (`POST /api/boardings/:id/end`, retour immédiat, morte si elle est morte entre-temps → écran de deuil) ; `/feed`, `/play`, les soins et les coffres de sa créature lui sont refusés (`creature_boarded`, 409) ; ses pas ne la créditent pas.
+- **Fin paresseuse** (`settleBoarding` à chaque lecture) : mort → `died` (fin datée du décès), échéance → `expired` ; `recovered` (propriétaire) ou `returned` (hôte, bouton « Rendre … ») par `UPDATE … WHERE ended_at IS NULL`. Export de compte : liste `boardings` (rôle, pseudo de l'autre, dates) ; suppression en cascade des deux côtés.
+
 ## 4. Schéma de données
 
 Source de vérité : `db/init.sql` (idempotent) ⇄ `lib/db/schema.ts`. Colonnes en `snake_case`, horodatages en `timestamptz`.
@@ -187,6 +194,7 @@ Source de vérité : `db/init.sql` (idempotent) ⇄ `lib/db/schema.ts`. Colonnes
 | `gifts` | Soins envoyés à un ami (phase 7) | `from_user_id`, `to_user_id`, `creature_id` (nullable), `item`, `seen_at` |
 | `trades` | Trocs d'accessoires (phase 7) | `proposer_id`, `receiver_id`, `offered_accessory_id`, `requested_accessory_id`, `status` (`pending` / `accepted` / `declined` / `cancelled`), `resolved_at` |
 | `inventory` | Médicaments | PK `(user_id, item)`, `qty` |
+| `boardings` | Pension chez un ami (migration 009) | `creature_id`, `owner_id`, `host_id`, `started_at`, `ends_at` (≤ 30 j), `ended_at`, `end_reason` (`recovered` / `returned` / `expired` / `died`), `host_seen_at` ; index unique partiel sur `creature_id` tant que `ended_at IS NULL` |
 | `strava_connections` | Lien Strava | PK `user_id`, tokens (jamais exposés), `expires_at`, `last_sync_at`, `athlete_name` (migration 006) |
 | `game_settings` | Règles admin | PK `id` (= `default`), `data` jsonb (surcharges), `updated_at`, `updated_by` (migration 003) |
 
@@ -228,6 +236,7 @@ Phase 7 :
 - `POST /api/shop/checkout { item }` → `{ url }` ; `GET /api/shop/confirm?session_id=` → `{ status, item, credited, inventory }` ; `POST /api/webhooks/stripe` (Stripe uniquement, corps brut signé).
 - `GET /api/inventory` → `{ inventory, purchases }` ; `POST /api/inventory/use { item }` → effet + `creature`.
 - `POST /api/friends/:id/heal { item }` ; `GET /api/friends/:id/accessories` → `{ friend, theirs, mine }` ; `POST /api/gifts/seen`.
+- Pension : `POST /api/friends/:id/board { days }` → `{ boarding, friend, creatureName }` ; `POST /api/boardings/:id/end` → `{ boarding, endReason, role, other, creature }` ; `POST /api/boardings/seen`. `POST /api/play`, `POST /api/inventory/use` et `POST /api/accessories/open` acceptent `creatureId` (créature hébergée) ; `GET /api/play?creature=<id>`.
 - `GET /api/trades` → `{ incoming, outgoing, recent }` ; `POST /api/trades { friendshipId, offeredId, requestedId }` ; `POST /api/trades/:id/accept` ; `DELETE /api/trades/:id`.
 
 Phase 8 :
@@ -309,3 +318,6 @@ Phase 9 :
 | D51 | Probabilités en pourcentage (3 décimales) par objet, stockées comme surcharges et renormalisées au tirage | L'admin raisonne en « 1 chance sur N » ; stocker seulement les écarts au défaut garde la répartition par rareté comme référence et un poids 0 permet de retirer un objet sans toucher au code. |
 | D52 | Un doublon de coffre devient un exemplaire (plus d'XP) | Les exemplaires alimentent trocs et dons ; l'XP de consolation n'a plus de raison d'être. |
 | D53 | Le don ne demande pas d'acceptation | Rien à perdre pour le receveur ; la notification suffit et évite une file d'attente de plus. |
+| D54 | La pension n'a pas d'acceptation non plus, mais l'hôte peut rendre la créature et le propriétaire la reprendre à tout moment | Héberger ne coûte rien (les repas et les pas sont partagés automatiquement, les coffres lui reviennent) ; la sortie libre des deux côtés remplace la validation. |
+| D55 | Les pas d'un jour vont au détenteur de la créature ce jour-là, sans compteur supplémentaire | Les coffres gagnés en pension reviennent à l'hôte sans dupliquer les pas ; la table `boardings` suffit à reconstituer qui détenait la créature. |
+| D56 | Le propriétaire ne peut plus agir sur sa créature partie (nourrir, jouer, soigner, coffres), seulement la reprendre | Une seule personne s'en occupe à la fois : pas de double repas ni de coffre disputé, et le bouton de retour reste la seule action. |

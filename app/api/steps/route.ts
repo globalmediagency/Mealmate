@@ -2,12 +2,12 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { fail, handleRouteError, ok } from "@/lib/api/respond";
 import { getSession } from "@/lib/auth/session";
-import { applyStepGains, getActiveCreatureTicked, refreshEggSteps } from "@/lib/creatures/service";
+import { saveStepsForHeld } from "@/lib/boarding/service";
 import { STEPS } from "@/lib/game/config";
 import { toCreatureView } from "@/lib/game/creature-view";
 import { getGameRules } from "@/lib/game/rules-service";
 import { gameDate } from "@/lib/game/time";
-import { getManualEntry, getStepHistory, saveManualSteps } from "@/lib/steps/service";
+import { getManualEntry, getStepHistory } from "@/lib/steps/service";
 
 export const dynamic = "force-dynamic";
 
@@ -43,18 +43,16 @@ export async function POST(request: Request) {
     const userId = session.user.id;
 
     const rules = await getGameRules();
-    const creature = await getActiveCreatureTicked(userId, new Date(), rules);
-    const { entry, gains, added } = await saveManualSteps(userId, body.steps, creature, gameDate(), body.mode);
-    let updated = creature;
-    if (creature?.status === "egg") updated = await refreshEggSteps(creature);
-    else if (creature?.status === "alive") updated = await applyStepGains(creature, gains);
+    // Steps feed every living creature in the user's care (own when home + boarded ones); the egg counts them for hatching.
+    const { entry, gains, added, own, credited } = await saveStepsForHeld(userId, body.steps, body.mode, gameDate(), new Date(), rules);
 
     return ok({
       date: entry.date,
       today: entry.steps,
       added,
       gains,
-      creature: updated ? toCreatureView(updated, new Date(), rules) : null,
+      creature: own ? toCreatureView(own, new Date(), rules) : null,
+      credited,
     });
   } catch (error) {
     return handleRouteError(error);

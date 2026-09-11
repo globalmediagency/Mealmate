@@ -16,7 +16,14 @@ import { prepareMealImage } from "@/lib/images/resize-client";
 import type { MealView } from "@/lib/meals/service";
 import { MealResult } from "./meal-result";
 
-type FeedFlowProps = { creature: CreatureView; mealsToday: number };
+type FeedFlowProps = {
+  creature: CreatureView;
+  mealsToday: number;
+  /** Names of the other creatures the same meal will feed (boarded with the user). */
+  others?: string[];
+};
+
+type FedOther = { name: string | null; ownerName: string | null; healthDelta: number; hungerBefore: number; hungerAfter: number };
 
 type FeedResponse = {
   meal: MealView;
@@ -24,6 +31,7 @@ type FeedResponse = {
   before: { health: number; hunger: number; mood: number };
   creature: CreatureView;
   mealsToday: number;
+  others?: FedOther[];
 };
 
 type State =
@@ -33,7 +41,7 @@ type State =
   | { step: "result"; url: string; data: FeedResponse }
   | { step: "error"; message: string; url?: string; blob?: Blob; code?: string };
 
-export function FeedFlow({ creature: initial, mealsToday: initialCount }: FeedFlowProps) {
+export function FeedFlow({ creature: initial, mealsToday: initialCount, others = [] }: FeedFlowProps) {
   const router = useRouter();
   const [state, setState] = useState<State>({ step: "idle" });
   const [creature, setCreature] = useState(initial);
@@ -116,6 +124,17 @@ export function FeedFlow({ creature: initial, mealsToday: initialCount }: FeedFl
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={state.url} alt="Ton repas" className="h-40 w-full object-cover" />
           </div>
+          {data.others && data.others.length > 0 ? (
+            <ul className="mt-3 space-y-1 rounded-2xl border border-sage-500/30 bg-sage-800/20 px-3 py-2 text-xs text-cream-300">
+              {data.others.map((other, i) => (
+                <li key={i}>
+                  <strong className="text-cream-100">{other.name ?? "Une créature"}</strong>
+                  {other.ownerName ? ` (en pension, confiée par ${other.ownerName})` : ""} a aussi mangé : faim {other.hungerBefore} → {other.hungerAfter}
+                  {other.healthDelta !== 0 ? `, ${other.healthDelta > 0 ? "+" : ""}${Math.round(other.healthDelta * 10) / 10} santé` : ""}.
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <div className="mt-4">
             <MealResult
               data={{
@@ -181,6 +200,11 @@ export function FeedFlow({ creature: initial, mealsToday: initialCount }: FeedFl
         <p className="mt-1 text-sm text-cream-500">
           Prends ton assiette en photo. {remaining > 0 ? `${remaining} repas possible${remaining > 1 ? "s" : ""} aujourd'hui.` : "Plus de repas possible aujourd'hui."}
         </p>
+        {others.length > 0 ? (
+          <p className="mt-1 text-xs text-sage-200">
+            Ce repas nourrira aussi {others.join(", ")} (en pension chez toi).
+          </p>
+        ) : null}
       </header>
 
       {state.step === "error" ? (

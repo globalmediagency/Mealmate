@@ -14,10 +14,15 @@ import type { ChestStatus } from "@/lib/game/accessories";
 type Reward = { accessory: Accessory; duplicate: boolean; copies: number; equipped?: boolean; status: ChestStatus };
 type Phase = "closed" | "shaking" | "open";
 
-type ChestOpenerProps = { status: ChestStatus; canEquip: boolean };
+type ChestOpenerProps = {
+  status: ChestStatus;
+  canEquip: boolean;
+  /** A creature boarded with the user (default: the user's own creature). */
+  creatureId?: string;
+};
 
 /** Chest counter + opening animation + reward (spec § 3.6). */
-export function ChestOpener({ status: initial, canEquip }: ChestOpenerProps) {
+export function ChestOpener({ status: initial, canEquip, creatureId }: ChestOpenerProps) {
   const router = useRouter();
   const [status, setStatus] = useState(initial);
   const [phase, setPhase] = useState<Phase>("closed");
@@ -32,7 +37,10 @@ export function ChestOpener({ status: initial, canEquip }: ChestOpenerProps) {
     setPhase("shaking");
     const wait = new Promise<void>((resolve) => setTimeout(resolve, 1300));
     try {
-      const [response] = await Promise.all([fetch("/api/accessories/open", { method: "POST" }), wait]);
+      const [response] = await Promise.all([
+        fetch("/api/accessories/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(creatureId ? { creatureId } : {}) }),
+        wait,
+      ]);
       const body = (await response.json().catch(() => null)) as Reward | { error: { message: string } } | null;
       if (!response.ok || !body || "error" in body) {
         setError(body && "error" in body ? body.error.message : "Le coffre est resté fermé. Réessaie.");

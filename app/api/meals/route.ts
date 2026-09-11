@@ -57,6 +57,13 @@ export async function POST(request: NextRequest) {
       before: result.before,
       creature: toCreatureView(result.creature, new Date(), rules),
       mealsToday: result.mealsToday,
+      others: result.others.map((o) => ({
+        name: o.creature.name,
+        ownerName: o.ownerName,
+        healthDelta: o.effects.healthDelta,
+        hungerBefore: Math.round(o.before.hunger),
+        hungerAfter: Math.round(o.creature.hunger),
+      })),
     });
   } catch (error) {
     return handleRouteError(error);

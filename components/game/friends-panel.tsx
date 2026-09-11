@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/field";
 import type { FriendRequestView, FriendView } from "@/lib/friends/service";
 import type { Inventory } from "@/lib/shop/service";
 import type { TradeableAccessories, TradesOverview } from "@/lib/trades/service";
+import { BoardWithFriend } from "./boarding-actions";
 import { HealFriend, TradeWithFriend, type Notify } from "./friend-actions";
 import { FriendCard } from "./friend-card";
 import { TradesList } from "./trades-list";
@@ -23,11 +24,13 @@ type FriendsPanelProps = {
   /** My medicine, to send to friends whose creature is tired or sick. */
   inventory: Inventory;
   trades: TradesOverview;
+  /** My living, named creature when it is home: it can be entrusted to a friend. */
+  boardable?: { creatureName: string } | null;
   /** Dev gallery only: pre-loaded trade dialog for the first friend. */
   demoTrade?: TradeableAccessories;
 };
 
-export function FriendsPanel({ me, friends, incoming, outgoing, inventory, trades, demoTrade }: FriendsPanelProps) {
+export function FriendsPanel({ me, friends, incoming, outgoing, inventory, trades, boardable = null, demoTrade }: FriendsPanelProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState<string | null>(null);
@@ -180,6 +183,7 @@ export function FriendsPanel({ me, friends, incoming, outgoing, inventory, trade
                   <div className="flex flex-col gap-2">
                     <HealFriend friend={friend} inventory={inventory} notify={notify} />
                     <TradeWithFriend friend={friend} notify={notify} initialData={index === 0 ? demoTrade : undefined} />
+                    {boardable ? <BoardWithFriend friend={friend} creatureName={boardable.creatureName} notify={notify} /> : null}
                   </div>
                 }
               >

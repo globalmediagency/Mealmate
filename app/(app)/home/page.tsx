@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { BoardedAway } from "@/components/game/boarded-away";
 import { CreatureHome } from "@/components/game/creature-home";
 import { EggChoice } from "@/components/game/egg-choice";
 import { GiftsNotice } from "@/components/game/gifts-notice";
 import { HatchReveal } from "@/components/game/hatch-reveal";
+import { HostedCreatures } from "@/components/game/hosted-creatures";
 import { Incubation } from "@/components/game/incubation";
 import { Mourning } from "@/components/game/mourning";
 import { requireViewer } from "@/lib/auth/session";
+import { getHeldCreatures, toBoardingView } from "@/lib/boarding/service";
+import { hostedCreatureViews } from "@/lib/boarding/views";
 import { playableTiers, speciesByTierAll } from "@/lib/creatures";
-import { loadActiveCreatureView } from "@/lib/creatures/loader";
-import { getActiveCreature, getObtainedSpeciesIds, getUnmournedDeath } from "@/lib/creatures/service";
+import { getObtainedSpeciesIds, getUnmournedDeath, refreshEggSteps } from "@/lib/creatures/service";
 import { getChestStatus, getOutfit, outfitToEquipped } from "@/lib/accessories/service";
 import { toCreatureView } from "@/lib/game/creature-view";
 import { creatureLine } from "@/lib/game/dialogue";
@@ -22,27 +25,36 @@ export const metadata: Metadata = { title: "Ma créature" };
 
 export default async function HomePage() {
   const { session } = await requireViewer();
-  const [creature, gifts] = await Promise.all([loadActiveCreatureView(session.user.id), listUnseenGifts(session.user.id)]);
-  // Gifts (accessories, medicine) can arrive whatever the creature's state: the notice is shown on every screen.
-  const withGifts = (screen: ReactNode) =>
-    gifts.length > 0 ? (
+  const now = new Date();
+  const [rules, gifts] = await Promise.all([getGameRules(), listUnseenGifts(session.user.id)]);
+  // Own creature (ticked), its stay at a friend's if any, and the creatures friends entrusted to the user.
+  const held = await getHeldCreatures(session.user.id, now, rules);
+  const hosted = await hostedCreatureViews(held.boarded, now, rules);
+  const raw = held.own;
+  const creature = raw ? toCreatureView(raw.status === "egg" ? await refreshEggSteps(raw) : raw, now, rules) : null;
+  // Gifts and boarded creatures can show up whatever the own creature's state: they frame every screen.
+  const frame = (screen: ReactNode, options: { gifts?: boolean } = { gifts: true }) => {
+    const notice = options.gifts && gifts.length > 0 ? <GiftsNotice gifts={gifts} creatureName={creature?.status === "alive" ? creature.name ?? undefined : undefined} /> : null;
+    const list = hosted.length > 0 ? <HostedCreatures items={hosted} /> : null;
+    if (!notice && !list) return screen;
+    return (
       <div className="space-y-4">
-        <GiftsNotice gifts={gifts} creatureName={creature?.status === "alive" ? creature.name ?? undefined : undefined} />
+        {notice}
         {screen}
+        {list}
       </div>
-    ) : (
-      screen
     );
+  };
 
   if (creature?.status === "dead") {
-    return withGifts(<Mourning creature={creature} />);
+    return frame(<Mourning creature={creature} />);
   }
 
   if (!creature) {
     const unmourned = await getUnmournedDeath(session.user.id);
-    if (unmourned) return withGifts(<Mourning creature={toCreatureView(unmourned, new Date(), await getGameRules())} />);
-    const [obtained, rules] = await Promise.all([getObtainedSpeciesIds(session.user.id), getGameRules()]);
-    return withGifts(
+    if (unmourned) return frame(<Mourning creature={toCreatureView(unmourned, now, rules)} />);
+    const obtained = await getObtainedSpeciesIds(session.user.id);
+    return frame(
       <EggChoice
         speciesByTier={speciesByTierAll()}
         obtainedSpeciesIds={obtained}
@@ -55,16 +67,20 @@ export default async function HomePage() {
 
   if (creature.status === "egg") {
     const entry = await getManualEntry(session.user.id, gameDate());
-    return withGifts(<Incubation creature={creature} todaySteps={entry?.steps ?? 0} />);
+    return frame(<Incubation creature={creature} todaySteps={entry?.steps ?? 0} />);
   }
 
   if (!creature.name) {
-    return withGifts(<HatchReveal creature={creature} />);
+    return frame(<HatchReveal creature={creature} />);
   }
 
-  const raw = await getActiveCreature(session.user.id);
+  if (held.away) {
+    const outfit = await getOutfit(creature.id);
+    return frame(<BoardedAway creature={creature} accessories={outfitToEquipped(outfit)} boarding={toBoardingView(held.away, now)} host={held.away.host} />);
+  }
+
   const [outfit, chest, inventory] = await Promise.all([getOutfit(creature.id), raw ? getChestStatus(raw) : null, getInventory(session.user.id)]);
-  return (
+  return frame(
     <CreatureHome
       creature={creature}
       line={creatureLine(creature)}
@@ -72,6 +88,7 @@ export default async function HomePage() {
       chestsAvailable={chest?.available ?? 0}
       doses={totalDoses(inventory)}
       gifts={gifts}
-    />
+    />,
+    { gifts: false },
   );
 }

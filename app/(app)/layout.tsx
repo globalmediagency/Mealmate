@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { ConfigMissingScreen } from "@/components/system/config-missing-screen";
 import { requireViewer, safeGetSession } from "@/lib/auth/session";
+import { countUnseenBoardings } from "@/lib/boarding/service";
 import { countIncomingRequests } from "@/lib/friends/service";
 import { countUnseenGifts } from "@/lib/shop/service";
 import { countIncomingTrades } from "@/lib/trades/service";
@@ -15,10 +16,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { configError } = await safeGetSession();
   if (configError) return <ConfigMissingScreen error={configError} />;
   const { session } = await requireViewer();
-  const [pendingRequests, pendingTrades, unseenGifts] = await Promise.all([
+  const [pendingRequests, pendingTrades, unseenGifts, unseenBoardings] = await Promise.all([
     countIncomingRequests(session.user.id).catch(() => 0),
     countIncomingTrades(session.user.id).catch(() => 0),
     countUnseenGifts(session.user.id).catch(() => 0),
+    countUnseenBoardings(session.user.id).catch(() => 0),
   ]);
 
   return (
@@ -27,7 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         Aller au contenu
       </a>
       <main id="main" className="mx-auto w-full max-w-md px-4 pt-3 safe-top">{children}</main>
-      <BottomNav badges={{ "/friends": pendingRequests + pendingTrades, "/home": unseenGifts }} />
+      <BottomNav badges={{ "/friends": pendingRequests + pendingTrades, "/home": unseenGifts + unseenBoardings }} />
     </div>
   );
 }

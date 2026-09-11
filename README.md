@@ -33,7 +33,7 @@ Sans variable, le build passe et chaque écran explique ce qui manque au lieu de
 
 Migrations à coller dans **Neon → SQL Editor**, dans l'ordre, si `db/init.sql` a été exécuté avant la
 phase correspondante (un `init.sql` récent les contient déjà) : `001` pas crédités, `002` deuil,
-`003` règles admin, `004` coffres, `005` cadeaux et trocs, `006` prénom Strava, `007` origine des photos, `008` exemplaires d'accessoires et dons.
+`003` règles admin, `004` coffres, `005` cadeaux et trocs, `006` prénom Strava, `007` origine des photos, `008` exemplaires d'accessoires et dons, `009` pension chez un ami.
 
 ## 1. Mise en route (phase 1 : compte et connexion)
 
@@ -97,6 +97,7 @@ Si tu avais déjà exécuté `db/init.sql` avant une phase, colle ses migrations
 - phase 8 : [`db/migrations/006_strava_athlete_name.sql`](./db/migrations/006_strava_athlete_name.sql)
 - anti-triche photo : [`db/migrations/007_meals_photo_source.sql`](./db/migrations/007_meals_photo_source.sql)
 - exemplaires et dons : [`db/migrations/008_accessory_copies_gift_kind.sql`](./db/migrations/008_accessory_copies_gift_kind.sql)
+- pension chez un ami : [`db/migrations/009_boardings.sql`](./db/migrations/009_boardings.sql)
 
 Un `init.sql` fraîchement exécuté contient déjà toutes ces colonnes.
 
@@ -139,6 +140,14 @@ Rien à configurer : après la migration 004, l'accueil propose **Jouer** (3 par
 Rien à configurer. Onglet **Amis** : ton code ami (`MM-XXXXXX`) et ton pseudo, un champ pour ajouter un proche par
 code ou pseudo exact, les demandes reçues / envoyées, puis les cartes de tes amis avec leur créature animée.
 Une pastille sur l'onglet indique les demandes reçues.
+
+**Pension** (migration `009`) : sur la carte d'un ami, « Confier en pension » envoie ta créature vivante chez lui pour 3 à
+30 jours, sans validation de sa part. Il la voit sur son écran Créature (section « En pension chez toi », pastille) :
+ses repas et ses pas la nourrissent et la renforcent comme les siennes, il peut jouer avec elle, la soigner avec son
+armoire et ouvrir les coffres qu'elle gagne chez lui (les accessoires sont pour lui) ; il ne peut ni lui retirer ni lui
+ajouter d'accessoire. Elle continue de vivre, de tomber malade ou de mourir. Ton écran Créature montre où elle est et un
+bouton « Récupérer ma créature en pension chez … » la ramène aussitôt (morte si elle est morte entre-temps) ; l'hôte
+peut aussi la rendre plus tôt, et elle rentre seule à l'échéance.
 
 ## 2. Cycle de travail
 

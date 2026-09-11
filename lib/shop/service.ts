@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { getAccessory, type Accessory } from "@/lib/accessories/catalog";
+import { assertHolder, type HolderOptions } from "@/lib/accessories/service";
 import { DomainError } from "@/lib/api/errors";
 import { getActiveCreature } from "@/lib/creatures/service";
 import { tickCreature } from "@/lib/creatures/tick-service";
@@ -146,9 +147,9 @@ async function persistMedicine(creature: Creature): Promise<Creature> {
 
 export type UseOutcome = MedicineResult & { inventory: Inventory };
 
-/** Applies one dose of `item` to the user's own living creature. */
-export async function consumeMedicine(userId: string, creature: Creature, item: ShopItemId, now: Date = new Date()): Promise<UseOutcome> {
-  if (creature.userId !== userId) throw new DomainError("forbidden", "Cette créature n'est pas la tienne.", 403);
+/** Applies one dose of `item` to a living creature the user takes care of (their own, or one boarded with them). */
+export async function consumeMedicine(userId: string, creature: Creature, item: ShopItemId, now: Date = new Date(), options: HolderOptions = {}): Promise<UseOutcome> {
+  assertHolder(userId, creature, options);
   if (creature.status !== "alive") throw new DomainError("no_creature", "Il faut une créature vivante pour la soigner.", 409);
   if (!medicineIsUseful(creature, item)) throw new DomainError("not_needed", `${creature.name ?? "Ta créature"} est déjà en pleine forme : garde ce ${SHOP_ITEMS[item].label.toLowerCase()} pour plus tard.`, 409);
   await consumeDose(userId, item);

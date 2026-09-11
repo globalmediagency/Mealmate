@@ -1,6 +1,6 @@
 import { fail, handleRouteError, ok } from "@/lib/api/respond";
 import { getSession } from "@/lib/auth/session";
-import { getActiveCreatureTicked } from "@/lib/creatures/service";
+import { getHeldCreatures } from "@/lib/boarding/service";
 import { toCreatureView } from "@/lib/game/creature-view";
 import { getGameRules } from "@/lib/game/rules-service";
 import { stravaApi } from "@/lib/strava/api";
@@ -15,8 +15,9 @@ export async function POST() {
     if (!session) return fail("unauthorized", "Connecte-toi pour continuer.", 401);
     const now = new Date();
     const rules = await getGameRules();
-    const creature = await getActiveCreatureTicked(session.user.id, now, rules);
-    const result = await syncStrava(session.user.id, stravaApi, creature, now);
+    const held = await getHeldCreatures(session.user.id, now, rules);
+    // The own creature away at a friend's is not credited (the host's steps feed it); boarded ones are.
+    const result = await syncStrava(session.user.id, stravaApi, held.away ? null : held.own, now, held.boarded.map((h) => h.creature));
     return ok({
       imported: result.imported,
       skipped: result.skipped,

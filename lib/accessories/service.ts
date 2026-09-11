@@ -5,7 +5,7 @@ import { creatureOutfits, creatures, userAccessories, type Creature } from "@/li
 import { chestStatus, drawAccessory, type ChestStatus } from "@/lib/game/accessories";
 import { getDropWeights } from "@/lib/game/drops-service";
 import { gameDate } from "@/lib/game/time";
-import { sumStepsSince } from "@/lib/steps/service";
+import { creatureStepsSince } from "@/lib/boarding/custody-service";
 import { getAccessory, SLOTS, type Accessory, type Slot } from "./catalog";
 
 export type OwnedAccessory = { accessory: Accessory; obtainedAt: Date; qty: number };
@@ -98,11 +98,21 @@ export async function equipAccessory(userId: string, creature: Creature, slot: S
   return getOutfit(creature.id);
 }
 
-/** Chest status for a living creature (steps since the hatch day, all sources). */
+/** Chest status for a living creature: the holder's steps since the hatch day (the host's during a stay at a friend's). */
 export async function getChestStatus(creature: Creature): Promise<ChestStatus> {
   if (creature.status !== "alive" || !creature.hatchedAt) return chestStatus(0, 0);
-  const total = await sumStepsSince(creature.userId, gameDate(creature.hatchedAt));
+  const total = await creatureStepsSince(creature, gameDate(creature.hatchedAt));
   return chestStatus(total, creature.accessoryDrops);
+}
+
+/** Options shared by actions a host may perform on a creature entrusted to them. */
+export type HolderOptions = {
+  /** The creature is boarded with `userId` (checked by the caller through `getHeldCreature`). */
+  boarded?: boolean;
+};
+
+export function assertHolder(userId: string, creature: Creature, options: HolderOptions = {}): void {
+  if (!options.boarded && creature.userId !== userId) throw new DomainError("forbidden", "Cette créature n'est pas la tienne.", 403);
 }
 
 export type ChestReward = {
@@ -116,9 +126,9 @@ export type ChestReward = {
   status: ChestStatus;
 };
 
-/** Opens one earned chest: draws an accessory with the admin-tunable weights; a duplicate adds a copy. */
-export async function openChest(userId: string, creature: Creature, random?: () => number): Promise<ChestReward> {
-  if (creature.userId !== userId) throw new DomainError("forbidden", "Cette créature n'est pas la tienne.", 403);
+/** Opens one earned chest: draws an accessory with the admin-tunable weights; a duplicate adds a copy. The opener (owner or host) keeps it. */
+export async function openChest(userId: string, creature: Creature, random?: () => number, options: HolderOptions = {}): Promise<ChestReward> {
+  assertHolder(userId, creature, options);
   const status = await getChestStatus(creature);
   if (status.available <= 0) {
     throw new DomainError("no_chest", `Encore ${status.stepsToNext.toLocaleString("fr-FR")} pas avant le prochain coffre.`, 409);

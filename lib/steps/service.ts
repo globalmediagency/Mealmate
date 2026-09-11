@@ -57,12 +57,14 @@ export type SaveStepsMode = "add" | "set";
 
 /**
  * Creates or updates today's manual entry, then converts any newly walked
- * thousands into creature effects (handled by the caller for the creature row).
+ * thousands into creature effects (applied by the caller to every living
+ * creature the user takes care of). `creature` is any living creature held
+ * by the user: null or an egg means nothing is credited yet.
  */
 export async function saveManualSteps(
   userId: string,
   rawSteps: number,
-  creature: Creature | null,
+  creature: Pick<Creature, "status"> | null,
   today = gameDate(),
   mode: SaveStepsMode = "set",
 ): Promise<SaveStepsResult> {
