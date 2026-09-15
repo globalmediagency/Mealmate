@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
+import { isSchemaError } from "@/lib/db/schema-check";
 import { isConfigError } from "@/lib/env";
 
 export type ApiErrorBody = { error: { code: string; message: string } };
@@ -20,6 +21,10 @@ export function fail(
 export function handleRouteError(error: unknown): NextResponse<ApiErrorBody> {
   if (isConfigError(error)) {
     return fail("config_missing", error.message, 503);
+  }
+  if (isSchemaError(error)) {
+    console.error("[api] database schema outdated", error);
+    return fail("schema_outdated", "La base de données doit être mise à jour : ouvre l'application pour voir le SQL à coller dans Neon.", 503);
   }
   if (error instanceof ZodError) {
     const first = error.issues[0];

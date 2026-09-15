@@ -15,6 +15,8 @@ import { HatchReveal } from "@/components/game/hatch-reveal";
 import { Incubation } from "@/components/game/incubation";
 import { StepsHistory } from "@/components/game/steps-history";
 import { FoodIcon } from "@/components/food/food-icon";
+import { SchemaOutdatedScreen } from "@/components/system/schema-outdated-screen";
+import { MIGRATIONS } from "@/lib/db/migrations-catalog";
 import { FOOD_KIND_LABELS, FOOD_KINDS } from "@/lib/meals/food-icons";
 import { FeedAnimationDemo } from "@/components/game/feed-animation-demo";
 import { FeedFlow } from "@/components/game/feed-flow";
@@ -44,7 +46,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -166,6 +168,9 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
           </ul>
         </Card>
       );
+      break;
+    case "schema":
+      content = <SchemaOutdatedScreen missing={MIGRATIONS.slice(-2)} />;
       break;
     case "meal-result":
       content = (

@@ -101,6 +101,8 @@ Si tu avais déjà exécuté `db/init.sql` avant une phase, colle ses migrations
 - coaching : [`db/migrations/010_coaching.sql`](./db/migrations/010_coaching.sql)
 - effets de l'humeur : [`db/migrations/012_creatures_chest_bonus_steps.sql`](./db/migrations/012_creatures_chest_bonus_steps.sql)
 
+Si une migration manque, l'application l'indique elle-même : au lieu de planter, elle affiche « La base de données doit être mise à jour » avec le SQL exact à copier dans Neon → SQL Editor (bouton « Copier le SQL »). Recharge la page une fois le SQL exécuté.
+
 Un `init.sql` fraîchement exécuté contient déjà toutes ces colonnes.
 
 ### Étape F — Nourrir (phase 3) : Cloudflare R2 + Google Gemini

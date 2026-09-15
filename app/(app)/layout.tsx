@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { ConfigMissingScreen } from "@/components/system/config-missing-screen";
+import { SchemaOutdatedScreen } from "@/components/system/schema-outdated-screen";
 import { requireViewer, safeGetSession } from "@/lib/auth/session";
 import { countOwnerNotices, countUnseenBoardings } from "@/lib/boarding/service";
 import { countCoachingBadges } from "@/lib/coaching/service";
+import { checkSchema } from "@/lib/db/schema-check";
 import { countIncomingRequests } from "@/lib/friends/service";
 import { countUnseenGifts } from "@/lib/shop/service";
 import { countIncomingTrades } from "@/lib/trades/service";
@@ -16,6 +18,9 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { configError } = await safeGetSession();
   if (configError) return <ConfigMissingScreen error={configError} />;
+  // A migration not pasted in Neon yet would crash the first query: say which one instead.
+  const { missing } = await checkSchema();
+  if (missing.length > 0) return <SchemaOutdatedScreen missing={missing} />;
   const { session } = await requireViewer();
   const [pendingRequests, pendingTrades, unseenGifts, unseenBoardings, coaching, ownerNotices] = await Promise.all([
     countIncomingRequests(session.user.id).catch(() => 0),
