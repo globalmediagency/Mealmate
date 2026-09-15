@@ -174,8 +174,16 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
     case "ar":
       content = (
         <div className="space-y-4">
-          <ArViewer creature={{ name: "Miso", speciesId: "facile-chat-rond", stage: "enfant", state: "healthy", accessories: [{ slot: "head", id: "beret" }] }} />
-          <div id="dev-marker" className="mx-auto w-48 bg-white p-1" dangerouslySetInnerHTML={{ __html: markerSvg() }} />
+          <ArViewer
+            targets={[
+              { markerId: 17, mine: true, ownerName: null, creature: { name: "Miso", speciesId: "facile-chat-rond", stage: "enfant", state: "healthy", accessories: [{ slot: "head", id: "beret" }] } },
+              { markerId: 42, mine: false, ownerName: "Léa", creature: { name: "Pipo", speciesId: "moyen-renard-malin", stage: "adulte", state: "healthy", accessories: [] } },
+            ]}
+          />
+          <div className="flex justify-center gap-4">
+            <div id="dev-marker-17" className="w-40 bg-white p-1" dangerouslySetInnerHTML={{ __html: markerSvg(17) }} />
+            <div id="dev-marker-42" className="w-40 bg-white p-1" dangerouslySetInnerHTML={{ __html: markerSvg(42) }} />
+          </div>
         </div>
       );
       break;

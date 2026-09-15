@@ -192,6 +192,13 @@ ALTER TABLE boardings ADD CONSTRAINT boardings_status_check CHECK (status IN ('p
     checks: [{ table: "creatures", column: "chest_bonus_steps" }],
     sql: `ALTER TABLE creatures ADD COLUMN IF NOT EXISTS chest_bonus_steps integer NOT NULL DEFAULT 0;`,
   },
+  {
+    id: "013",
+    file: "013_creatures_ar_marker.sql",
+    title: "Voir en vrai : un marqueur par créature",
+    checks: [{ table: "creatures", column: "ar_marker" }],
+    sql: `ALTER TABLE creatures ADD COLUMN IF NOT EXISTS ar_marker integer;`,
+  },
 ];
 
 /** Migrations whose checks fail against the given set of existing `table` / `table.column` keys. */

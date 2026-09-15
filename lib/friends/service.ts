@@ -200,13 +200,23 @@ async function creatureViewFor(creature: Creature | null, rules: GameRules, now:
   };
 }
 
-/** Accepted friends with their current creature, sorted by health (healthiest first). */
-export async function listFriends(userId: string, now: Date = new Date()): Promise<FriendView[]> {
-  const db = getDb();
-  const rows = await db
+/** Accepted friendship rows of a user. */
+async function acceptedFriendships(userId: string) {
+  return getDb()
     .select()
     .from(friendships)
     .where(and(eq(friendships.status, "accepted"), or(eq(friendships.requesterId, userId), eq(friendships.addresseeId, userId))));
+}
+
+/** Ids of the user's accepted friends. */
+export async function acceptedFriendIds(userId: string): Promise<string[]> {
+  return (await acceptedFriendships(userId)).map((r) => (r.requesterId === userId ? r.addresseeId : r.requesterId));
+}
+
+/** Accepted friends with their current creature, sorted by health (healthiest first). */
+export async function listFriends(userId: string, now: Date = new Date()): Promise<FriendView[]> {
+  const db = getDb();
+  const rows = await acceptedFriendships(userId);
   if (rows.length === 0) return [];
   const friendIds = rows.map((r) => (r.requesterId === userId ? r.addresseeId : r.requesterId));
   const [people, rules] = await Promise.all([db.select().from(profiles).where(inArray(profiles.userId, friendIds)), getGameRules()]);

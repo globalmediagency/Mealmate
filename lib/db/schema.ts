@@ -147,6 +147,8 @@ export const creatures = pgTable(
     accessoryDrops: integer("accessory_drops").notNull().default(0),
     /** Extra chest steps earned while happy (spec § 3.18, migration 012). */
     chestBonusSteps: integer("chest_bonus_steps").notNull().default(0),
+    /** AprilTag number of the creature's printed marker for "Voir en vrai" (spec § 3.19, migration 013), assigned on first use. */
+    arMarker: integer("ar_marker"),
   },
   (table) => [
     index("creatures_user_status_idx").on(table.userId, table.status),

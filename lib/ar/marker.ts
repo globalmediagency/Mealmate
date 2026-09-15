@@ -1,6 +1,6 @@
 import { AR } from "./vendor/aruco.js";
 
-export { AR_MARKER } from "./config";
+import "./vendor/apriltag_36h11.js";
 import { AR_MARKER } from "./config";
 
 let dictionary: InstanceType<typeof AR.Dictionary> | null = null;
@@ -13,7 +13,7 @@ function getDictionary() {
  * Cell grid of the marker, black border included: `true` = black cell.
  * Row-major, `cells × cells`.
  */
-export function markerCells(id: number = AR_MARKER.id): boolean[][] {
+export function markerCells(id: number): boolean[][] {
   const dict = getDictionary();
   const code = dict.codeList[id];
   if (!code) throw new Error(`Unknown marker id ${id} for ${AR_MARKER.dictionary}`);
@@ -32,7 +32,7 @@ export function markerCells(id: number = AR_MARKER.id): boolean[][] {
 }
 
 /** Inline SVG of the marker (white quiet zone of one cell around the black border). */
-export function markerSvg(id: number = AR_MARKER.id): string {
+export function markerSvg(id: number): string {
   const cells = markerCells(id);
   const n = cells.length;
   const size = n + 2;

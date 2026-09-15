@@ -100,6 +100,7 @@ Si tu avais déjà exécuté `db/init.sql` avant une phase, colle ses migrations
 - pension chez un ami : [`db/migrations/009_boardings.sql`](./db/migrations/009_boardings.sql), puis [`db/migrations/011_boardings_acceptance.sql`](./db/migrations/011_boardings_acceptance.sql)
 - coaching : [`db/migrations/010_coaching.sql`](./db/migrations/010_coaching.sql)
 - effets de l'humeur : [`db/migrations/012_creatures_chest_bonus_steps.sql`](./db/migrations/012_creatures_chest_bonus_steps.sql)
+- voir en vrai (un marqueur par créature) : [`db/migrations/013_creatures_ar_marker.sql`](./db/migrations/013_creatures_ar_marker.sql)
 
 Si une migration manque, l'application l'indique elle-même : au lieu de planter, elle affiche « La base de données doit être mise à jour » avec le SQL exact à copier dans Neon → SQL Editor (bouton « Copier le SQL »). Recharge la page une fois le SQL exécuté.
 
@@ -296,9 +297,11 @@ apparaissent alors, sans connexion nécessaire :
 7. **Boutique** : carte de test Stripe `4242 4242 4242 4242`.
 8. **Strava** : connecte ton compte, synchronise.
 9. **Plus → Mes données** : export JSON, suppression du compte (photos et lien Strava compris).
-10. **Voir en vrai** : depuis l'écran Créature, télécharge le PDF du marqueur, imprime-le, lance la
-    caméra et cadre le carré : ta créature se tient dessus, avec ses accessoires ; le bouton Photo
-    garde ou partage l'image. Les images de la caméra ne quittent pas le téléphone.
+10. **Voir en vrai** : depuis l'écran Créature, télécharge le PDF du marqueur de ta créature (son
+    nom est imprimé dessous), imprime-le, lance la caméra et cadre le carré : elle se tient dessus,
+    avec ses accessoires. Un ami pose son propre marqueur à côté : les deux créatures apparaissent
+    ensemble. Le bouton Photo garde ou partage l'image. Les images de la caméra ne quittent pas le
+    téléphone.
 
 ## 5. Limites connues
 
