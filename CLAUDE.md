@@ -42,7 +42,7 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 ## Pages de validation visuelle
 
 - `/dev/creatures` : galerie espèces × stades × états, œufs et décors.
-- `/dev/screens?screen=…` : écrans du jeu avec données factices (`egg`, `incubation`, `ready`, `reveal`, `home`, `home-sick`, `home-hungry`, `activity`, `feed`, `meal-result`, `meals`, `mourning`, `admin`, `play`, `wardrobe`, `chest`, `collection`, `friends`, `shop`, `home-protected`, `account`, `home-away`, `home-hosting`, `pension`, `mourning-pension`, `coach`, `coach-meals`, `home-pending`).
+- `/dev/screens?screen=…` : écrans du jeu avec données factices (`egg`, `incubation`, `ready`, `reveal`, `home`, `home-sick`, `home-hungry`, `activity`, `feed`, `feed-animation`, `meal-result`, `meals`, `mourning`, `admin`, `play`, `wardrobe`, `chest`, `collection`, `friends`, `shop`, `home-protected`, `account`, `home-away`, `home-hosting`, `pension`, `mourning-pension`, `coach`, `coach-meals`, `home-pending`).
 - `/dev/creatures?compact=1` : les 60 espèces en un coup d'œil ; la page complète montre les 30 accessoires. `/dev/gemini` : modèles Gemini visibles avec la clé.
 - `/admin` (hors galerie) : espace d'administration protégé par `ADMIN_USERNAME` / `ADMIN_PASSWORD` (aussi acceptés sur la page de connexion normale ; l'identifiant est réservé via `isAdminIdentifier()`), avec les onglets Règles de jeu, Créatures (`/admin/creatures`, filtres niveau / rareté, fiche stades × états) et Accessoires (`/admin/accessoires`, par emplacement, aperçu porté à chaque stade).
 - Les deux sont gardées par `NEXT_PUBLIC_DEV_GALLERY=true` (lue au build : redéployer après l'avoir changée).
@@ -116,6 +116,7 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 - Le prompt Gemini vit dans `lib/ai/meal-prompt.ts` ; le contrat JSON dans `lib/ai/meal-schema.ts` (zod, normalisation tolérante). Toujours garder les deux alignés (y compris `photo_source`, qui alimente `meals.photo_source` et la règle admin `feeding.rejectScreenPhotos`).
 - Prise de photo : un seul `<input capture="environment">`, pas de bouton « galerie » (friction anti-triche voulue ; sur ordinateur le navigateur affiche quand même un sélecteur de fichiers, la vraie protection est `photo_source` + la règle admin).
 - Les photos ne sont jamais servies en direct : `signedUrl()` (1 h) à chaque lecture.
+- Animation de nourrissage (`components/game/feed-animation.tsx`, étape `serving` de `FeedFlow` entre l'analyse et le résultat) : les aliments renvoyés par Gemini sont classés en dessins par `foodKindsFor()` (`lib/meals/food-icons.ts`, mots-clés français, test à côté) et dessinés par `FoodIcon` (`components/food/food-icon.tsx`, viewBox 48×48). Chronologie fixe (apparition → lancer → repas → note), une copie de chaque aliment vole vers chaque créature nourrie (`others` de `POST /api/meals` porte `speciesId`, `stageId`, `state`, `healthBefore/After`), bouton « Passer », sautée sous `prefers-reduced-motion`. Nouveau type d'aliment : ajouter le mot-clé dans `RULES`, le dessin dans `DRAWINGS` et le libellé dans `FOOD_KIND_LABELS`.
 
 ## Points d'attention
 

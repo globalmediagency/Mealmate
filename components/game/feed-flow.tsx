@@ -14,6 +14,7 @@ import type { CreatureView } from "@/lib/game/creature-view";
 import type { MealEffects } from "@/lib/game/meal-effects";
 import { prepareMealImage } from "@/lib/images/resize-client";
 import type { MealView } from "@/lib/meals/service";
+import { FeedAnimation, type FeedAnimationTarget } from "./feed-animation";
 import { MealResult } from "./meal-result";
 
 type FeedFlowProps = {
@@ -23,7 +24,18 @@ type FeedFlowProps = {
   others?: string[];
 };
 
-type FedOther = { name: string | null; ownerName: string | null; healthDelta: number; hungerBefore: number; hungerAfter: number };
+type FedOther = {
+  name: string | null;
+  ownerName: string | null;
+  healthDelta: number;
+  hungerBefore: number;
+  hungerAfter: number;
+  healthBefore: number;
+  healthAfter: number;
+  speciesId: string | null;
+  stageId: CreatureView["stage"]["id"];
+  state: CreatureView["state"];
+};
 
 type FeedResponse = {
   meal: MealView;
@@ -38,6 +50,7 @@ type State =
   | { step: "idle" }
   | { step: "preview"; blob: Blob; url: string }
   | { step: "analyzing"; url: string }
+  | { step: "serving"; url: string; data: FeedResponse }
   | { step: "result"; url: string; data: FeedResponse }
   | { step: "error"; message: string; url?: string; blob?: Blob; code?: string };
 
@@ -81,7 +94,7 @@ export function FeedFlow({ creature: initial, mealsToday: initialCount, others =
       }
       setCreature(body.creature);
       setMealsToday(body.mealsToday);
-      setState({ step: "result", url, data: body });
+      setState({ step: "serving", url, data: body });
       router.refresh();
     } catch {
       setState({ step: "error", message: "Impossible de joindre le serveur. Vérifie ta connexion.", url, blob });
@@ -92,6 +105,52 @@ export function FeedFlow({ creature: initial, mealsToday: initialCount, others =
   const inputs = (
     <input ref={cameraInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onFile(e.target.files?.[0] ?? null)} />
   );
+
+  if (state.step === "serving") {
+    const { data, url } = state;
+    const targets: FeedAnimationTarget[] = [];
+    if (data.creature.species) {
+      targets.push({
+        name: data.creature.name,
+        speciesId: data.creature.species.id,
+        stageId: data.creature.stage.id,
+        state: data.before.health >= 60 ? "healthy" : data.before.health >= 30 ? "tired" : "sick",
+        healthBefore: data.before.health,
+        healthAfter: data.creature.health,
+        hungerBefore: Math.round(data.before.hunger),
+        hungerAfter: Math.round(data.creature.hunger),
+        healthDelta: data.effects.healthDelta,
+      });
+    }
+    for (const other of data.others ?? []) {
+      if (!other.speciesId) continue;
+      targets.push({
+        name: other.name,
+        speciesId: other.speciesId,
+        stageId: other.stageId,
+        state: other.state,
+        healthBefore: other.healthBefore,
+        healthAfter: other.healthAfter,
+        hungerBefore: other.hungerBefore,
+        hungerAfter: other.hungerAfter,
+        healthDelta: other.healthDelta,
+        ownerName: other.ownerName,
+      });
+    }
+    if (targets.length === 0) {
+      setState({ step: "result", url, data });
+      return null;
+    }
+    return (
+      <FeedAnimation
+        foods={data.meal.foods}
+        score={data.meal.score}
+        verdict={data.meal.verdict}
+        targets={targets}
+        onDone={() => setState((s) => (s.step === "serving" ? { step: "result", url: s.url, data: s.data } : s))}
+      />
+    );
+  }
 
   if (state.step === "result") {
     const { data } = state;

@@ -14,6 +14,7 @@ import { EggChoice } from "@/components/game/egg-choice";
 import { HatchReveal } from "@/components/game/hatch-reveal";
 import { Incubation } from "@/components/game/incubation";
 import { StepsHistory } from "@/components/game/steps-history";
+import { FeedAnimationDemo } from "@/components/game/feed-animation-demo";
 import { FeedFlow } from "@/components/game/feed-flow";
 import { MealResult } from "@/components/game/meal-result";
 import { MealsHistory } from "@/components/game/meals-history";
@@ -41,7 +42,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -135,6 +136,19 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
     }
     case "feed":
       content = <FeedFlow creature={mockCreature({ hunger: 65 })} mealsToday={2} />;
+      break;
+    case "feed-animation":
+      content = (
+        <FeedAnimationDemo
+          foods={["saumon grillé", "quinoa", "brocoli", "avocat"]}
+          score={82}
+          verdict="sain"
+          targets={[
+            { name: "Miso", speciesId: "facile-chat-rond", stageId: "enfant", state: "healthy", healthBefore: 78, healthAfter: 88.5, hungerBefore: 65, hungerAfter: 25, healthDelta: 10.5 },
+            { name: "Pipo", speciesId: "moyen-renard-malin", stageId: "adulte", state: "tired", healthBefore: 52, healthAfter: 44, hungerBefore: 30, hungerAfter: 0, healthDelta: -8, ownerName: "Léa" },
+          ]}
+        />
+      );
       break;
     case "meal-result":
       content = (

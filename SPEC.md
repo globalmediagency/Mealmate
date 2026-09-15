@@ -214,6 +214,10 @@ Source de vérité : `db/init.sql` (idempotent) ⇄ `lib/db/schema.ts`. Colonnes
 | `strava_connections` | Lien Strava | PK `user_id`, tokens (jamais exposés), `expires_at`, `last_sync_at`, `athlete_name` (migration 006) |
 | `game_settings` | Règles admin | PK `id` (= `default`), `data` jsonb (surcharges), `updated_at`, `updated_by` (migration 003) |
 
+### 4.6 Animation de nourrissage
+- Entre l'analyse et l'écran de résultat, `FeedFlow` passe par l'étape `serving` : `FeedAnimation` (`components/game/feed-animation.tsx`) dessine jusqu'à trois aliments reconnus (`foodKindsFor()` sur `meal.foods`, 28 types de dessins SVG dans `components/food/food-icon.tsx`, repli « assiette »), les fait apparaître, puis les lance en arc vers chaque créature nourrie (la sienne et celles en pension chez soi) qui renifle, mange (`reaction eat`) ou grimace (`disgust` si la santé baisse). Au moment du repas, le gain ou la perte de santé flotte au-dessus de chaque créature (vert / rouge, `mm-delta-rise`) pendant que sa jauge et sa faim se mettent à jour ; la note du repas (`ScoreRing` + verdict) apparaît en dernier, puis l'écran de résultat détaillé. Durée ≈ 4,6 s, bouton « Passer », sautée d'office sous `prefers-reduced-motion`.
+- Le trajet des aliments est mesuré au démarrage du lancer (`getBoundingClientRect`) et transmis en variables CSS `--tx` / `--ty` aux keyframes `mm-food-throw` / `mm-food-eaten` : aucune mise à jour d'état par image.
+
 ## 5. API (`app/api/…`)
 
 Réponses JSON typées ; erreurs `{ error: { code, message } }` avec codes stables :
