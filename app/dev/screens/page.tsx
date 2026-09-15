@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BoardedAway } from "@/components/game/boarded-away";
+import { BoardingProposals, OwnerBoardingNotices } from "@/components/game/boarding-notices";
 import { CreatureHome } from "@/components/game/creature-home";
 import { HostedCreatures } from "@/components/game/hosted-creatures";
 import { HostedDeathNotice } from "@/components/game/hosted-death-notice";
@@ -40,7 +41,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -254,7 +255,7 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
         <BoardedAway
           creature={mockCreature({ hunger: 35, health: 88 })}
           accessories={[{ slot: "head", id: "straw_hat" }]}
-          boarding={{ id: "66666666-6666-4666-8666-666666666666", creatureId: "demo", startedAt: new Date().toISOString(), endsAt, daysLeft: 9, seen: true }}
+          boarding={{ id: "66666666-6666-4666-8666-666666666666", creatureId: "demo", startedAt: new Date().toISOString(), endsAt, daysLeft: 9, days: 14, status: "active", seen: true }}
           host={{ userId: "u2", username: "Karim" }}
         />
       );
@@ -267,11 +268,14 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
       content = (
         <div className="space-y-4">
           <HostedDeathNotice deaths={[{ boardingId: "99999999-9999-4999-8999-999999999999", creatureName: "Pixel", ownerName: "Sophie", diedAt: new Date().toISOString() }]} />
+          <BoardingProposals
+            proposals={[{ boarding: { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", creatureId: "demo-lune", status: "pending", startedAt: new Date().toISOString(), endsAt, daysLeft: 5, days: 14, seen: false }, creature: mockCreature({ id: "demo-lune", name: "Lune", tier: "facile", species: toSpeciesSummary(getSpecies("facile-lapin-doux")!) }), ownerName: "Lina" }]}
+          />
           <CreatureHome creature={mockCreature({})} line={creatureLine(mockCreature({}))} chestsAvailable={1} />
           <HostedCreatures
             items={[
-              { boarding: { id: "77777777-7777-4777-8777-777777777777", creatureId: azur.id, startedAt: new Date().toISOString(), endsAt, daysLeft: 5, seen: false }, creature: azur, accessories: [], owner: { userId: "u2", username: "Karim" } },
-              { boarding: { id: "88888888-8888-4888-8888-888888888888", creatureId: roux.id, startedAt: new Date().toISOString(), endsAt, daysLeft: 12, seen: true }, creature: roux, accessories: [{ slot: "head", id: "beret" }], owner: { userId: "u1", username: "Marion" } },
+              { boarding: { id: "77777777-7777-4777-8777-777777777777", creatureId: azur.id, startedAt: new Date().toISOString(), endsAt, daysLeft: 5, days: 7, status: "active", seen: false }, creature: azur, accessories: [], owner: { userId: "u2", username: "Karim" } },
+              { boarding: { id: "88888888-8888-4888-8888-888888888888", creatureId: roux.id, startedAt: new Date().toISOString(), endsAt, daysLeft: 12, days: 14, status: "active", seen: true }, creature: roux, accessories: [{ slot: "head", id: "beret" }], owner: { userId: "u1", username: "Marion" } },
             ]}
           />
         </div>
@@ -285,7 +289,7 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
         <PensionHome
           creature={azur}
           accessories={[{ slot: "neck", id: "scarf" }]}
-          boarding={{ id: "77777777-7777-4777-8777-777777777777", creatureId: azur.id, startedAt: new Date().toISOString(), endsAt, daysLeft: 5, seen: true }}
+          boarding={{ id: "77777777-7777-4777-8777-777777777777", creatureId: azur.id, startedAt: new Date().toISOString(), endsAt, daysLeft: 5, days: 7, status: "active", seen: true }}
           owner={{ userId: "u2", username: "Karim" }}
           inventory={{ sirop: 2, antibiotique: 1, talisman: 0 }}
           chest={{ totalSteps: 12_400, earned: 2, opened: 1, available: 1, stepsToNext: 2_600, stepsPerChest: 5_000 }}
@@ -346,6 +350,20 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
           retentionDays={30}
           thumbsPerReward={5}
         />
+      );
+      break;
+    }
+    case "home-pending": {
+      const endsAt = new Date(Date.now() + 7 * 86_400_000).toISOString();
+      const c = mockCreature({});
+      content = (
+        <div className="space-y-4">
+          <OwnerBoardingNotices
+            proposal={{ boarding: { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", creatureId: "demo", status: "pending", startedAt: new Date().toISOString(), endsAt, daysLeft: 7, days: 7, seen: false }, host: "Karim", creatureName: "Miso" }}
+            notices={[{ boarding: { id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", creatureId: "demo", status: "ended", startedAt: new Date().toISOString(), endsAt, daysLeft: 0, days: 3, seen: true }, host: { userId: "u1", username: "Marion" }, creatureName: "Miso", kind: "declined" }]}
+          />
+          <CreatureHome creature={c} line={creatureLine(c)} />
+        </div>
       );
       break;
     }

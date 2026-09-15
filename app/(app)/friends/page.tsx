@@ -27,7 +27,8 @@ export default async function FriendsPage() {
     countCoachingBadges(session.user.id),
   ]);
   const own = held.own;
-  const boardable = own && own.status === "alive" && own.name && !held.away && rules.boarding.maxPerHost > 0 ? { creatureName: own.name, ...boardingLimits(own.tier as Tier, rules) } : null;
+  const boardable = own && own.status === "alive" && own.name && !held.away && !held.proposal && rules.boarding.maxPerHost > 0 ? { creatureName: own.name, ...boardingLimits(own.tier as Tier, rules) } : null;
+  const pendingWith = held.proposal ? { host: held.proposal.host.username, creatureName: own?.name ?? "ta créature", days: Math.round((held.proposal.endsAt.getTime() - held.proposal.startedAt.getTime()) / 86_400_000), boardingId: held.proposal.id } : null;
   return (
     <div className="space-y-5">
       <PageHeader title="Amis" subtitle="Découvre les créatures de tes proches." />
@@ -41,6 +42,7 @@ export default async function FriendsPage() {
         trades={trades}
         boardable={boardable}
         cooldownUntil={cooldown?.toISOString() ?? null}
+        pendingBoarding={pendingWith}
       />
     </div>
   );

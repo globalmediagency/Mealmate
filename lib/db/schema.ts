@@ -379,21 +379,27 @@ export const boardings = pgTable(
     hostId: text("host_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    /** Proposal time while `pending`; the real start once the host accepted (migration 011). */
     startedAt: timestamptz("started_at").notNull().defaultNow(),
     /** Agreed end of the stay (≤ 30 days after the start); the creature comes home lazily after that. */
     endsAt: timestamptz("ends_at").notNull(),
     endedAt: timestamptz("ended_at"),
-    endReason: text("end_reason", { enum: ["recovered", "returned", "expired", "died"] }),
-    /** When the host saw the "new creature in your care" notice. */
+    endReason: text("end_reason", { enum: ["recovered", "returned", "expired", "died", "declined", "cancelled"] }),
+    /** `pending` until the host accepts, `active` during the stay, `ended` afterwards (migration 011). */
+    status: text("status", { enum: ["pending", "active", "ended"] }).notNull().default("active"),
+    /** When the host saw the latest notice about this stay (a death in their care). */
     hostSeenAt: timestamptz("host_seen_at"),
+    /** When the owner saw the host's answer (accepted / declined) or an early return (migration 011). */
+    ownerSeenAt: timestamptz("owner_seen_at"),
   },
   (table) => [
     index("boardings_host_idx").on(table.hostId, table.endedAt),
     index("boardings_owner_idx").on(table.ownerId, table.endedAt),
-    // One open boarding per creature.
+    // One open (pending or active) boarding per creature.
     uniqueIndex("boardings_creature_open_idx").on(table.creatureId).where(sql`${table.endedAt} IS NULL`),
     check("boardings_not_self_check", sql`${table.ownerId} <> ${table.hostId}`),
-    check("boardings_end_reason_check", sql`${table.endReason} IS NULL OR ${table.endReason} IN ('recovered', 'returned', 'expired', 'died')`),
+    check("boardings_end_reason_check", sql`${table.endReason} IS NULL OR ${table.endReason} IN ('recovered', 'returned', 'expired', 'died', 'declined', 'cancelled')`),
+    check("boardings_status_check", sql`${table.status} IN ('pending', 'active', 'ended')`),
   ],
 );
 

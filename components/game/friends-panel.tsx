@@ -28,11 +28,13 @@ type FriendsPanelProps = {
   boardable?: { creatureName: string; maxDays: number; durations: number[] } | null;
   /** Until when the previous stay blocks a new one (admin "repos" rule). */
   cooldownUntil?: string | null;
+  /** A boarding proposal waiting for a friend's answer. */
+  pendingBoarding?: { host: string; creatureName: string; days: number; boardingId: string } | null;
   /** Dev gallery only: pre-loaded trade dialog for the first friend. */
   demoTrade?: TradeableAccessories;
 };
 
-export function FriendsPanel({ me, friends, incoming, outgoing, inventory, trades, boardable = null, cooldownUntil = null, demoTrade }: FriendsPanelProps) {
+export function FriendsPanel({ me, friends, incoming, outgoing, inventory, trades, boardable = null, cooldownUntil = null, pendingBoarding = null, demoTrade }: FriendsPanelProps) {
   const cooldownActive = cooldownUntil !== null && new Date(cooldownUntil).getTime() > Date.now();
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -171,6 +173,21 @@ export function FriendsPanel({ me, friends, incoming, outgoing, inventory, trade
         <h2 className="mb-2 font-display text-xl font-semibold text-cream-50">
           Mes amis <span className="text-sm font-normal text-cream-500">({friends.length})</span>
         </h2>
+        {pendingBoarding ? (
+          <p className="mb-2 flex flex-wrap items-center gap-2 text-xs text-cream-500">
+            <span>
+              Proposition de pension envoyée à <strong className="text-cream-100">{pendingBoarding.host}</strong> pour {pendingBoarding.creatureName} ({pendingBoarding.days} j) : en attente de sa réponse.
+            </span>
+            <button
+              type="button"
+              onClick={() => call(pendingBoarding.boardingId, `/api/boardings/${pendingBoarding.boardingId}/end`, "POST", "Proposition de pension annulée.")}
+              disabled={pending === pendingBoarding.boardingId}
+              className="min-h-11 rounded-xl border border-ink-500 px-3 text-xs font-semibold text-cream-300"
+            >
+              Annuler
+            </button>
+          </p>
+        ) : null}
         {boardable && cooldownActive && cooldownUntil ? (
           <p className="mb-2 text-xs text-cream-500">
             Après sa dernière pension, {boardable.creatureName} reste à la maison jusqu&apos;au{" "}

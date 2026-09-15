@@ -266,11 +266,14 @@ CREATE TABLE IF NOT EXISTS boardings (
   host_id      text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
   started_at   timestamptz NOT NULL DEFAULT now(),
   ends_at      timestamptz NOT NULL,
-  ended_at     timestamptz,
-  end_reason   text,
-  host_seen_at timestamptz,
+  ended_at      timestamptz,
+  end_reason    text,
+  status        text NOT NULL DEFAULT 'active',
+  host_seen_at  timestamptz,
+  owner_seen_at timestamptz,
   CONSTRAINT boardings_not_self_check CHECK (owner_id <> host_id),
-  CONSTRAINT boardings_end_reason_check CHECK (end_reason IS NULL OR end_reason IN ('recovered', 'returned', 'expired', 'died'))
+  CONSTRAINT boardings_end_reason_check CHECK (end_reason IS NULL OR end_reason IN ('recovered', 'returned', 'expired', 'died', 'declined', 'cancelled')),
+  CONSTRAINT boardings_status_check CHECK (status IN ('pending', 'active', 'ended'))
 );
 CREATE INDEX IF NOT EXISTS boardings_host_idx ON boardings (host_id, ended_at);
 CREATE INDEX IF NOT EXISTS boardings_owner_idx ON boardings (owner_id, ended_at);

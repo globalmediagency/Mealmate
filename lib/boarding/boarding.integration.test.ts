@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { MealAnalysis } from "@/lib/ai/meal-schema";
 import { getChestStatus, getOwnedAccessories, openChest } from "@/lib/accessories/service";
@@ -17,7 +17,33 @@ import { saveManualSteps } from "@/lib/steps/service";
 import type { ObjectStorage } from "@/lib/storage/r2";
 import { createTestDatabase, insertTestUser, type TestDatabase } from "@/lib/test/pglite";
 import { creatureStepsSince } from "./custody-service";
-import { boardingCooldownUntil, boardingLimits, cooldownEnd, countUnseenBoardings, diedInBoarding, endBoarding, getHeldCreature, getHeldCreatures, listUnseenDeathsHosted, livingHeld, markBoardingsSeen, saveStepsForHeld, startBoarding } from "./service";
+import {
+  boardingCooldownUntil,
+  boardingLimits,
+  cooldownEnd,
+  countOwnerNotices,
+  countUnseenBoardings,
+  diedInBoarding,
+  endBoarding,
+  getHeldCreature,
+  getHeldCreatures,
+  listOwnerNotices,
+  listProposalsFor,
+  listUnseenDeathsHosted,
+  livingHeld,
+  markBoardingsSeen,
+  markOwnerNoticesSeen,
+  respondToBoarding,
+  saveStepsForHeld,
+  startBoarding,
+} from "./service";
+
+/** Proposes Miso to Bob and lets Bob accept: the stay starts at `now`. */
+async function board(days: number, now: Date, rules?: Parameters<typeof startBoarding>[4]) {
+  const proposal = await startBoarding(alice, friendship, days, now, rules);
+  const accepted = await respondToBoarding(bob, proposal.boarding.id, true, now, rules);
+  return { ...proposal, boarding: accepted.boarding };
+}
 
 let tdb: TestDatabase;
 let alice: string;
@@ -105,28 +131,63 @@ describe("starting a stay", () => {
     await expect(startBoarding(alice, friendship, 7, T1, closed)).rejects.toMatchObject({ code: "host_full" });
   });
 
-  it("sends the creature to the friend's home, who is notified", async () => {
-    const outcome = await startBoarding(alice, friendship, 7, T1);
+  it("sends a proposal the friend must accept; the creature stays home meanwhile", async () => {
+    const T0b = new Date(T1.getTime() - 3_600_000);
+    const outcome = await startBoarding(alice, friendship, 7, T0b);
     expect(outcome.friend.username).toBe("BobB");
     expect(outcome.creature.name).toBe("Miso");
-    expect(outcome.boarding.endsAt.getTime()).toBe(T1.getTime() + 7 * DAY);
-    await expect(startBoarding(alice, friendship, 3, T1)).rejects.toMatchObject({ code: "already_boarded" });
+    expect(outcome.boarding.status).toBe("pending");
+    await expect(startBoarding(alice, friendship, 3, T0b)).rejects.toMatchObject({ code: "already_boarded" });
+
+    // Still home: the owner keeps feeding it, the host has nothing yet.
+    const mine = await getHeldCreatures(alice, T0b);
+    expect(mine.away).toBeNull();
+    expect(mine.proposal?.host.username).toBe("BobB");
+    expect(livingHeld(mine).map((h) => h.creature.name)).toEqual(["Miso"]);
+    expect((await getHeldCreatures(bob, T0b)).boarded).toEqual([]);
+    expect(await countUnseenBoardings(bob, T0b)).toBe(1); // the proposal waits for Bob
+    expect((await listProposalsFor(bob, T0b)).map((p) => [p.owner.username, p.creature.name, p.boarding.days])).toEqual([["AliceB", "Miso", 7]]);
+    await expect(respondToBoarding(carol, outcome.boarding.id, true, T0b)).rejects.toMatchObject({ code: "not_found" });
+
+    // Bob declines: Miso never left, Alice is told, no wait applies.
+    const declined = await respondToBoarding(bob, outcome.boarding.id, false, T0b);
+    expect(declined.boarding).toMatchObject({ status: "ended", endReason: "declined" });
+    expect((await listOwnerNotices(alice, T0b)).map((n) => n.kind)).toEqual(["declined"]);
+    expect(await countOwnerNotices(alice)).toBe(1);
+    await markOwnerNoticesSeen(alice, T0b);
+    expect(await countOwnerNotices(alice)).toBe(0);
+    expect(await boardingCooldownUntil(alice, T0b, DEFAULT_RULES)).toBeNull();
+
+    // Alice can withdraw a proposal herself.
+    const withdrawn = await startBoarding(alice, friendship, 7, T0b);
+    expect((await endBoarding(alice, withdrawn.boarding.id, T0b)).boarding.endReason).toBe("cancelled");
+    expect(await countOwnerNotices(alice)).toBe(0);
+  });
+
+  it("starts the stay when the friend accepts, from that instant", async () => {
+    const proposal = await startBoarding(alice, friendship, 7, new Date(T1.getTime() - 3_600_000));
+    const accepted = await respondToBoarding(bob, proposal.boarding.id, true, T1);
+    expect(accepted.accepted).toBe(true);
+    expect(accepted.boarding.status).toBe("active");
+    expect(accepted.boarding.startedAt.getTime()).toBe(T1.getTime());
+    expect(accepted.boarding.endsAt.getTime()).toBe(T1.getTime() + 7 * DAY);
+    await expect(respondToBoarding(bob, proposal.boarding.id, true, T1)).rejects.toMatchObject({ code: "not_found" });
 
     const mine = await getHeldCreatures(alice, T1);
     expect(mine.own?.id).toBe(misoId);
     expect(mine.away?.host.username).toBe("BobB");
+    expect(mine.proposal).toBeNull();
     expect(livingHeld(mine)).toEqual([]);
+    expect((await listOwnerNotices(alice, T1)).map((n) => n.kind)).toEqual(["accepted"]);
+    await markOwnerNoticesSeen(alice, T1);
 
     const theirs = await getHeldCreatures(bob, T1);
     expect(theirs.own?.name).toBe("Roux");
     expect(theirs.away).toBeNull();
     expect(theirs.boarded.map((h) => [h.creature.name, h.owner.username])).toEqual([["Miso", "AliceB"]]);
     expect(livingHeld(theirs).map((h) => h.creature.name)).toEqual(["Roux", "Miso"]);
-
-    expect(await countUnseenBoardings(bob, T1)).toBe(1);
-    await markBoardingsSeen(bob, T1);
     expect(await countUnseenBoardings(bob, T1)).toBe(0);
-    expect((await countUserFootprint(alice)).boardings).toBe(1);
+    expect((await countUserFootprint(alice)).boardings).toBe(3);
   });
 
   it("keeps the owner away from their creature and strangers out", async () => {
@@ -192,15 +253,17 @@ describe("the host takes care of the creature", () => {
   });
 
   it("can send the creature home early; the owner can then entrust it again and take it back", async () => {
-    const [open] = await getDb().select().from(boardings).where(eq(boardings.creatureId, misoId));
+    const [open] = await getDb().select().from(boardings).where(and(eq(boardings.creatureId, misoId), eq(boardings.status, "active")));
     const returned = await endBoarding(bob, open.id, T1);
     expect(returned.role).toBe("host");
     expect(returned.boarding.endReason).toBe("returned");
     expect(returned.other.username).toBe("AliceB");
     expect((await getHeldCreatures(alice, T1)).away).toBeNull();
     expect((await getHeldCreatures(bob, T1)).boarded).toEqual([]);
+    expect((await listOwnerNotices(alice, T1)).map((n) => n.kind)).toEqual(["returned"]);
+    await markOwnerNoticesSeen(alice, T1);
 
-    const again = await startBoarding(alice, friendship, 5, T1);
+    const again = await board(5, T1);
     await expect(endBoarding(carol, again.boarding.id, T1)).rejects.toMatchObject({ code: "not_found" });
     const recovered = await endBoarding(alice, again.boarding.id, new Date(T1.getTime() + 3_600_000));
     expect(recovered.role).toBe("owner");
@@ -225,7 +288,7 @@ describe("the stay ends on its own", () => {
   });
 
   it("expires after the agreed duration", async () => {
-    const stay = await startBoarding(alice, friendship, 1, new Date(T1.getTime() + 3 * 3_600_000));
+    const stay = await board(1, new Date(T1.getTime() + 3 * 3_600_000));
     const later = new Date(T1.getTime() + 2 * DAY);
     expect((await getHeldCreatures(bob, later)).boarded).toEqual([]);
     expect((await getHeldCreatures(alice, later)).away).toBeNull();
@@ -237,7 +300,7 @@ describe("the stay ends on its own", () => {
   it("sends a creature that died at the host's back to its owner, dead", async () => {
     // The expired stay lasted a day: with the multiplier of 1 the owner waits another day.
     const T2 = new Date(T1.getTime() + 4 * DAY);
-    const stay = await startBoarding(alice, friendship, 30, T2);
+    const stay = await board(30, T2);
     // Sick for a month with no care: the next tick is fatal.
     await getDb().update(creatures).set({ health: 1, sickSince: new Date(T2.getTime() - 30 * DAY), lastTickAt: T2, protectedUntil: null }).where(eq(creatures.id, misoId));
     const T3 = new Date(T2.getTime() + DAY);

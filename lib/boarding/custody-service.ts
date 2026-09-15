@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, ne, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { boardings, stepEntries, type Creature } from "@/lib/db/schema";
 import { gameDate } from "@/lib/game/time";
@@ -10,7 +10,8 @@ export async function custodySegments(creatureId: string): Promise<CustodySegmen
   const rows = await getDb()
     .select({ hostId: boardings.hostId, startedAt: boardings.startedAt, endedAt: boardings.endedAt })
     .from(boardings)
-    .where(eq(boardings.creatureId, creatureId))
+    // Proposals never moved the creature: only accepted stays count.
+    .where(and(eq(boardings.creatureId, creatureId), ne(boardings.status, "pending"), sql`${boardings.endReason} IS NULL OR ${boardings.endReason} NOT IN ('declined', 'cancelled')`))
     .orderBy(asc(boardings.startedAt));
   return rows.map((row) => ({ hostId: row.hostId, from: gameDate(row.startedAt), to: row.endedAt ? gameDate(row.endedAt) : null }));
 }

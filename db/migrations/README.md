@@ -19,5 +19,6 @@ l'éditeur SQL de Neon dans l'ordre des numéros.
 | `008_accessory_copies_gift_kind.sql` | 9 | `user_accessories.qty` (exemplaires) et `gifts.kind` (soin ou accessoire offert) |
 | `009_boardings.sql` | 10 | table `boardings` (créature confiée en pension à un ami, 30 jours au plus) |
 | `010_coaching.sql` | 11 | tables `coachings` et `meal_reviews`, compteurs de récompenses sur `profiles` |
+| `011_boardings_acceptance.sql` | 12 | `boardings.status` (proposition à accepter par l'hôte), `owner_seen_at`, motifs `declined` / `cancelled` |
 
 Un `init.sql` fraîchement exécuté contient déjà toutes ces évolutions.

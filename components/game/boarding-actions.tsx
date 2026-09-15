@@ -31,7 +31,7 @@ export function BoardWithFriend({ friend, creatureName, durations, notify }: { f
         notify("danger", await readError(response, "Pension impossible."));
         return;
       }
-      notify("success", `${creatureName} est en pension chez ${friend.user.username} pour ${days} jour${days > 1 ? "s" : ""}. Tu peux la récupérer à tout moment depuis l'écran Créature.`);
+      notify("success", `Proposition envoyée à ${friend.user.username} : ${creatureName} partira en pension pour ${days} jour${days > 1 ? "s" : ""} dès qu'il ou elle aura accepté. Tu seras prévenu·e sur ton écran Créature.`);
       setOpen(false);
       router.refresh();
     } catch {
@@ -63,8 +63,9 @@ export function BoardWithFriend({ friend, creatureName, durations, notify }: { f
             </button>
           </div>
           <p className="mt-2 text-xs leading-relaxed text-cream-500">
-            {friend.user.username} la nourrira avec ses repas, jouera avec elle et pourra la soigner. Elle part avec ses accessoires (impossible d&apos;y toucher) et les
-            coffres qu&apos;elle gagne là-bas reviennent à {friend.user.username}. Elle continue de vivre normalement : elle peut tomber malade. Tu la récupères quand tu veux.
+            {friend.user.username} devra d&apos;abord accepter ; en attendant, {creatureName} reste chez toi. Ensuite {friend.user.username} la nourrira avec ses repas, jouera avec elle
+            et pourra la soigner. Elle part avec ses accessoires (impossible d&apos;y toucher) et les coffres qu&apos;elle gagne là-bas reviennent à {friend.user.username}. Elle continue de
+            vivre normalement : elle peut tomber malade. Tu la récupères quand tu veux.
           </p>
           <div className="mt-3 flex flex-wrap gap-1.5" role="radiogroup" aria-label="Durée de la pension">
             {durations.map((d) => (
@@ -82,7 +83,7 @@ export function BoardWithFriend({ friend, creatureName, durations, notify }: { f
           </div>
           <Button size="md" className="mt-3" onClick={confirm} disabled={pending}>
             <Tent className="h-4 w-4" aria-hidden="true" />
-            {pending ? "Un instant…" : `Confier ${creatureName} pour ${days} jour${days > 1 ? "s" : ""}`}
+            {pending ? "Un instant…" : `Proposer ${creatureName} pour ${days} jour${days > 1 ? "s" : ""}`}
           </Button>
         </div>
       ) : null}

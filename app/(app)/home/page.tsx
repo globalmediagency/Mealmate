@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { BoardedAway } from "@/components/game/boarded-away";
+import { BoardingProposals, OwnerBoardingNotices } from "@/components/game/boarding-notices";
 import { CreatureHome } from "@/components/game/creature-home";
 import { EggChoice } from "@/components/game/egg-choice";
 import { GiftsNotice } from "@/components/game/gifts-notice";
@@ -10,7 +11,7 @@ import { HostedDeathNotice } from "@/components/game/hosted-death-notice";
 import { Incubation } from "@/components/game/incubation";
 import { Mourning } from "@/components/game/mourning";
 import { requireViewer } from "@/lib/auth/session";
-import { diedInBoarding, getHeldCreatures, listUnseenDeathsHosted, toBoardingView } from "@/lib/boarding/service";
+import { diedInBoarding, getHeldCreatures, listOwnerNotices, listProposalsFor, listUnseenDeathsHosted, toBoardingView } from "@/lib/boarding/service";
 import { hostedCreatureViews } from "@/lib/boarding/views";
 import { playableTiers, speciesByTierAll } from "@/lib/creatures";
 import { getObtainedSpeciesIds, getUnmournedDeath, refreshEggSteps } from "@/lib/creatures/service";
@@ -30,19 +31,34 @@ export default async function HomePage() {
   const [rules, gifts] = await Promise.all([getGameRules(), listUnseenGifts(session.user.id)]);
   // Own creature (ticked), its stay at a friend's if any, and the creatures friends entrusted to the user.
   const held = await getHeldCreatures(session.user.id, now, rules);
-  const [hosted, deaths] = await Promise.all([hostedCreatureViews(held.boarded, now, rules), listUnseenDeathsHosted(session.user.id)]);
+  const [hosted, deaths, proposals, ownerNotices] = await Promise.all([
+    hostedCreatureViews(held.boarded, now, rules),
+    listUnseenDeathsHosted(session.user.id),
+    listProposalsFor(session.user.id, now, rules),
+    listOwnerNotices(session.user.id, now),
+  ]);
   const raw = held.own;
   const creature = raw ? toCreatureView(raw.status === "egg" ? await refreshEggSteps(raw) : raw, now, rules) : null;
   // Gifts and boarded creatures can show up whatever the own creature's state: they frame every screen.
   const frame = (screen: ReactNode, options: { gifts?: boolean } = { gifts: true }) => {
     const notice = options.gifts && gifts.length > 0 ? <GiftsNotice gifts={gifts} creatureName={creature?.status === "alive" ? creature.name ?? undefined : undefined} /> : null;
     const losses = deaths.length > 0 ? <HostedDeathNotice deaths={deaths} /> : null;
+    const asked = proposals.length > 0 ? <BoardingProposals proposals={proposals.map((p) => ({ boarding: p.boarding, creature: toCreatureView(p.creature, now, rules), ownerName: p.owner.username }))} /> : null;
+    const mine =
+      held.proposal || ownerNotices.length > 0 ? (
+        <OwnerBoardingNotices
+          proposal={held.proposal ? { boarding: toBoardingView(held.proposal, now), host: held.proposal.host.username, creatureName: creature?.name ?? "ta créature" } : null}
+          notices={ownerNotices}
+        />
+      ) : null;
     const list = hosted.length > 0 ? <HostedCreatures items={hosted} /> : null;
-    if (!notice && !losses && !list) return screen;
+    if (!notice && !losses && !asked && !mine && !list) return screen;
     return (
       <div className="space-y-4">
         {notice}
         {losses}
+        {asked}
+        {mine}
         {screen}
         {list}
       </div>
