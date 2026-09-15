@@ -14,6 +14,8 @@ import { EggChoice } from "@/components/game/egg-choice";
 import { HatchReveal } from "@/components/game/hatch-reveal";
 import { Incubation } from "@/components/game/incubation";
 import { StepsHistory } from "@/components/game/steps-history";
+import { FoodIcon } from "@/components/food/food-icon";
+import { FOOD_KIND_LABELS, FOOD_KINDS } from "@/lib/meals/food-icons";
 import { FeedAnimationDemo } from "@/components/game/feed-animation-demo";
 import { FeedFlow } from "@/components/game/feed-flow";
 import { MealResult } from "@/components/game/meal-result";
@@ -42,7 +44,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -148,6 +150,21 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
             { name: "Pipo", speciesId: "moyen-renard-malin", stageId: "adulte", state: "tired", healthBefore: 52, healthAfter: 44, hungerBefore: 30, hungerAfter: 0, healthDelta: -8, ownerName: "Léa" },
           ]}
         />
+      );
+      break;
+    case "food":
+      content = (
+        <Card>
+          <h1 className="font-display text-2xl text-cream-50">Dessins d&apos;aliments ({FOOD_KINDS.length})</h1>
+          <ul className="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-6">
+            {FOOD_KINDS.map((kind) => (
+              <li key={kind} className="flex flex-col items-center gap-1 rounded-2xl bg-ink-900/60 p-2 text-center">
+                <FoodIcon kind={kind} size={48} />
+                <span className="text-[11px] text-cream-500">{FOOD_KIND_LABELS[kind]}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
       );
       break;
     case "meal-result":
