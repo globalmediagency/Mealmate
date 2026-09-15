@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FOOD_DRAWINGS } from "@/components/food/food-icon";
-import { classifyFood, FOOD_KIND_LABELS, FOOD_KINDS, foodKindsFor } from "./food-icons";
+import { classifyFood, FOOD_FAMILIES, FOOD_KIND_LABELS, FOOD_KINDS, foodKindsFor } from "./food-icons";
 
 describe("classifyFood", () => {
   it("recognises common French food names, accents or not", () => {
@@ -63,6 +63,13 @@ describe("foodKindsFor", () => {
       expect(FOOD_KIND_LABELS[kind]).toBeTruthy();
       expect(FOOD_DRAWINGS[kind]).toBeTruthy();
     }
+  });
+
+  it("lists every kind exactly once in the admin families", () => {
+    const listed = FOOD_FAMILIES.flatMap((f) => f.kinds);
+    expect(listed).toHaveLength(FOOD_KINDS.length);
+    expect(new Set(listed).size).toBe(FOOD_KINDS.length);
+    for (const kind of FOOD_KINDS) expect(listed).toContain(kind);
   });
 
   it("only produces known kinds", () => {

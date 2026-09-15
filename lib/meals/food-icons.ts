@@ -251,6 +251,19 @@ export function foodKindsFor(foods: readonly string[], max = 3): FoodKind[] {
   return kinds;
 }
 
+/** Families shown in the admin catalogue, in display order. */
+export const FOOD_FAMILIES: ReadonlyArray<{ id: string; label: string; kinds: readonly FoodKind[] }> = [
+  { id: "fruits", label: "Fruits", kinds: ["apple", "pear", "banana", "orange", "strawberry", "grapes", "cherry", "peach", "watermelon", "melon", "lemon", "kiwi", "mango", "pineapple", "avocado", "berries", "nuts", "fruit"] },
+  { id: "vegetables", label: "Légumes", kinds: ["salad", "tomato", "carrot", "broccoli", "potato", "corn", "pepper", "mushroom", "onion", "cucumber", "eggplant", "peas", "beans", "pumpkin", "olive", "chili", "garlic", "vegetables"] },
+  { id: "grains", label: "Pain, féculents et petit-déjeuner", kinds: ["bread", "croissant", "toast", "pasta", "noodles", "lasagna", "rice", "couscous", "porridge", "cereal", "pancakes", "waffle", "crepe"] },
+  { id: "dishes", label: "Plats", kinds: ["pizza", "burger", "fries", "sandwich", "hotdog", "taco", "burrito", "kebab", "sushi", "dumpling", "quiche", "curry", "soup"] },
+  { id: "proteins", label: "Viandes, poissons et œufs", kinds: ["meat", "sausage", "bacon", "ham", "meatball", "chicken", "drumstick", "fish", "shrimp", "egg", "tofu"] },
+  { id: "dairy", label: "Produits laitiers", kinds: ["cheese", "yogurt", "milk", "butter"] },
+  { id: "sweets", label: "Desserts et grignotages", kinds: ["cake", "pie", "donut", "muffin", "cookie", "chocolate", "candy", "icecream", "popcorn", "chips", "pretzel", "honey", "jam", "sauce"] },
+  { id: "drinks", label: "Boissons", kinds: ["soda", "juice", "water", "coffee", "tea", "beer", "wine", "smoothie", "milkshake"] },
+  { id: "fallback", label: "Repli", kinds: ["plate"] },
+];
+
 export const FOOD_KIND_LABELS: Record<FoodKind, string> = {
   salad: "salade",
   vegetables: "légumes",
