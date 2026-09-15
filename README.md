@@ -298,8 +298,9 @@ apparaissent alors, sans connexion nécessaire :
 8. **Strava** : connecte ton compte, synchronise.
 9. **Plus → Mes données** : export JSON, suppression du compte (photos et lien Strava compris).
 10. **Voir en vrai** : depuis l'écran Créature, télécharge le PDF du marqueur de ta créature (son
-    nom est imprimé dessous), imprime-le, lance la caméra et cadre le carré : elle se tient dessus,
-    avec ses accessoires. Un ami pose son propre marqueur à côté : les deux créatures apparaissent
+    nom est imprimé dessous), imprime-le, pose-le à plat, lance la caméra et cadre le carré : elle
+    se tient dessus en 3D, avec ses accessoires ; tourne la feuille ou déplace-toi autour pour la
+    voir de profil ou de dos. Un ami pose son propre marqueur à côté : les deux créatures apparaissent
     ensemble. Le bouton Photo garde ou partage l'image. Les images de la caméra ne quittent pas le
     téléphone.
 
@@ -312,9 +313,11 @@ apparaissent alors, sans connexion nécessaire :
   que ton propre compte.
 - **Podomètre** : pas d'accès au capteur du téléphone depuis une PWA ; la saisie manuelle et Strava
   sont les deux sources de pas.
-- **Voir en vrai** : la créature tourne avec le papier par pas de 45° (huit vues dérivées du
-  dessin : profil, dos…), pas encore une vraie 3D. Il faut un marqueur imprimé en noir franc et
-  un éclairage correct ; la caméra chauffe le téléphone, l'écran la coupe dès qu'on le quitte.
+- **Voir en vrai** : la créature est un volume 3D construit à partir de son dessin (pas un modèle
+  sculpté) et se tient sur le papier : pose la feuille à plat sur une table et regarde-la de biais,
+  une feuille tenue face à la caméra la montre de dessus. Il faut un marqueur imprimé en noir
+  franc et un éclairage correct ; la caméra chauffe le téléphone, l'écran la coupe dès qu'on le
+  quitte. Sans WebGL, le dessin tourne par pas de 45° (huit vues).
 - **Gemini** : quota gratuit limité ; en cas d'erreur, le repas n'est pas compté et un message
   l'explique.
 

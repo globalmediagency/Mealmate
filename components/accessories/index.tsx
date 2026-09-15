@@ -57,3 +57,23 @@ export function AccessoryIcon({ id, size = 64, palette, className }: { id: strin
     </svg>
   );
 }
+
+/** Whether an accessory has a drawing for that layer. */
+export function hasAccessoryLayer(id: string, layer: "front" | "back"): boolean {
+  return Boolean(ACCESSORY_RENDERERS[id]?.[layer]);
+}
+
+/**
+ * One layer of an accessory as a stand-alone SVG whose origin is the anchor
+ * (viewBox −36 −44 72 72): the 3D scene rasterises it into a texture
+ * (spec § 3.19, level 3).
+ */
+export function AccessoryLayerSvg({ id, layer, palette, speciesId }: { id: string; layer: "front" | "back"; palette: SpeciesPalette; speciesId: string }) {
+  const renderer = ACCESSORY_RENDERERS[id]?.[layer];
+  if (!renderer) return null;
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="-36 -44 72 72" width="72" height="72" data-acc={id} data-layer={layer} data-species={speciesId} aria-hidden="true">
+      {renderer({ palette })}
+    </svg>
+  );
+}

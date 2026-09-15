@@ -27,10 +27,12 @@ export type ArTarget = {
  * centre sits on the marker; the viewer positions and scales that box every
  * frame without re-rendering React. Levels (spec § 3.19):
  * - 1 `billboard`: the flat SVG, always facing the camera (superseded).
- * - 2 `views` (this one): the same drawing turned by `view × 45°` through the
+ * - 2 `views` (fallback): the same drawing turned by `view × 45°` through the
  *   fake-3D turnaround (`lib/creatures/turnaround.ts`), `view` derived from the
  *   marker's in-plane angle with hysteresis and updated only when it changes.
- * - 3 `three`: a glTF model rendered with Three.js from the full pose.
+ * - 3 `three` (`components/ar/three/`): the creature built in 3D from its
+ *   parts and rendered with Three.js from the marker's full pose; the eight
+ *   views remain the fallback when WebGL is unavailable.
  */
 export type ArRendererProps = {
   creature: ArCreature;

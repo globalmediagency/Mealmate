@@ -2,23 +2,31 @@
 
 import { Camera, CameraOff, Share2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AccessoryLayerSvg, hasAccessoryLayer } from "@/components/accessories";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { loadAruco } from "@/lib/ar/aruco-loader";
 import { AR_MARKER } from "@/lib/ar/config";
 import { coverTransform, CREATURE_HEIGHT_PER_MARKER, mapQuad, markerPose, smoothPose, type MarkerPose, type Quad } from "@/lib/ar/geometry";
-import { cn } from "@/lib/utils/cn";
+import { getSpecies } from "@/lib/creatures";
 import { viewFromAngle } from "@/lib/creatures/turnaround";
+import { cn } from "@/lib/utils/cn";
 import { ViewsRenderer } from "./renderers/views";
+import type { CreatureMeshInput } from "./three/creature-mesh";
+import type { Corner, ThreeStage } from "./three/stage";
 import type { ArTarget } from "./types";
 
 type Status = "idle" | "starting" | "running" | "unsupported" | "denied" | "error";
+/** How creatures are drawn: real 3D (level 3), or the eight-view drawings (level 2) when WebGL is unavailable. */
+type Mode = "three" | "views";
+type StageModule = typeof import("./three/stage");
+type TexturePromise = ReturnType<StageModule["textureFromSvg"]>;
 
 /** Frame width handed to the detector: an 8 cm marker at arm's length spans about 80 px here, enough to read its 8 cells. */
 const DETECT_WIDTH = 640;
 /** When one detection takes longer than this, the next frame is skipped so the video stays smooth on slower phones. */
 const SLOW_DETECT_MS = 24;
-/** Box the renderer draws in (CSS px) before scaling to the marker. */
+/** Box the fallback renderer draws in (CSS px) before scaling to the marker. */
 const BOX = 200;
 /** Ground line of the creature drawings (viewBox y ≈ 92 / 100). */
 const GROUND = 0.92;
@@ -33,23 +41,33 @@ const shadowSize = (p: MarkerPose) => ({ w: Math.max(24, p.width * 0.8), h: Math
 /**
  * Camera view with every recognised creature standing on its own printed
  * marker (spec § 3.19): the viewer's, the ones boarded with them and their
- * friends'. Detection runs on a downscaled copy of each frame; creature boxes
- * are moved with `style.transform` from the animation loop, and React only
- * re-renders when a marker appears or disappears.
+ * friends'. Detection runs on a downscaled copy of each frame. Level 3: a
+ * WebGL canvas over the video draws each creature in 3D from the marker's
+ * full pose; without WebGL, the level-2 drawings are moved with
+ * `style.transform` instead. React only re-renders when a marker appears or
+ * disappears (or, in the fallback, when a view changes).
  */
 export function ArViewer({ targets }: { targets: ArTarget[] }) {
   const [status, setStatus] = useState<Status>("idle");
+  const [mode, setMode] = useState<Mode>("three");
   const [visible, setVisible] = useState<number[]>([]);
   const [viewState, setViewState] = useState<Record<number, number>>({});
   const [photo, setPhoto] = useState<string | null>(null);
   const video = useRef<HTMLVideoElement>(null);
   const box = useRef<HTMLDivElement>(null);
+  const glCanvas = useRef<HTMLCanvasElement>(null);
+  const sprites = useRef<HTMLDivElement>(null);
   const figures = useRef(new Map<number, HTMLDivElement>());
   const shadows = useRef(new Map<number, HTMLDivElement>());
+  const labels = useRef(new Map<number, HTMLParagraphElement>());
   const work = useRef<HTMLCanvasElement | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const raf = useRef<number | null>(null);
   const detector = useRef<Detector | null>(null);
+  const stageModule = useRef<StageModule | null>(null);
+  const stage = useRef<ThreeStage | null>(null);
+  const textures = useRef(new Map<string, TexturePromise>());
+  const modeRef = useRef<Mode>("three");
   const poses = useRef(new Map<number, MarkerPose>());
   const lastSeen = useRef(new Map<number, number>());
   const visibleRef = useRef<number[]>([]);
@@ -64,6 +82,9 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
     stream.current?.getTracks().forEach((t) => t.stop());
     stream.current = null;
     if (video.current) video.current.srcObject = null;
+    stage.current?.dispose();
+    stage.current = null;
+    textures.current.clear();
     poses.current.clear();
     lastSeen.current.clear();
     views.current.clear();
@@ -84,6 +105,13 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
     return () => document.removeEventListener("visibilitychange", onHide);
   }, [stop]);
 
+  function fallBackToViews(reason: unknown) {
+    if (modeRef.current === "views") return;
+    console.warn("[ar] 3D unavailable, falling back to the drawings", reason);
+    modeRef.current = "views";
+    setMode("views");
+  }
+
   async function start() {
     if (!navigator.mediaDevices?.getUserMedia) {
       setStatus("unsupported");
@@ -91,11 +119,13 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
     }
     setStatus("starting");
     try {
-      const [AR, media] = await Promise.all([
+      const [AR, media, three] = await Promise.all([
         loadAruco(),
         navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }),
+        modeRef.current === "three" ? import("./three/stage").catch((error: unknown) => (fallBackToViews(error), null)) : Promise.resolve(null),
       ]);
       detector.current ??= new AR.Detector({ dictionaryName: AR_MARKER.dictionary });
+      stageModule.current = three;
       stream.current = media;
       const v = video.current!;
       v.srcObject = media;
@@ -109,6 +139,52 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
     }
   }
 
+  /** The 3D scene is created once the video size is known and the canvas mounted; a WebGL failure switches to the drawings. */
+  function ensureStage(v: HTMLVideoElement): ThreeStage | null {
+    if (modeRef.current !== "three") return null;
+    if (stage.current) {
+      stage.current.resize(v.videoWidth, v.videoHeight);
+      return stage.current;
+    }
+    const canvas = glCanvas.current;
+    const three = stageModule.current;
+    if (!three) {
+      fallBackToViews("module");
+      return null;
+    }
+    if (!canvas) return null;
+    try {
+      stage.current = new three.ThreeStage(canvas, v.videoWidth, v.videoHeight);
+    } catch (error) {
+      fallBackToViews(error);
+    }
+    return stage.current;
+  }
+
+  /** Accessory drawings rasterised once per species (the palette tints them) and kept until the camera stops. */
+  function textureFor(three: StageModule, speciesId: string, accessoryId: string, layer: "front" | "back"): TexturePromise {
+    const key = `${speciesId}/${accessoryId}/${layer}`;
+    let promise = textures.current.get(key);
+    if (!promise) {
+      const svg = sprites.current?.querySelector(`svg[data-acc="${accessoryId}"][data-layer="${layer}"][data-species="${speciesId}"]`);
+      promise = svg ? three.textureFromSvg(new XMLSerializer().serializeToString(svg)) : Promise.resolve(null);
+      textures.current.set(key, promise);
+    }
+    return promise;
+  }
+
+  function meshInput(target: ArTarget, three: StageModule): CreatureMeshInput | null {
+    const species = getSpecies(target.creature.speciesId);
+    if (!species) return null;
+    return {
+      species,
+      stage: target.creature.stage,
+      state: target.creature.state,
+      accessories: target.creature.accessories,
+      textures: (accessoryId, layer) => textureFor(three, species.id, accessoryId, layer),
+    };
+  }
+
   function tick() {
     raf.current = requestAnimationFrame(tick);
     const v = video.current;
@@ -118,6 +194,8 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
       skipNext.current = false;
       return;
     }
+    const scene = ensureStage(v);
+    if (modeRef.current === "three" && !scene) return; // canvas not mounted yet
     const canvas = (work.current ??= document.createElement("canvas"));
     const w = DETECT_WIDTH;
     const h = Math.round((DETECT_WIDTH * v.videoHeight) / v.videoWidth);
@@ -136,20 +214,31 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
     const rect = container.getBoundingClientRect();
     const transform = coverTransform(v.videoWidth, v.videoHeight, rect.width, rect.height);
 
+    const detections = new Map<number, Corner[]>();
     let viewsChanged = false;
     for (const marker of markers) {
-      if (marker.corners.length !== 4 || !byMarker.current.has(marker.id)) continue;
-      const quad = mapQuad(marker.corners.map((c) => ({ x: c.x * upscale, y: c.y * upscale })) as unknown as Quad, transform);
+      const target = byMarker.current.get(marker.id);
+      if (marker.corners.length !== 4 || !target) continue;
+      const videoCorners = marker.corners.map((c) => ({ x: c.x * upscale, y: c.y * upscale }));
+      const quad = mapQuad(videoCorners as unknown as Quad, transform);
       const pose = smoothPose(poses.current.get(marker.id) ?? null, markerPose(quad), SMOOTHING);
       poses.current.set(marker.id, pose);
       lastSeen.current.set(marker.id, now);
       place(marker.id, pose);
-      // The paper's rotation picks one of the eight views; React only re-renders when it changes.
-      const previous = views.current.get(marker.id) ?? null;
-      const view = viewFromAngle(pose.angle, previous);
-      if (view !== previous) {
-        views.current.set(marker.id, view);
-        viewsChanged = true;
+      if (scene && stageModule.current) {
+        const input = meshInput(target, stageModule.current);
+        if (input) {
+          scene.ensureTarget(marker.id, input);
+          detections.set(marker.id, videoCorners);
+        }
+      } else {
+        // Fallback: the paper's rotation picks one of the eight views; React only re-renders when it changes.
+        const previous = views.current.get(marker.id) ?? null;
+        const view = viewFromAngle(pose.angle, previous);
+        if (view !== previous) {
+          views.current.set(marker.id, view);
+          viewsChanged = true;
+        }
       }
     }
     for (const [id, seen] of lastSeen.current) {
@@ -159,6 +248,10 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
         views.current.delete(id);
       }
     }
+    if (scene) {
+      scene.update(detections, new Set(lastSeen.current.keys()));
+      scene.render();
+    }
     if (viewsChanged) setViewState(Object.fromEntries(views.current));
     const next = [...lastSeen.current.keys()].sort((a, b) => a - b);
     if (next.length !== visibleRef.current.length || next.some((id, i) => id !== visibleRef.current[i])) {
@@ -167,8 +260,10 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
     }
   }
 
-  /** Writes a creature's position straight into the DOM (no React render per frame). */
+  /** Writes a creature's position (fallback) and its name tag straight into the DOM (no React render per frame). */
   function place(id: number, p: MarkerPose) {
+    const label = labels.current.get(id);
+    if (label) label.style.transform = `translate(${p.center.x}px, ${p.center.y + p.height / 2 + 6}px) translateX(-50%)`;
     const scale = (p.size * CREATURE_HEIGHT_PER_MARKER) / BOX;
     const figure = figures.current.get(id);
     if (figure) figure.style.transform = `translate(${p.center.x - BOX / 2}px, ${p.center.y - BOX * GROUND}px) scale(${scale})`;
@@ -184,7 +279,7 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
   // Boxes mount after their marker is seen: place them right away instead of waiting for the next frame.
   useEffect(() => {
     for (const [id, pose] of poses.current) place(id, pose);
-  }, [visible]);
+  }, [visible, mode]);
 
   /** Composes the current frame and every visible creature into a picture to save or share. */
   async function snapshot() {
@@ -197,10 +292,19 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.drawImage(v, 0, 0);
+    if (stage.current) {
+      stage.current.drawTo(ctx);
+    } else {
+      await drawFallback(ctx, v, container);
+    }
+    setPhoto(canvas.toDataURL("image/jpeg", 0.9));
+  }
+
+  /** Fallback snapshot: the drawings rasterised one by one, farthest first. */
+  async function drawFallback(ctx: CanvasRenderingContext2D, v: HTMLVideoElement, container: HTMLDivElement) {
     const rect = container.getBoundingClientRect();
     const t = coverTransform(v.videoWidth, v.videoHeight, rect.width, rect.height);
     const toVideo = (n: number) => n / t.scale;
-    // Farthest creatures first, so the nearest ones are drawn on top.
     const entries = [...poses.current.entries()].sort((a, b) => a[1].size - b[1].size);
     for (const [id, p] of entries) {
       const svg = figures.current.get(id)?.querySelector("svg");
@@ -230,7 +334,6 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
         URL.revokeObjectURL(url);
       }
     }
-    setPhoto(canvas.toDataURL("image/jpeg", 0.9));
   }
 
   async function share() {
@@ -259,11 +362,33 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
         <video ref={video} playsInline muted autoPlay className={cn("absolute inset-0 h-full w-full object-cover", !running && "hidden")} aria-label="Image de la caméra" />
         {running ? (
           <>
+            {mode === "three" ? (
+              <canvas ref={glCanvas} data-ar-stage className="pointer-events-none absolute inset-0 h-full w-full object-cover" aria-hidden="true" />
+            ) : null}
             {visible.map((id) => {
               const target = byMarker.current.get(id);
               if (!target) return null;
+              const label = (
+                <p
+                  ref={(el) => {
+                    if (el) labels.current.set(id, el);
+                    else labels.current.delete(id);
+                  }}
+                  className="pointer-events-none absolute left-0 top-0 whitespace-nowrap rounded-full bg-ink-950/70 px-2 py-0.5 text-center text-[11px] font-semibold text-cream-50 backdrop-blur"
+                >
+                  {target.creature.name}
+                  {target.ownerName ? <span className="font-normal text-cream-300"> · {target.ownerName}</span> : null}
+                </p>
+              );
+              if (mode === "three") {
+                return (
+                  <div key={id} data-marker={id} data-mode="three" aria-label={target.creature.name ?? undefined}>
+                    {label}
+                  </div>
+                );
+              }
               return (
-                <div key={id}>
+                <div key={id} data-marker={id} data-mode="views" data-view={viewState[id] ?? 0}>
                   <div
                     ref={(el) => {
                       if (el) shadows.current.set(id, el);
@@ -277,18 +402,12 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
                       if (el) figures.current.set(id, el);
                       else figures.current.delete(id);
                     }}
-                    aria-hidden="false"
-                    data-marker={id}
-                    data-view={viewState[id] ?? 0}
                     className="pointer-events-none absolute left-0 top-0 origin-[50%_92%]"
                     style={{ width: BOX, height: BOX }}
                   >
                     <ViewsRenderer creature={target.creature} size={BOX} view={viewState[id] ?? 0} />
-                    <p className="absolute left-1/2 top-[95%] -translate-x-1/2 whitespace-nowrap rounded-full bg-ink-950/70 px-2 py-0.5 text-center text-[11px] font-semibold text-cream-50 backdrop-blur">
-                      {target.creature.name}
-                      {target.ownerName ? <span className="font-normal text-cream-300"> · {target.ownerName}</span> : null}
-                    </p>
                   </div>
+                  {label}
                 </div>
               );
             })}
@@ -315,6 +434,19 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
             </Button>
           </div>
         )}
+      </div>
+
+      {/* Accessory drawings the 3D scene turns into textures (never displayed). */}
+      <div ref={sprites} hidden aria-hidden="true">
+        {targets.flatMap((target) => {
+          const species = getSpecies(target.creature.speciesId);
+          if (!species) return [];
+          return target.creature.accessories.flatMap((accessory) =>
+            (["front", "back"] as const)
+              .filter((layer) => hasAccessoryLayer(accessory.id, layer))
+              .map((layer) => <AccessoryLayerSvg key={`${species.id}/${accessory.id}/${layer}`} id={accessory.id} layer={layer} palette={species.palette} speciesId={species.id} />),
+          );
+        })}
       </div>
 
       {running ? (
