@@ -179,8 +179,23 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
         <div className="space-y-4">
           <ArViewer
             targets={[
-              { markerId: 17, mine: true, ownerName: null, creature: { name: "Miso", speciesId: "facile-chat-rond", stage: "enfant", state: "healthy", accessories: [{ slot: "head", id: "beret" }] } },
-              { markerId: 42, mine: false, ownerName: "Léa", creature: { name: "Pipo", speciesId: "moyen-renard-malin", stage: "adulte", state: "healthy", accessories: [] } },
+              { markerId: 17, mine: true, ownerName: null, creature: { name: "Miso", speciesId: "facile-panda-roux", stage: "enfant", state: "healthy", accessories: [{ slot: "head", id: "beret" }, { slot: "eyes", id: "round_glasses" }] } },
+              {
+                markerId: 42,
+                mine: false,
+                ownerName: "Léa",
+                creature: {
+                  name: "Pipo",
+                  speciesId: "facile-cochon-dinde",
+                  stage: "adulte",
+                  state: "healthy",
+                  accessories: [
+                    { slot: "head", id: "nightcap" },
+                    { slot: "neck", id: "bow_tie" },
+                    { slot: "body", id: "butterfly_wings" },
+                  ],
+                },
+              },
             ]}
           />
           <div className="flex justify-center gap-4">

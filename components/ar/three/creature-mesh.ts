@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { EquippedAccessory } from "@/components/creatures/creature";
 import { LAYOUTS, shade, stageScales, type Layout } from "@/components/creatures/layout";
-import type { EarType, ExtraType, MouthType, Species, SpeciesPalette, TailType } from "@/lib/creatures/types";
+import type { EarType, ExtraType, MarkingType, MouthType, Species, SpeciesPalette, TailType } from "@/lib/creatures/types";
 import type { StageId } from "@/lib/game/config";
 import type { CreatureState } from "@/lib/game/creature-view";
 
@@ -85,14 +85,19 @@ export function buildCreatureMesh(input: CreatureMeshInput): CreatureMesh {
   const torso = sphere(palette.primary, rx, ry, rz);
   torso.position.copy(bodyCentre);
   body.add(torso);
-  if (species.parts.body !== "serpent") {
-    const belly = sphere(shade(palette.primary, 0.32), rx * 0.62, ry * 0.55, rz * 0.32);
-    belly.position.set(bodyCentre.x, bodyCentre.y - ry * 0.12, rz * 0.74);
-    body.add(belly);
-  } else {
+  if (species.parts.body === "serpent") {
     const neck = tube(palette.primary, [[X(50), Y(72), 0], [X(56), Y(56), 0], [X(62), Y(42), 0]], 6);
     body.add(neck);
   }
+  /** Front surface of the body ellipsoid at a point of the drawing (root coordinates), 0 outside it. */
+  const bodySurface = (x: number, y: number) => {
+    const wx = (x - bodyCentre.x) / rx;
+    const wy = (y - bodyCentre.y) / ry;
+    return rz * Math.sqrt(Math.max(0, 1 - wx * wx - wy * wy));
+  };
+  // Markings, like the 2D drawing: none on babies, faint on children.
+  const markingOpacity = stage === "bebe" ? 0 : stage === "enfant" ? 0.6 : 1;
+  if (markingOpacity > 0) buildBodyMarkings(species.parts.markings, layout, palette, markingOpacity, { sphere }, body, bodySurface);
 
   // --- Head (a separate sphere, or the upper part of the blob) ---
   const head = new THREE.Group();
@@ -107,12 +112,13 @@ export function buildCreatureMesh(input: CreatureMeshInput): CreatureMesh {
     surfaceZ = (x, y) => Math.sqrt(Math.max(0, r * r - x * x - y * y));
   } else {
     body.add(head);
-    surfaceZ = (x, y) => {
-      const wx = (headCentre.x + x - bodyCentre.x) / rx;
-      const wy = (headCentre.y + y - bodyCentre.y) / ry;
-      return rz * Math.sqrt(Math.max(0, 1 - wx * wx - wy * wy));
-    };
+    surfaceZ = (x, y) => bodySurface(headCentre.x + x, headCentre.y + y);
   }
+  /** Front-most surface of the whole silhouette at a point of the drawing (root coordinates). */
+  const frontZ = (x: number, y: number) => {
+    const headZ = layout.hasDistinctHead ? surfaceZ(x - headCentre.x, y - headCentre.y) * scales.head : 0;
+    return Math.max(bodySurface(x, y) * scales.body, headZ, species.parts.body === "serpent" ? 6 : 0);
+  };
 
   // --- Face ---
   const face = new THREE.Group();
@@ -124,8 +130,8 @@ export function buildCreatureMesh(input: CreatureMeshInput): CreatureMesh {
   for (const side of [-1, 1]) {
     const x = side * layout.eyeGap;
     const eye = new THREE.Group();
-    eye.position.set(x, eyeY, surfaceZ(x, eyeY) * 0.92);
     const er = 3.3 * layout.eyeScale * (eyeType === "big" ? 1.15 : 1);
+    eye.position.set(x, eyeY, surfaceZ(x, eyeY) - er * 0.4);
     const white = sphere("#ffffff", er, er * (eyeType === "sleepy" ? 0.6 : eyeType === "sharp" ? 0.78 : 1), er * 0.8, { roughness: 0.4 });
     eye.add(white);
     const iris = sphere(palette.eye, er * 0.55, er * 0.55 * (eyeType === "sleepy" ? 0.6 : 1), er * 0.3, { roughness: 0.35 });
@@ -144,15 +150,22 @@ export function buildCreatureMesh(input: CreatureMeshInput): CreatureMesh {
     eyes.push(eye);
   }
   const mouthY = layout.head.cy - layout.mouthY;
-  const mouth = buildMouth(species.parts.mouth, state, palette, { sphere, cone, tube });
-  mouth.position.set(0, mouthY, surfaceZ(0, mouthY) * 0.97);
+  const mouthZ = surfaceZ(0, mouthY);
+  if (species.parts.markings === "mask" && markingOpacity > 0) {
+    // Light muzzle patch under the mouth, like the 2D drawing.
+    const muzzle = sphere(palette.secondary, 8.5, 5.6, 2.2, { transparent: true, opacity: 0.95 * markingOpacity });
+    muzzle.position.set(0, mouthY + 0.5, surfaceZ(0, mouthY + 0.5) - 1.6);
+    face.add(muzzle);
+  }
+  const mouth = buildMouth(species.parts.mouth, state, palette, { sphere, cone, tube }, (x, y) => surfaceZ(x, mouthY + y) - mouthZ + 0.6);
+  mouth.position.set(0, mouthY, mouthZ);
   face.add(mouth);
   if (state !== "dead" && state !== "sick") {
     for (const side of [-1, 1]) {
       const x = side * layout.cheekGap;
       const cy = layout.head.cy - layout.cheekY;
       const cheek = sphere(palette.accent, 3.6, 2.1, 1.4, { transparent: true, opacity: 0.55 });
-      cheek.position.set(x, cy, surfaceZ(x, cy) * 0.9);
+      cheek.position.set(x, cy, surfaceZ(x, cy) - 0.5);
       face.add(cheek);
     }
   }
@@ -176,7 +189,8 @@ export function buildCreatureMesh(input: CreatureMeshInput): CreatureMesh {
 
   // --- Accessories: their own drawings as textured cards ---
   const worn = Object.fromEntries(accessories.map((a) => [a.slot, a.id])) as Partial<Record<EquippedAccessory["slot"], string>>;
-  const card = (texture: THREE.Texture, cross: boolean) => {
+  /** A flat card in the creature's own plane (front or back of the body), its anchor at the group's origin. */
+  const card = (texture: THREE.Texture) => {
     const g = new THREE.Group();
     const geo = geometry(new THREE.PlaneGeometry(ACCESSORY_PLANE, ACCESSORY_PLANE));
     const m = new THREE.MeshBasicMaterial({ map: texture, transparent: true, alphaTest: 0.08, side: THREE.DoubleSide, depthWrite: false });
@@ -184,27 +198,33 @@ export function buildCreatureMesh(input: CreatureMeshInput): CreatureMesh {
     const plane = new THREE.Mesh(geo, m);
     plane.position.y = 8; // the SVG origin (the anchor) sits 8 units below the card's centre
     g.add(plane);
-    if (cross) {
-      const second = plane.clone();
-      second.rotation.y = Math.PI / 2;
-      g.add(second);
-    }
     return g;
   };
-  const attach = (id: string | undefined, layer: "front" | "back", holder: THREE.Object3D, at: THREE.Vector3, cross: boolean) => {
+  /** The drawing always facing the camera, its anchor at the sprite's position: readable from every side, hidden by the body from behind. */
+  const sprite = (texture: THREE.Texture) => {
+    const m = new THREE.SpriteMaterial({ map: texture, transparent: true, alphaTest: 0.08 });
+    disposables.push(m, texture);
+    const s = new THREE.Sprite(m);
+    s.scale.set(ACCESSORY_PLANE, ACCESSORY_PLANE, 1);
+    s.center.set(0.5, (ACCESSORY_PLANE - 44) / ACCESSORY_PLANE);
+    return s;
+  };
+  const attach = (id: string | undefined, layer: "front" | "back", holder: THREE.Object3D, at: THREE.Vector3, shape: "card" | "sprite") => {
     if (!id) return;
     void textures(id, layer).then((texture) => {
       if (!texture || disposed) return;
-      const c = card(texture, cross);
+      const c = shape === "sprite" ? sprite(texture) : card(texture);
       c.position.copy(at);
       holder.add(c);
     });
   };
-  attach(worn.head, "front", head, new THREE.Vector3(0, layout.head.cy - layout.top, 0), true);
-  attach(worn.eyes, "front", face, new THREE.Vector3(0, eyeY, surfaceZ(0, eyeY) + 2), false);
-  attach(worn.neck, "front", body, new THREE.Vector3(X(layout.neck[0]), Y(layout.neck[1]), 0), true);
-  attach(worn.body, "front", body, new THREE.Vector3(bodyCentre.x, bodyCentre.y, rz + 2), false);
-  attach(worn.body, "back", body, new THREE.Vector3(bodyCentre.x, bodyCentre.y, -rz - 2), false);
+  const neckX = X(layout.neck[0]);
+  const neckY = Y(layout.neck[1]);
+  attach(worn.head, "front", head, new THREE.Vector3(0, layout.head.cy - layout.top, 0), "sprite");
+  attach(worn.eyes, "front", face, new THREE.Vector3(0, eyeY, surfaceZ(0, eyeY) + 1.5), "sprite");
+  attach(worn.neck, "front", body, new THREE.Vector3(neckX, neckY, frontZ(neckX, neckY) / scales.body + 1.5), "sprite");
+  attach(worn.body, "front", body, new THREE.Vector3(bodyCentre.x, bodyCentre.y, rz + 2), "card");
+  attach(worn.body, "back", body, new THREE.Vector3(bodyCentre.x, bodyCentre.y, -rz - 2), "card");
 
   const baseScaleY = root.scale.y;
   const blinkPeriod = 3.2 + (hashOf(species.id) % 20) / 10;
@@ -233,9 +253,17 @@ type Builders = {
   geometry?: <G extends THREE.BufferGeometry>(g: G) => G;
 };
 
-function buildMouth(type: MouthType, state: CreatureState, palette: SpeciesPalette, b: Required<Pick<Builders, "sphere" | "cone" | "tube">>): THREE.Group {
+function buildMouth(
+  type: MouthType,
+  state: CreatureState,
+  palette: SpeciesPalette,
+  b: Required<Pick<Builders, "sphere" | "cone" | "tube">>,
+  /** Depth of the surface under a point of the mouth (relative to the mouth's origin), so lines hug the face. */
+  depth: (x: number, y: number) => number,
+): THREE.Group {
   const g = new THREE.Group();
-  const line = (points: [number, number, number][], color = palette.eye, radius = 0.7) => g.add(b.tube(color, points, radius));
+  const line = (points: [number, number, number][], color = palette.eye, radius = 0.7) =>
+    g.add(b.tube(color, points.map(([x, y, z]): [number, number, number] => [x, y, z + depth(x, y)]), radius));
   if (state === "sick") {
     line([[-4.5, -1, 0], [-2.2, 1.2, 0], [0, -1, 0], [2.2, -3, 0], [4.5, -1, 0]]);
   } else if (state === "tired") {
@@ -276,7 +304,7 @@ function buildMouth(type: MouthType, state: CreatureState, palette: SpeciesPalet
         for (const side of [-1, 1]) {
           const fang = b.cone("#ffffff", 0.7, 2.4);
           fang.rotation.x = Math.PI;
-          fang.position.set(side * 2.2, -1.4, 0.4);
+          fang.position.set(side * 2.2, -1.4, 0.9);
           g.add(fang);
         }
         break;
@@ -379,6 +407,41 @@ function buildEars(
     }
     if (type !== "horns" && type !== "pig") ear.rotation.z = -side * 0.32;
     place(ear, point[0] - layout.head.cx, layout.head.cy - point[1]);
+  }
+}
+
+/** Body markings as flat, translucent bumps on the surface (belly patch, spots, stripes); the others stay in 2D only. */
+function buildBodyMarkings(
+  type: MarkingType,
+  layout: Layout,
+  palette: SpeciesPalette,
+  opacity: number,
+  b: Pick<Builders, "sphere">,
+  body: THREE.Group,
+  surface: (x: number, y: number) => number,
+) {
+  const { cx, cy, rx, ry } = layout.body;
+  const bump = (color: string, x: number, y: number, w: number, h: number, alpha: number) => {
+    const m = b.sphere(color, w, h, 1.6, { transparent: true, opacity: alpha * opacity, depthWrite: false });
+    m.position.set(X(x), Y(y), surface(X(x), Y(y)) - 0.7);
+    body.add(m);
+  };
+  switch (type) {
+    case "belly_patch":
+      bump(palette.accent, cx, cy + ry * 0.2, rx * 0.55, ry * 0.5, 0.55);
+      return;
+    case "spots":
+      bump(palette.secondary, cx - 9, cy - 4, 3.2, 3.2, 0.55);
+      bump(palette.secondary, cx + 10, cy + 2, 2.6, 2.6, 0.55);
+      bump(palette.secondary, cx - 2, cy + 9, 2.1, 2.1, 0.55);
+      bump(palette.secondary, cx + 4, cy - 10, 1.9, 1.9, 0.55);
+      return;
+    case "stripes":
+      bump(palette.secondary, cx - rx + 4, cy - 2, 1.4, 5, 0.8);
+      bump(palette.secondary, cx + rx - 4, cy - 2, 1.4, 5, 0.8);
+      return;
+    default:
+      return;
   }
 }
 
