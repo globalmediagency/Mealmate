@@ -2,7 +2,15 @@ import type { EarType, SpeciesPalette } from "@/lib/creatures/types";
 import type { Layout } from "../layout";
 import { shade, withAlpha } from "../layout";
 
-type EarsProps = { type: EarType; layout: Layout; palette: SpeciesPalette };
+import type { FeaturePlacement } from "../turn";
+
+type EarsProps = {
+  type: EarType;
+  layout: Layout;
+  palette: SpeciesPalette;
+  /** Turned-head placement (spec § 3.19): x from the head centre, squash, and whether the ear now points left. */
+  placement?: { left: FeaturePlacement & { mirror: boolean }; right: FeaturePlacement & { mirror: boolean }; hornX: number };
+};
 
 function Ear({ type, palette }: { type: EarType; palette: SpeciesPalette }) {
   const inner = withAlpha(palette.accent, 0.75);
@@ -80,21 +88,25 @@ function Ear({ type, palette }: { type: EarType; palette: SpeciesPalette }) {
   }
 }
 
-export function Ears({ type, layout, palette }: EarsProps) {
+export function Ears({ type, layout, palette, placement }: EarsProps) {
   if (type === "none") return null;
   const { left, right, tilt } = layout.ears;
+  const cx = layout.head.cx;
+  const l = placement?.left ?? { x: left[0] - cx, squash: 1, visible: true, mirror: true };
+  const r = placement?.right ?? { x: right[0] - cx, squash: 1, visible: true, mirror: false };
+  const hornX = cx + (placement?.hornX ?? 0);
   return (
     <g>
       {type === "horn" ? (
-        <g transform={`translate(${layout.head.cx} ${layout.top + 2})`}>
+        <g transform={`translate(${hornX} ${layout.top + 2})`}>
           <path d="M-3.2 1 L0 -17 L3.2 1 Z" fill={palette.accent} stroke={shade(palette.accent, -0.3)} strokeWidth="0.6" />
           <path d="M-2 -3 L2 -5 M-1.5 -8 L1.5 -10" stroke={shade(palette.accent, -0.3)} strokeWidth="0.7" strokeLinecap="round" />
         </g>
       ) : null}
-      <g transform={`translate(${left[0]} ${left[1]}) scale(-1 1) rotate(${-tilt})`}>
+      <g transform={`translate(${cx + l.x} ${left[1]}) scale(${l.mirror ? -l.squash : l.squash} 1) rotate(${-tilt})`}>
         <Ear type={type} palette={palette} />
       </g>
-      <g transform={`translate(${right[0]} ${right[1]}) rotate(${-tilt})`}>
+      <g transform={`translate(${cx + r.x} ${right[1]}) scale(${r.mirror ? -r.squash : r.squash} 1) rotate(${-tilt})`}>
         <Ear type={type} palette={palette} />
       </g>
     </g>

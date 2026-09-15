@@ -1,6 +1,7 @@
 import type { CreatureState } from "@/lib/game/creature-view";
 import type { EyeType, SpeciesPalette } from "@/lib/creatures/types";
 import type { Layout } from "../layout";
+import type { FeaturePlacement } from "../turn";
 
 type EyesProps = {
   type: EyeType;
@@ -10,6 +11,8 @@ type EyesProps = {
   uid: string;
   /** Skin colour under the eyelids. */
   lidColor: string;
+  /** Turned-head placement per side (relative x from the face centre, horizontal squash, visibility). */
+  placement?: { l: FeaturePlacement; r: FeaturePlacement };
 };
 
 const STAR = "M0 -3.2 L0.8 -0.8 L3.2 0 L0.8 0.8 L0 3.2 L-0.8 0.8 L-3.2 0 L-0.8 -0.8 Z";
@@ -122,16 +125,23 @@ function Eye({
   );
 }
 
-export function Eyes({ type, layout, palette, state, uid, lidColor }: EyesProps) {
+export function Eyes({ type, layout, palette, state, uid, lidColor, placement }: EyesProps) {
   const { eyeY, eyeGap, eyeScale, faceX } = layout;
+  // Turned head (spec § 3.19): each eye slides along the head sphere, narrows and hides on the far side.
+  const l = placement?.l ?? { x: -eyeGap, squash: 1, visible: true };
+  const r = placement?.r ?? { x: eyeGap, squash: 1, visible: true };
   return (
     <g>
-      <g transform={`translate(${faceX - eyeGap} ${eyeY}) scale(${eyeScale})`}>
-        <Eye type={type} palette={palette} state={state} side="l" uid={uid} lidColor={lidColor} />
-      </g>
-      <g transform={`translate(${faceX + eyeGap} ${eyeY}) scale(${eyeScale})`}>
-        <Eye type={type} palette={palette} state={state} side="r" uid={uid} lidColor={lidColor} />
-      </g>
+      {l.visible ? (
+        <g transform={`translate(${faceX + l.x} ${eyeY}) scale(${eyeScale * l.squash} ${eyeScale})`}>
+          <Eye type={type} palette={palette} state={state} side="l" uid={uid} lidColor={lidColor} />
+        </g>
+      ) : null}
+      {r.visible ? (
+        <g transform={`translate(${faceX + r.x} ${eyeY}) scale(${eyeScale * r.squash} ${eyeScale})`}>
+          <Eye type={type} palette={palette} state={state} side="r" uid={uid} lidColor={lidColor} />
+        </g>
+      ) : null}
     </g>
   );
 }

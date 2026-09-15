@@ -26,14 +26,15 @@ export type ArTarget = {
  * A renderer draws the creature inside a `size × size` box whose bottom
  * centre sits on the marker; the viewer positions and scales that box every
  * frame without re-rendering React. Levels (spec § 3.19):
- * - 1 `billboard`: the flat SVG, always facing the camera (this one).
- * - 2 `views`: the same, choosing among several drawn views from `view`
- *   (derived from the marker's in-plane angle, updated only when it changes).
+ * - 1 `billboard`: the flat SVG, always facing the camera (superseded).
+ * - 2 `views` (this one): the same drawing turned by `view × 45°` through the
+ *   fake-3D turnaround (`lib/creatures/turnaround.ts`), `view` derived from the
+ *   marker's in-plane angle with hysteresis and updated only when it changes.
  * - 3 `three`: a glTF model rendered with Three.js from the full pose.
  */
 export type ArRendererProps = {
   creature: ArCreature;
   size: number;
-  /** Quantised orientation for multi-view renderers (0 = facing the camera). Unused by the billboard. */
+  /** Quantised orientation, 0–7 (0 = facing the camera, then 45° steps clockwise seen from above). */
   view: number;
 };

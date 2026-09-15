@@ -4,6 +4,7 @@ import type { StageId } from "@/lib/game/config";
 import type { CreatureState } from "@/lib/game/creature-view";
 import { cn } from "@/lib/utils/cn";
 import { AccessoryAt } from "@/components/accessories";
+import { turnPlacements } from "./turn";
 import { LAYOUTS, hashUnit, shade, stageScales } from "./layout";
 import { BodyShape, HeadShape } from "./parts/bodies";
 import { Ears } from "./parts/ears";
@@ -30,6 +31,8 @@ export type CreatureRenderProps = {
   reaction?: Reaction | null;
   /** Flat dark silhouette (collection / egg choice). */
   silhouette?: boolean;
+  /** Turn of the creature in degrees (spec § 3.19, level 2): 0 faces the camera, 90 shows its left side to the viewer's left, 180 its back. */
+  yaw?: number;
   className?: string;
   style?: CSSProperties;
   title?: string;
@@ -49,6 +52,7 @@ export const SvgCreatureRenderer: CreatureRenderer = ({
   animated = true,
   reaction = null,
   silhouette = false,
+  yaw = 0,
   className,
   style,
   title,
@@ -65,6 +69,9 @@ export const SvgCreatureRenderer: CreatureRenderer = ({
   const blinkDelay = hashUnit(species.id, 2) * 2;
 
   const worn = Object.fromEntries(accessories.map((a) => [a.slot, a.id])) as Partial<Record<EquippedAccessory["slot"], string>>;
+  const yawDeg = ((yaw % 360) + 360) % 360;
+  const turn = yawDeg === 0 ? null : turnPlacements(layout, yawDeg);
+  const cheek = (side: "l" | "r") => turn?.cheeks[side] ?? { x: side === "l" ? -layout.cheekGap : layout.cheekGap, squash: 1, visible: true };
   const showAccessories = !silhouette;
 
   const filter =
@@ -81,19 +88,27 @@ export const SvgCreatureRenderer: CreatureRenderer = ({
     <g transform={faceTransform}>
       {isAlive && state !== "sick" ? (
         <g fill={palette.accent} opacity="0.5">
-          <ellipse cx={layout.faceX - layout.cheekGap} cy={layout.cheekY} rx="3.6" ry="2.1" />
-          <ellipse cx={layout.faceX + layout.cheekGap} cy={layout.cheekY} rx="3.6" ry="2.1" />
+          {(["l", "r"] as const).map((side) => {
+            const c = cheek(side);
+            return c.visible ? <ellipse key={side} cx={layout.faceX + c.x} cy={layout.cheekY} rx={3.6 * c.squash} ry="2.1" /> : null;
+          })}
         </g>
       ) : null}
-      <Eyes type={parts.eyes} layout={layout} palette={palette} state={state} uid={uid} lidColor={palette.primary} />
-      <Mouth type={parts.mouth} layout={layout} palette={palette} state={state} />
-      {showAccessories && worn.eyes ? (
-        <AccessoryAt id={worn.eyes} anchor={[layout.faceX, layout.eyeY]} layer="front" palette={palette} />
+      <Eyes type={parts.eyes} layout={layout} palette={palette} state={state} uid={uid} lidColor={palette.primary} placement={turn?.eyes} />
+      <Mouth type={parts.mouth} layout={layout} palette={palette} state={state} placement={turn?.mouth} />
+      {showAccessories && worn.eyes && (turn?.eyeAccessory.visible ?? true) ? (
+        <g transform={turn ? `translate(${layout.faceX + turn.eyeAccessory.x} ${layout.eyeY}) scale(${turn.eyeAccessory.squash} 1) translate(${-layout.faceX} ${-layout.eyeY})` : undefined}>
+          <AccessoryAt id={worn.eyes} anchor={[layout.faceX, layout.eyeY]} layer="front" palette={palette} />
+        </g>
       ) : null}
     </g>
   );
   const headAccessory =
-    showAccessories && worn.head ? <AccessoryAt id={worn.head} anchor={[layout.head.cx, layout.top]} layer="front" palette={palette} /> : null;
+    showAccessories && worn.head ? <AccessoryAt id={worn.head} anchor={[layout.head.cx + (turn?.headShiftX ?? 0), layout.top]} layer="front" palette={palette} /> : null;
+  // Seen from behind, a cape or a bag shows its back side in front of the body and its front side not at all.
+  const turnedAway = (turn?.facing ?? 1) < 0;
+  const tail = <Tail type={parts.tail} layout={layout} palette={palette} placement={turn ? { x: turn.tail.x, mirror: turn.tail.mirror } : undefined} />;
+  const tailInFront = turn?.tail.inFront ?? false;
 
   return (
     <svg
@@ -152,22 +167,25 @@ export const SvgCreatureRenderer: CreatureRenderer = ({
               {parts.markings === "shell" ? (
                 <BackMarkings type="shell" layout={layout} palette={palette} opacity={Math.max(0.6, markingOpacity)} />
               ) : null}
-              {showAccessories && worn.body ? (
+              {showAccessories && worn.body && !turnedAway ? (
                 <AccessoryAt id={worn.body} anchor={[layout.body.cx, layout.body.cy]} layer="back" palette={palette} />
               ) : null}
-              <Tail type={parts.tail} layout={layout} palette={palette} />
+              {tailInFront ? null : tail}
             </g>
 
             {/* Body layer. */}
             <g transform={bodyTransform}>
               <BodyShape layout={layout} palette={palette} gradientId={`${uid}-skin`} serpent={parts.body === "serpent"} />
               <BodyMarkings type={parts.markings} layout={layout} palette={palette} opacity={markingOpacity} />
-              {!layout.hasDistinctHead ? <Ears type={parts.ears} layout={layout} palette={palette} /> : null}
+              {!layout.hasDistinctHead ? <Ears type={parts.ears} layout={layout} palette={palette} placement={turn?.ears} /> : null}
               {isSage && !worn.neck && !worn.body ? <NeckSignature type={species.signature} layout={layout} palette={palette} /> : null}
               {showAccessories && worn.body ? (
-                <AccessoryAt id={worn.body} anchor={[layout.body.cx, layout.body.cy]} layer="front" palette={palette} />
+                <AccessoryAt id={worn.body} anchor={[layout.body.cx, layout.body.cy]} layer={turnedAway ? "back" : "front"} palette={palette} />
               ) : null}
-              {showAccessories && worn.neck ? <AccessoryAt id={worn.neck} anchor={layout.neck} layer="front" palette={palette} /> : null}
+              {showAccessories && worn.neck ? (
+                <AccessoryAt id={worn.neck} anchor={[layout.neck[0] + (turn?.neckShiftX ?? 0), layout.neck[1]]} layer="front" palette={palette} />
+              ) : null}
+              {tailInFront ? tail : null}
             </g>
 
             {/* Head layer (distinct heads grow on babies). */}
@@ -176,7 +194,7 @@ export const SvgCreatureRenderer: CreatureRenderer = ({
                 {parts.markings === "spikes" ? (
                   <BackMarkings type="spikes" layout={layout} palette={palette} opacity={Math.max(0.7, markingOpacity)} />
                 ) : null}
-                <Ears type={parts.ears} layout={layout} palette={palette} />
+                <Ears type={parts.ears} layout={layout} palette={palette} placement={turn?.ears} />
                 <HeadShape layout={layout} gradientId={`${uid}-skin`} />
                 <HeadMarkings type={parts.markings} layout={layout} palette={palette} opacity={markingOpacity} />
                 {face}

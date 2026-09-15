@@ -312,8 +312,8 @@ apparaissent alors, sans connexion nécessaire :
   que ton propre compte.
 - **Podomètre** : pas d'accès au capteur du téléphone depuis une PWA ; la saisie manuelle et Strava
   sont les deux sources de pas.
-- **Voir en vrai** : la créature est un dessin plat, elle reste face à toi quand tu tournes le
-  papier (vues de profil et de dos prévues plus tard). Il faut un marqueur imprimé en noir franc et
+- **Voir en vrai** : la créature tourne avec le papier par pas de 45° (huit vues dérivées du
+  dessin : profil, dos…), pas encore une vraie 3D. Il faut un marqueur imprimé en noir franc et
   un éclairage correct ; la caméra chauffe le téléphone, l'écran la coupe dès qu'on le quitte.
 - **Gemini** : quota gratuit limité ; en cas d'erreur, le repas n'est pas compté et un message
   l'explique.

@@ -8,7 +8,8 @@ import { loadAruco } from "@/lib/ar/aruco-loader";
 import { AR_MARKER } from "@/lib/ar/config";
 import { coverTransform, CREATURE_HEIGHT_PER_MARKER, mapQuad, markerPose, smoothPose, type MarkerPose, type Quad } from "@/lib/ar/geometry";
 import { cn } from "@/lib/utils/cn";
-import { BillboardRenderer } from "./renderers/billboard";
+import { viewFromAngle } from "@/lib/creatures/turnaround";
+import { ViewsRenderer } from "./renderers/views";
 import type { ArTarget } from "./types";
 
 type Status = "idle" | "starting" | "running" | "unsupported" | "denied" | "error";
@@ -39,6 +40,7 @@ const shadowSize = (p: MarkerPose) => ({ w: Math.max(24, p.width * 0.8), h: Math
 export function ArViewer({ targets }: { targets: ArTarget[] }) {
   const [status, setStatus] = useState<Status>("idle");
   const [visible, setVisible] = useState<number[]>([]);
+  const [viewState, setViewState] = useState<Record<number, number>>({});
   const [photo, setPhoto] = useState<string | null>(null);
   const video = useRef<HTMLVideoElement>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -51,6 +53,7 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
   const poses = useRef(new Map<number, MarkerPose>());
   const lastSeen = useRef(new Map<number, number>());
   const visibleRef = useRef<number[]>([]);
+  const views = useRef(new Map<number, number>());
   const skipNext = useRef(false);
   const byMarker = useRef(new Map<number, ArTarget>());
   byMarker.current = new Map(targets.map((t) => [t.markerId, t]));
@@ -63,8 +66,10 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
     if (video.current) video.current.srcObject = null;
     poses.current.clear();
     lastSeen.current.clear();
+    views.current.clear();
     visibleRef.current = [];
     setVisible([]);
+    setViewState({});
     setStatus("idle");
   }, []);
 
@@ -131,6 +136,7 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
     const rect = container.getBoundingClientRect();
     const transform = coverTransform(v.videoWidth, v.videoHeight, rect.width, rect.height);
 
+    let viewsChanged = false;
     for (const marker of markers) {
       if (marker.corners.length !== 4 || !byMarker.current.has(marker.id)) continue;
       const quad = mapQuad(marker.corners.map((c) => ({ x: c.x * upscale, y: c.y * upscale })) as unknown as Quad, transform);
@@ -138,13 +144,22 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
       poses.current.set(marker.id, pose);
       lastSeen.current.set(marker.id, now);
       place(marker.id, pose);
+      // The paper's rotation picks one of the eight views; React only re-renders when it changes.
+      const previous = views.current.get(marker.id) ?? null;
+      const view = viewFromAngle(pose.angle, previous);
+      if (view !== previous) {
+        views.current.set(marker.id, view);
+        viewsChanged = true;
+      }
     }
     for (const [id, seen] of lastSeen.current) {
       if (now - seen > LOST_MS) {
         lastSeen.current.delete(id);
         poses.current.delete(id);
+        views.current.delete(id);
       }
     }
+    if (viewsChanged) setViewState(Object.fromEntries(views.current));
     const next = [...lastSeen.current.keys()].sort((a, b) => a - b);
     if (next.length !== visibleRef.current.length || next.some((id, i) => id !== visibleRef.current[i])) {
       visibleRef.current = next;
@@ -264,10 +279,11 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
                     }}
                     aria-hidden="false"
                     data-marker={id}
+                    data-view={viewState[id] ?? 0}
                     className="pointer-events-none absolute left-0 top-0 origin-[50%_92%]"
                     style={{ width: BOX, height: BOX }}
                   >
-                    <BillboardRenderer creature={target.creature} size={BOX} view={0} />
+                    <ViewsRenderer creature={target.creature} size={BOX} view={viewState[id] ?? 0} />
                     <p className="absolute left-1/2 top-[95%] -translate-x-1/2 whitespace-nowrap rounded-full bg-ink-950/70 px-2 py-0.5 text-center text-[11px] font-semibold text-cream-50 backdrop-blur">
                       {target.creature.name}
                       {target.ownerName ? <span className="font-normal text-cream-300"> · {target.ownerName}</span> : null}

@@ -15,8 +15,10 @@ import { HatchReveal } from "@/components/game/hatch-reveal";
 import { Incubation } from "@/components/game/incubation";
 import { StepsHistory } from "@/components/game/steps-history";
 import { PlayerCard } from "@/components/admin/player-card";
+import { Creature } from "@/components/creatures/creature";
 import { ArViewer } from "@/components/ar/ar-viewer";
 import { markerSvg } from "@/lib/ar/marker";
+import { VIEW_COUNT, yawForView } from "@/lib/creatures/turnaround";
 import { FoodIcon } from "@/components/food/food-icon";
 import { SchemaOutdatedScreen } from "@/components/system/schema-outdated-screen";
 import { MIGRATIONS } from "@/lib/db/migrations-catalog";
@@ -39,7 +41,7 @@ import { StravaCard } from "@/components/game/strava-card";
 import { DangerZone } from "@/components/account/danger-zone";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { Card, CardTitle } from "@/components/ui/card";
-import { playableTiers, speciesByTierAll, toSpeciesSummary, getSpecies } from "@/lib/creatures";
+import { ALL_SPECIES, playableTiers, speciesByTierAll, toSpeciesSummary, getSpecies } from "@/lib/creatures";
 import { moodEffectsFor, type CreatureView } from "@/lib/game/creature-view";
 import { creatureLine } from "@/lib/game/dialogue";
 import { DEFAULT_RULES } from "@/lib/game/rules";
@@ -49,7 +51,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "turnaround", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -292,6 +294,35 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
         </div>
       );
       break;
+    case "turnaround": {
+      const bodies = ["round", "tall", "blob", "egg", "serpent"] as const;
+      content = (
+        <div className="space-y-4">
+          <h1 className="font-display text-2xl text-cream-50">Tour d&apos;horizon : 8 vues par silhouette</h1>
+          <p className="text-sm text-cream-500">Vue 0 = face caméra, puis 45° dans le sens horaire vu de dessus (le visage glisse vers la gauche).</p>
+          {bodies.map((body, row) => {
+            const species = ALL_SPECIES.find((s) => s.parts.body === body && s.parts.tail !== "none" && s.parts.ears !== "none") ?? ALL_SPECIES.find((s) => s.parts.body === body)!;
+            const accessories = row === 0 ? [{ slot: "head" as const, id: "beret" }, { slot: "eyes" as const, id: "round_glasses" }] : row === 1 ? [{ slot: "body" as const, id: "backpack" }, { slot: "neck" as const, id: "bow_tie" }] : [];
+            return (
+              <section key={body} className="rounded-2xl border border-ink-600/80 bg-ink-800/90 p-3">
+                <h2 className="text-sm font-semibold text-cream-100">
+                  {species.name} <span className="font-normal text-cream-700">({body})</span>
+                </h2>
+                <div className="mt-2 grid grid-cols-4 gap-1 sm:grid-cols-8" id={`turn-${body}`}>
+                  {Array.from({ length: VIEW_COUNT }, (_, view) => (
+                    <div key={view} className="flex flex-col items-center">
+                      <Creature species={species} stage="adulte" state="healthy" accessories={accessories} size={84} animated={false} yaw={yawForView(view)} />
+                      <span className="text-[10px] text-cream-700">{yawForView(view)}°</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      );
+      break;
+    }
     case "schema":
       content = <SchemaOutdatedScreen missing={MIGRATIONS.slice(-2)} />;
       break;

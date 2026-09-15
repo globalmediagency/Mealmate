@@ -101,7 +101,7 @@ export default async function ArPage() {
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm leading-relaxed text-cream-300">
           <li>Imprime le marqueur et pose-le sur une table éclairée.</li>
           <li>Lance la caméra et cadre le carré.</li>
-          <li>Ta créature se tient dessus, avec ses accessoires. Approche-toi, éloigne-toi, déplace la feuille : elle suit.</li>
+          <li>Ta créature se tient dessus, avec ses accessoires. Approche-toi, éloigne-toi, déplace la feuille : elle suit. Fais tourner la feuille : tu la vois de profil, puis de dos.</li>
           <li>Ajoute les marqueurs de tes amis pour voir plusieurs créatures à la fois, puis prends une photo.</li>
         </ol>
         <p className="mt-3 text-xs text-cream-700">Les images de la caméra sont analysées sur ton téléphone et n&apos;en sortent jamais.</p>

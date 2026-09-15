@@ -3,9 +3,12 @@ import type { MouthType, SpeciesPalette } from "@/lib/creatures/types";
 import type { Layout } from "../layout";
 import { shade } from "../layout";
 
-type MouthProps = { type: MouthType; layout: Layout; palette: SpeciesPalette; state: CreatureState };
+import type { FeaturePlacement } from "../turn";
 
-export function Mouth({ type, layout, palette, state }: MouthProps) {
+type MouthProps = { type: MouthType; layout: Layout; palette: SpeciesPalette; state: CreatureState; placement?: FeaturePlacement };
+
+export function Mouth({ type, layout, palette, state, placement }: MouthProps) {
+  if (placement && !placement.visible) return null;
   const stroke = { stroke: palette.eye, strokeWidth: 1.4, strokeLinecap: "round" as const, fill: "none" };
   let content: React.ReactNode;
 
@@ -63,5 +66,5 @@ export function Mouth({ type, layout, palette, state }: MouthProps) {
     }
   }
 
-  return <g transform={`translate(${layout.faceX} ${layout.mouthY})`}>{content}</g>;
+  return <g transform={`translate(${layout.faceX + (placement?.x ?? 0)} ${layout.mouthY}) scale(${placement?.squash ?? 1} 1)`}>{content}</g>;
 }

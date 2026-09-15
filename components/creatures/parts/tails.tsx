@@ -2,11 +2,19 @@ import type { SpeciesPalette, TailType } from "@/lib/creatures/types";
 import type { Layout } from "../layout";
 import { withAlpha } from "../layout";
 
-type TailProps = { type: TailType; layout: Layout; palette: SpeciesPalette };
+type TailProps = {
+  type: TailType;
+  layout: Layout;
+  palette: SpeciesPalette;
+  /** Turned-body placement (spec § 3.19): x from the body centre and whether the tail now hangs on the left. */
+  placement?: { x: number; mirror: boolean };
+};
 
-export function Tail({ type, layout, palette }: TailProps) {
+export function Tail({ type, layout, palette, placement }: TailProps) {
   if (type === "none") return null;
-  const [x, y] = layout.tail;
+  const [x0, y] = layout.tail;
+  const x = placement ? layout.body.cx + placement.x : x0;
+  const mirror = placement?.mirror ?? false;
   let content: React.ReactNode;
   switch (type) {
     case "curl":
@@ -59,7 +67,7 @@ export function Tail({ type, layout, palette }: TailProps) {
       content = null;
   }
   return (
-    <g transform={`translate(${x} ${y})`}>
+    <g transform={`translate(${x} ${y})${mirror ? " scale(-1 1)" : ""}`}>
       <g className="mm-tail">{content}</g>
     </g>
   );
