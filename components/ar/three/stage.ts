@@ -2,14 +2,14 @@ import * as THREE from "three";
 import { cameraFovDeg, pickPose, posesFromCorners, type Pose3d } from "@/lib/ar/pose3d";
 import { buildCreatureMesh, type CreatureMesh, type CreatureMeshInput } from "./creature-mesh";
 
+export { textureFromSvg } from "./textures";
+
 export type Corner = { x: number; y: number };
 
 /** Weight of a new pose against the smoothed one (0–1): high enough to follow the hand, low enough to hide jitter. */
 const SMOOTHING = 0.35;
 /** Ground shadow radius in marker sides. */
 const SHADOW_RADIUS = 0.42;
-/** Side of the canvas an accessory drawing is rasterised into. */
-const TEXTURE_SIZE = 256;
 
 type Slot = {
   /** Marker frame: x right, y toward the top edge, z out of the paper. */
@@ -148,36 +148,4 @@ export class ThreeStage {
     this.shadowMaterial.dispose();
     this.renderer.dispose();
   }
-}
-
-/**
- * Rasterises a stand-alone SVG (an accessory layer, see `AccessoryLayerSvg`)
- * into a texture. Resolves to null when the browser cannot draw it.
- */
-export function textureFromSvg(markup: string, size = TEXTURE_SIZE): Promise<THREE.Texture | null> {
-  return new Promise((resolve) => {
-    const url = URL.createObjectURL(new Blob([markup], { type: "image/svg+xml;charset=utf-8" }));
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const canvas = document.createElement("canvas");
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        resolve(null);
-        return;
-      }
-      ctx.drawImage(img, 0, 0, size, size);
-      const texture = new THREE.CanvasTexture(canvas);
-      texture.colorSpace = THREE.SRGBColorSpace;
-      texture.anisotropy = 4;
-      resolve(texture);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve(null);
-    };
-    img.src = url;
-  });
 }

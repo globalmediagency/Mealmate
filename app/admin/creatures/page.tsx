@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { DropRateEditor } from "@/components/admin/drop-rate-editor";
+import { Species3dButton } from "@/components/admin/species-3d-dialog";
 import { Creature } from "@/components/creatures/creature";
 import { RarityBadge } from "@/components/creatures/rarity-badge";
 import { Badge } from "@/components/ui/badge";
@@ -48,8 +49,8 @@ export default async function AdminCreaturesPage({ searchParams }: { searchParam
       <div>
         <h1 className="font-display text-3xl font-semibold text-cream-50">Créatures</h1>
         <p className="mt-1 text-sm text-cream-500">
-          {ALL_SPECIES.length} espèces, {TIERS.length} niveaux, {STAGES.length} stades d&apos;âge et {STATES.length} états. Touche une espèce pour voir tous ses visuels ;
-          la chance d&apos;éclosion (en pourcentage) se règle sous chaque niveau.
+          {ALL_SPECIES.length} espèces, {TIERS.length} niveaux, {STAGES.length} stades d&apos;âge et {STATES.length} états. Touche une espèce pour voir tous ses visuels, le
+          bouton cube l&apos;ouvre en 3D (le volume de « Voir en vrai », à faire tourner du doigt) ; la chance d&apos;éclosion (en pourcentage) se règle sous chaque niveau.
         </p>
       </div>
 
@@ -96,7 +97,7 @@ export default async function AdminCreaturesPage({ searchParams }: { searchParam
             </div>
             <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
               {list.map((s) => (
-                <li key={s.id}>
+                <li key={s.id} className="relative">
                   <Link
                     href={href({ ...keep, species: s.id })}
                     className={cn(
@@ -109,6 +110,7 @@ export default async function AdminCreaturesPage({ searchParams }: { searchParam
                     <RarityBadge rarity={s.rarity} className="text-[10px]" />
                     <span className="text-[10px] tabular-nums text-cream-500">{chanceOf.get(s.id) ? formatChance(chanceOf.get(s.id)!) : ""}</span>
                   </Link>
+                  <Species3dButton speciesId={s.id} compact className="absolute right-1 top-1" />
                 </li>
               ))}
             </ul>
@@ -150,8 +152,9 @@ function SpeciesSheet({ id, closeHref, chance }: { id: string; closeHref?: strin
         <Badge>{TIER_CONFIG[s.tier].label}</Badge>
         <RarityBadge rarity={s.rarity} />
         <code className="text-xs text-cream-700">{s.id}</code>
+        <Species3dButton speciesId={s.id} className="ml-auto" />
         {closeHref ? (
-          <Link href={closeHref} className="ml-auto inline-flex min-h-10 items-center rounded-xl px-3 text-xs text-cream-500 hover:bg-ink-700 hover:text-cream-100">
+          <Link href={closeHref} className="inline-flex min-h-10 items-center rounded-xl px-3 text-xs text-cream-500 hover:bg-ink-700 hover:text-cream-100">
             Fermer
           </Link>
         ) : null}

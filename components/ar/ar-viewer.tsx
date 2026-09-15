@@ -2,7 +2,6 @@
 
 import { Camera, CameraOff, Share2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AccessoryLayerSvg, hasAccessoryLayer } from "@/components/accessories";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { loadAruco } from "@/lib/ar/aruco-loader";
@@ -12,6 +11,7 @@ import { getSpecies } from "@/lib/creatures";
 import { viewFromAngle } from "@/lib/creatures/turnaround";
 import { cn } from "@/lib/utils/cn";
 import { ViewsRenderer } from "./renderers/views";
+import { AccessorySprites, accessoryMarkup } from "./three/accessory-sprites";
 import type { CreatureMeshInput } from "./three/creature-mesh";
 import type { Corner, ThreeStage } from "./three/stage";
 import type { ArTarget } from "./types";
@@ -166,8 +166,8 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
     const key = `${speciesId}/${accessoryId}/${layer}`;
     let promise = textures.current.get(key);
     if (!promise) {
-      const svg = sprites.current?.querySelector(`svg[data-acc="${accessoryId}"][data-layer="${layer}"][data-species="${speciesId}"]`);
-      promise = svg ? three.textureFromSvg(new XMLSerializer().serializeToString(svg)) : Promise.resolve(null);
+      const markup = accessoryMarkup(sprites.current, speciesId, accessoryId, layer);
+      promise = markup ? three.textureFromSvg(markup) : Promise.resolve(null);
       textures.current.set(key, promise);
     }
     return promise;
@@ -437,17 +437,7 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
       </div>
 
       {/* Accessory drawings the 3D scene turns into textures (never displayed). */}
-      <div ref={sprites} hidden aria-hidden="true">
-        {targets.flatMap((target) => {
-          const species = getSpecies(target.creature.speciesId);
-          if (!species) return [];
-          return target.creature.accessories.flatMap((accessory) =>
-            (["front", "back"] as const)
-              .filter((layer) => hasAccessoryLayer(accessory.id, layer))
-              .map((layer) => <AccessoryLayerSvg key={`${species.id}/${accessory.id}/${layer}`} id={accessory.id} layer={layer} palette={species.palette} speciesId={species.id} />),
-          );
-        })}
-      </div>
+      <AccessorySprites ref={sprites} items={targets.map((t) => ({ speciesId: t.creature.speciesId, accessories: t.creature.accessories }))} />
 
       {running ? (
         <div className="grid grid-cols-2 gap-2">
