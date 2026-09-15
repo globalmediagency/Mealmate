@@ -139,6 +139,15 @@ export async function getHeldCreatures(userId: string, now: Date = new Date(), r
   const own = await getActiveCreatureTicked(userId, now, gameRules);
   let away: HeldCreatures["away"] = null;
   let proposal: HeldCreatures["proposal"] = null;
+  if (!own) {
+    // A stay left open on a creature that died (death registered by another read): close it now.
+    const stale = await getDb()
+      .select({ boarding: boardings, creature: creatures })
+      .from(boardings)
+      .innerJoin(creatures, eq(creatures.id, boardings.creatureId))
+      .where(and(eq(boardings.ownerId, userId), isNull(boardings.endedAt), eq(creatures.status, "dead")));
+    for (const row of stale) await settleBoarding(row.boarding, row.creature, now);
+  }
   if (own && own.status !== "egg") {
     const open = await openBoardingOfCreature(own.id);
     if (open) {
@@ -250,10 +259,12 @@ export function cooldownEnd(startedAt: Date, endedAt: Date, multiplier: number):
  */
 export async function boardingCooldownUntil(ownerId: string, now: Date, rules: GameRules): Promise<Date | null> {
   if (rules.boarding.cooldownMultiplier <= 0) return null;
+  // A stay of a creature that has died since never counts, whatever reason closed it (the death may have been registered after the closing).
   const rows = await getDb()
     .select({ startedAt: boardings.startedAt, endedAt: boardings.endedAt })
     .from(boardings)
-    .where(and(eq(boardings.ownerId, ownerId), isNotNull(boardings.endedAt), sql`${boardings.endReason} NOT IN ('died', 'declined', 'cancelled')`))
+    .innerJoin(creatures, eq(creatures.id, boardings.creatureId))
+    .where(and(eq(boardings.ownerId, ownerId), isNotNull(boardings.endedAt), sql`${boardings.endReason} NOT IN ('died', 'declined', 'cancelled')`, sql`${creatures.status} <> 'dead'`))
     .orderBy(desc(boardings.endedAt))
     .limit(1);
   const last = rows[0];

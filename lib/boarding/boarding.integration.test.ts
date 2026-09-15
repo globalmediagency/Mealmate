@@ -313,8 +313,11 @@ describe("the stay ends on its own", () => {
     // The owner's mourning screen names the host.
     expect((await diedInBoarding(misoId))?.username).toBe("BobB");
     expect(await diedInBoarding("00000000-0000-4000-8000-000000000000")).toBeNull();
-    // A death never makes the owner wait before lending the next creature.
+    // A death never makes the owner wait before lending the next creature, even if the stay was closed with another reason first.
     expect(await boardingCooldownUntil(alice, new Date(T3.getTime() + 3_600_000), DEFAULT_RULES)).toBeNull();
+    await getDb().update(boardings).set({ endReason: "recovered" }).where(eq(boardings.id, stay.boarding.id));
+    expect(await boardingCooldownUntil(alice, new Date(T3.getTime() + 3_600_000), DEFAULT_RULES)).toBeNull();
+    await getDb().update(boardings).set({ endReason: "died" }).where(eq(boardings.id, stay.boarding.id));
   });
 
   it("tells the host, who dismisses the notice on their own", async () => {
