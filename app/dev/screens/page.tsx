@@ -14,6 +14,7 @@ import { EggChoice } from "@/components/game/egg-choice";
 import { HatchReveal } from "@/components/game/hatch-reveal";
 import { Incubation } from "@/components/game/incubation";
 import { StepsHistory } from "@/components/game/steps-history";
+import { PlayerCard } from "@/components/admin/player-card";
 import { ArViewer } from "@/components/ar/ar-viewer";
 import { markerSvg } from "@/lib/ar/marker";
 import { FoodIcon } from "@/components/food/food-icon";
@@ -48,7 +49,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -184,6 +185,110 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
             <div id="dev-marker-17" className="w-40 bg-white p-1" dangerouslySetInnerHTML={{ __html: markerSvg(17) }} />
             <div id="dev-marker-42" className="w-40 bg-white p-1" dangerouslySetInnerHTML={{ __html: markerSvg(42) }} />
           </div>
+        </div>
+      );
+      break;
+    case "admin-players":
+      content = (
+        <div className="space-y-4">
+          <PlayerCard
+            player={{
+              userId: "u1",
+              username: "Chabond",
+              friendCode: "MM-7K2P9Q",
+              email: "chabond@example.com",
+              createdAt: "2026-08-20T10:00:00.000Z",
+              creatureIsCurrent: true,
+              counts: { meals: 42, steps: 128_400, friends: 3, deadCreatures: 1 },
+              awayAt: null,
+              hosting: 1,
+              creature: {
+                id: "11111111-1111-4111-8111-111111111111",
+                status: "alive",
+                tier: "facile",
+                tierLabel: "Facile",
+                name: "Miso",
+                speciesId: "facile-chat-rond",
+                speciesName: "Chabond",
+                tagline: "Un chat tout rond qui ronronne dès qu'on le regarde.",
+                rarity: "commun",
+                rarityLabel: "Commun",
+                stage: "enfant",
+                stageLabel: "Enfant",
+                state: "healthy",
+                health: 88,
+                hunger: 35,
+                mood: 72,
+                moodLabel: "Ravie (XP +25 %)",
+                xp: 210,
+                xpToNextStage: 290,
+                eggSteps: 15000,
+                hatchSteps: 15000,
+                ageDays: 12,
+                createdAt: "2026-08-20T10:00:00.000Z",
+                hatchedAt: "2026-08-24T10:00:00.000Z",
+                sickSince: null,
+                daysUntilDeath: null,
+                protectedUntil: null,
+                diedAt: null,
+                deathCause: null,
+                lifespanDays: null,
+                accessoryDrops: 3,
+                chestBonusSteps: 1_240,
+                accessories: ["Béret", "Nœud papillon"],
+                arMarker: 17,
+              },
+            }}
+          />
+          <PlayerCard
+            player={{
+              userId: "u2",
+              username: "Léa",
+              friendCode: "MM-3XZ8AB",
+              email: "lea@example.com",
+              createdAt: "2026-09-10T10:00:00.000Z",
+              creatureIsCurrent: true,
+              counts: { meals: 2, steps: 4_200, friends: 1, deadCreatures: 0 },
+              awayAt: null,
+              hosting: 0,
+              creature: {
+                id: "22222222-2222-4222-8222-222222222222",
+                status: "egg",
+                tier: "moyen",
+                tierLabel: "Moyen",
+                name: null,
+                speciesId: null,
+                speciesName: null,
+                tagline: null,
+                rarity: null,
+                rarityLabel: null,
+                stage: "bebe",
+                stageLabel: "Bébé",
+                state: "healthy",
+                health: 100,
+                hunger: 0,
+                mood: 100,
+                moodLabel: "",
+                xp: 0,
+                xpToNextStage: 150,
+                eggSteps: 4200,
+                hatchSteps: 30000,
+                ageDays: 0,
+                createdAt: "2026-09-10T10:00:00.000Z",
+                hatchedAt: null,
+                sickSince: null,
+                daysUntilDeath: null,
+                protectedUntil: null,
+                diedAt: null,
+                deathCause: null,
+                lifespanDays: null,
+                accessoryDrops: 0,
+                chestBonusSteps: 0,
+                accessories: [],
+                arMarker: null,
+              },
+            }}
+          />
         </div>
       );
       break;
