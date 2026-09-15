@@ -296,6 +296,9 @@ apparaissent alors, sans connexion nécessaire :
 7. **Boutique** : carte de test Stripe `4242 4242 4242 4242`.
 8. **Strava** : connecte ton compte, synchronise.
 9. **Plus → Mes données** : export JSON, suppression du compte (photos et lien Strava compris).
+10. **Voir en vrai** : depuis l'écran Créature, télécharge le PDF du marqueur, imprime-le, lance la
+    caméra et cadre le carré : ta créature se tient dessus, avec ses accessoires ; le bouton Photo
+    garde ou partage l'image. Les images de la caméra ne quittent pas le téléphone.
 
 ## 5. Limites connues
 
@@ -306,6 +309,9 @@ apparaissent alors, sans connexion nécessaire :
   que ton propre compte.
 - **Podomètre** : pas d'accès au capteur du téléphone depuis une PWA ; la saisie manuelle et Strava
   sont les deux sources de pas.
+- **Voir en vrai** : la créature est un dessin plat, elle reste face à toi quand tu tournes le
+  papier (vues de profil et de dos prévues plus tard). Il faut un marqueur imprimé en noir franc et
+  un éclairage correct ; la caméra chauffe le téléphone, l'écran la coupe dès qu'on le quitte.
 - **Gemini** : quota gratuit limité ; en cas d'erreur, le repas n'est pas compté et un message
   l'explique.
 

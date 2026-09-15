@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Footprints, Gamepad2, Gift, Heart, HeartPulse, Shield, Shirt, Smile, Utensils } from "lucide-react";
+import { Camera, Footprints, Gamepad2, Gift, Heart, HeartPulse, ScanLine, Shield, Shirt, Smile, Utensils } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Creature, type EquippedAccessory, type Reaction } from "@/components/creatures/creature";
@@ -60,6 +60,7 @@ export function CreatureHome({ creature, line, accessories = [], chestsAvailable
     { id: "walk", label: "Marcher", icon: Footprints, href: "/activity" },
     { id: "dress", label: "Habiller", icon: Shirt, href: "/wardrobe" },
     { id: "heal", label: doses > 0 ? `Soigner (${doses})` : "Soigner", icon: HeartPulse, href: "/shop", highlight: creature.state === "sick" || (creature.state === "tired" && doses > 0) },
+    { id: "ar", label: "Voir en vrai", icon: ScanLine, href: "/ar" },
   ];
   const protectedDays = creature.protectedUntil ? Math.ceil((new Date(creature.protectedUntil).getTime() - Date.now()) / DAY_MS) : 0;
 

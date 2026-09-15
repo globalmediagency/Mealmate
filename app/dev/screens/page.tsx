@@ -14,6 +14,8 @@ import { EggChoice } from "@/components/game/egg-choice";
 import { HatchReveal } from "@/components/game/hatch-reveal";
 import { Incubation } from "@/components/game/incubation";
 import { StepsHistory } from "@/components/game/steps-history";
+import { ArViewer } from "@/components/ar/ar-viewer";
+import { markerSvg } from "@/lib/ar/marker";
 import { FoodIcon } from "@/components/food/food-icon";
 import { SchemaOutdatedScreen } from "@/components/system/schema-outdated-screen";
 import { MIGRATIONS } from "@/lib/db/migrations-catalog";
@@ -46,7 +48,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -167,6 +169,14 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
             ))}
           </ul>
         </Card>
+      );
+      break;
+    case "ar":
+      content = (
+        <div className="space-y-4">
+          <ArViewer creature={{ name: "Miso", speciesId: "facile-chat-rond", stage: "enfant", state: "healthy", accessories: [{ slot: "head", id: "beret" }] }} />
+          <div id="dev-marker" className="mx-auto w-48 bg-white p-1" dangerouslySetInnerHTML={{ __html: markerSvg() }} />
+        </div>
       );
       break;
     case "schema":

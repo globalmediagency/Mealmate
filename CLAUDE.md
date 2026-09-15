@@ -42,7 +42,7 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 ## Pages de validation visuelle
 
 - `/dev/creatures` : galerie espèces × stades × états, œufs et décors.
-- `/dev/screens?screen=…` : écrans du jeu avec données factices (`egg`, `incubation`, `ready`, `reveal`, `home`, `home-sick`, `home-hungry`, `activity`, `feed`, `feed-animation`, `food`, `schema`, `meal-result`, `meals`, `mourning`, `admin`, `play`, `wardrobe`, `chest`, `collection`, `friends`, `shop`, `home-protected`, `account`, `home-away`, `home-hosting`, `pension`, `mourning-pension`, `coach`, `coach-meals`, `home-pending`).
+- `/dev/screens?screen=…` : écrans du jeu avec données factices (`egg`, `incubation`, `ready`, `reveal`, `home`, `home-sick`, `home-hungry`, `activity`, `feed`, `feed-animation`, `food`, `schema`, `ar`, `meal-result`, `meals`, `mourning`, `admin`, `play`, `wardrobe`, `chest`, `collection`, `friends`, `shop`, `home-protected`, `account`, `home-away`, `home-hosting`, `pension`, `mourning-pension`, `coach`, `coach-meals`, `home-pending`).
 - `/dev/creatures?compact=1` : les 60 espèces en un coup d'œil ; la page complète montre les 30 accessoires. `/dev/gemini` : modèles Gemini visibles avec la clé.
 - `/admin` (hors galerie) : espace d'administration protégé par `ADMIN_USERNAME` / `ADMIN_PASSWORD` (aussi acceptés sur la page de connexion normale ; l'identifiant est réservé via `isAdminIdentifier()`), avec les onglets Règles de jeu, Créatures (`/admin/creatures`, filtres niveau / rareté, fiche stades × états) , Accessoires (`/admin/accessoires`, par emplacement, aperçu porté à chaque stade) et Aliments (`/admin/aliments`, les dessins de l'animation de nourrissage par famille, avec un testeur de nom d'aliment).
 - Les deux sont gardées par `NEXT_PUBLIC_DEV_GALLERY=true` (lue au build : redéployer après l'avoir changée).
@@ -108,6 +108,12 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 ## Humeur
 
 - Effets purs dans `lib/game/mood.ts` (`moodBand`, `applyMoodToXp`, `chestBonusSteps`, `gloomyHours`), seuils dans `rules.mood` (`MOOD` de `config.ts` = défauts, réglables depuis `/admin`). Toujours passer l'humeur **d'avant l'action** : `mealEffects({ mood })`, `playEffects(score, mood, rules)`, `applyStepGains(creature, gains, rules)` (les `gains` portent `steps`, les pas nouvellement crédités). Le tick applique la perte de santé « triste ». Les pas bonus de coffre s'accumulent dans `creatures.chest_bonus_steps` (migration 012) et sont ajoutés par `getChestStatus()`. La vue expose `moodBand` + `moodEffects` (`moodEffectsFor`) pour les libellés `moodLabel()` / `moodHelp()` de `lib/game/dialogue.ts`.
+
+## Voir en vrai (réalité augmentée)
+
+- `lib/ar/config.ts` (`AR_MARKER` : dictionnaire, numéro, taille imprimée, sans dépendance, importable côté client), `lib/ar/marker.ts` (`markerCells()`, `markerSvg()`), `lib/ar/pdf.ts` (`markerPdf()`, pdf-lib) servi par `GET /api/ar/marker`, `lib/ar/geometry.ts` (pure : `markerPose`, `coverTransform`, `mapQuad`, `smoothPose`, tests à côté). Le détecteur est js-aruco2 intégré dans `lib/ar/vendor/` (MIT, seul l'en-tête des fichiers a changé pour exporter en ES ; ignoré par ESLint ; ne pas réinstaller le paquet npm, son export via `this` est perdu au bundling) et chargé à la demande par `loadAruco()`.
+- `components/ar/ar-viewer.tsx` : caméra, boucle de détection sur une copie réduite de l'image, positionnement de la boîte de rendu par `style.transform` (jamais d'état React par image), photo composée, arrêt quand l'onglet est caché. Le rendu est un `ArRendererProps` (`components/ar/types.ts`) : `BillboardRenderer` (niveau 1) aujourd'hui ; le niveau 2 (vues multiples) lira `view`, le niveau 3 (Three.js) la pose complète (`vendor/posit1.js` fournit POSIT). Changer le marqueur = changer `AR_MARKER` : PDF, aperçu et détecteur suivent, `lib/ar/pdf.test.ts` vérifie que le PDF reproduit la grille du détecteur.
+- Test sans caméra : `/dev/screens?screen=ar` affiche le viewer et l'aperçu du marqueur ; Chromium accepte une fausse caméra (`--use-fake-device-for-media-stream --use-file-for-fake-video-capture=<fichier.mjpeg>`) construite à partir d'une capture de cet aperçu.
 
 ## Nourrissage et IA
 

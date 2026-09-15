@@ -50,6 +50,7 @@ export const config = {
     "/shop/:path*",
     "/pension/:path*",
     "/coach/:path*",
+    "/ar/:path*",
     "/onboarding",
     "/login",
     "/signup",

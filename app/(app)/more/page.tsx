@@ -98,6 +98,7 @@ export default async function MorePage() {
       <Card className="p-2">
         <ul className="divide-y divide-ink-600/80">
           {[
+            { href: "/ar", label: "Voir ma créature en vrai (caméra)" },
             { href: "/shop", label: "Boutique et armoire à pharmacie" },
             { href: "/coach", label: "Coaching" },
             { href: "/collection", label: "Collection" },
