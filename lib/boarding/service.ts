@@ -204,7 +204,7 @@ export async function saveStepsForHeld(userId: string, rawSteps: number, mode: S
   let own = held.own;
   if (own?.status === "egg") own = await refreshEggSteps(own);
   for (const h of living) {
-    const next = await applyStepGains(h.creature, result.gains);
+    const next = await applyStepGains(h.creature, result.gains, rules ?? (await getGameRules()));
     if (own && h.creature.id === own.id) own = next;
   }
   return { ...result, own: held.away ? null : own, credited: living.length };

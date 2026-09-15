@@ -1,3 +1,4 @@
+import { applyMoodToXp } from "@/lib/game/mood";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createEgg, getActiveCreature, hatchEgg, nameCreature } from "@/lib/creatures/service";
 import { countPlaysToday, recordPlay } from "@/lib/play/service";
@@ -101,12 +102,13 @@ describe("mini-game", () => {
     let creature = (await getActiveCreature(userId))!;
     const before = creature.mood;
     const first = await recordPlay(userId, creature, 60);
-    expect(first.effects).toEqual({ moodDelta: 15, xpDelta: 5, perfect: false });
+    // The XP follows the mood before the game (spec § 3.18).
+    expect(first.effects).toEqual({ moodDelta: 15, xpDelta: applyMoodToXp(5, before), perfect: false, xpMultiplier: before >= 70 ? 1.25 : before < 30 ? 0.75 : 1 });
     expect(first.creature.mood).toBe(Math.min(100, before + 15));
     expect(first.playsLeft).toBe(2);
     creature = first.creature;
     const second = await recordPlay(userId, creature, 100);
-    expect(second.effects.xpDelta).toBe(10);
+    expect(second.effects.xpDelta).toBe(applyMoodToXp(10, creature.mood));
     creature = second.creature;
     await recordPlay(userId, creature, 999);
     expect(await countPlaysToday(creature.id)).toBe(3);

@@ -8,6 +8,8 @@ export type StepCredit = {
   xpGain: number;
   /** New value to store as `credited_steps` for the day. */
   credited: number;
+  /** Steps newly credited by this call (0 when the total went down). */
+  steps: number;
 };
 
 /**
@@ -18,7 +20,7 @@ export type StepCredit = {
 export function stepCredit(totalToday: number, creditedSoFar: number): StepCredit {
   const total = Math.max(0, Math.floor(totalToday));
   const credited = Math.max(0, Math.floor(creditedSoFar));
-  if (total <= credited) return { healthGain: 0, xpGain: 0, credited };
+  if (total <= credited) return { healthGain: 0, xpGain: 0, credited, steps: 0 };
 
   const per = 1000;
   const newThousands = Math.floor(total / per) - Math.floor(credited / per);
@@ -30,6 +32,7 @@ export function stepCredit(totalToday: number, creditedSoFar: number): StepCredi
     healthGain: Math.max(0, healthThousands) * STEPS.healthPerThousandSteps,
     xpGain: Math.max(0, newThousands) * STEPS.xpPerThousandSteps,
     credited: total,
+    steps: total - credited,
   };
 }
 

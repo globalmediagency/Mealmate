@@ -99,6 +99,7 @@ Si tu avais déjà exécuté `db/init.sql` avant une phase, colle ses migrations
 - exemplaires et dons : [`db/migrations/008_accessory_copies_gift_kind.sql`](./db/migrations/008_accessory_copies_gift_kind.sql)
 - pension chez un ami : [`db/migrations/009_boardings.sql`](./db/migrations/009_boardings.sql), puis [`db/migrations/011_boardings_acceptance.sql`](./db/migrations/011_boardings_acceptance.sql)
 - coaching : [`db/migrations/010_coaching.sql`](./db/migrations/010_coaching.sql)
+- effets de l'humeur : [`db/migrations/012_creatures_chest_bonus_steps.sql`](./db/migrations/012_creatures_chest_bonus_steps.sql)
 
 Un `init.sql` fraîchement exécuté contient déjà toutes ces colonnes.
 

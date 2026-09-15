@@ -117,6 +117,7 @@ export function FeedFlow({ creature: initial, mealsToday: initialCount, others =
               <p className="text-sm text-cream-500">
                 {data.effects.full ? "Je n'avais plus très faim, l'effet est réduit." : `Faim ${Math.round(data.before.hunger)} → ${Math.round(data.creature.hunger)}`}
                 {" · "}+{data.effects.xpDelta} XP
+                {data.effects.xpMultiplier > 1 ? " (bonne humeur ×" + data.effects.xpMultiplier.toLocaleString("fr-FR") + ")" : data.effects.xpMultiplier < 1 ? " (humeur basse ×" + data.effects.xpMultiplier.toLocaleString("fr-FR") + ")" : ""}
               </p>
             </div>
           </div>

@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     const creature = held.creature;
     if (creature.status !== "alive") return fail("no_creature", "Tu n'as pas de créature avec qui jouer.", 409);
     const { score, perfect } = computePlayScore(body);
-    const result = await recordPlay(session.user.id, creature, score, new Date(), { boarded: held.boarding !== null });
+    const result = await recordPlay(session.user.id, creature, score, new Date(), { boarded: held.boarding !== null }, rules);
     return ok({
       score,
       perfect,

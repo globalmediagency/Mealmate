@@ -76,15 +76,22 @@ describe("egg lifecycle", () => {
     const creature = (await getActiveCreature(userId))!;
     // Today's entry already holds 15 000 steps but nothing was credited while it was an egg.
     const first = await saveManualSteps(userId, 15_000, creature);
-    expect(first.gains).toEqual({ healthGain: 10, xpGain: 30 });
+    expect(first.gains).toEqual({ healthGain: 10, xpGain: 30, steps: 15_000 });
+    // A freshly hatched creature is happy (mood 100): +25 % XP and 10 % bonus chest steps.
     const after = await applyStepGains(creature, first.gains);
     expect(after.health).toBe(100); // capped
-    expect(after.xp).toBe(30);
+    expect(after.xp).toBe(38);
+    expect(after.chestBonusSteps).toBe(1500);
 
     const second = await saveManualSteps(userId, 16_500, after);
-    expect(second.gains).toEqual({ healthGain: 0, xpGain: 2 });
+    expect(second.gains).toEqual({ healthGain: 0, xpGain: 2, steps: 1_500 });
     const third = await saveManualSteps(userId, 16_500, after);
-    expect(third.gains).toEqual({ healthGain: 0, xpGain: 0 });
+    expect(third.gains).toEqual({ healthGain: 0, xpGain: 0, steps: 0 });
+
+    // A gloomy creature gains less XP and banks no bonus steps.
+    const gloomy = await applyStepGains({ ...after, mood: 10 }, { healthGain: 0, xpGain: 10, steps: 1000 });
+    expect(gloomy.xp).toBe(38 + 8);
+    expect(gloomy.chestBonusSteps).toBe(1500);
   });
 
   it("returns a zero-filled 14-day history ending today", async () => {
@@ -100,13 +107,13 @@ describe("egg lifecycle", () => {
     const added = await saveManualSteps(userId, 1_500, creature, gameDate(), "add");
     expect(added.added).toBe(1_500);
     expect(added.entry.steps).toBe(18_000);
-    expect(added.gains).toEqual({ healthGain: 0, xpGain: 4 });
+    expect(added.gains).toEqual({ healthGain: 0, xpGain: 4, steps: 1_500 });
     const capped = await saveManualSteps(userId, 50_000, creature, gameDate(), "add");
     expect(capped.entry.steps).toBe(40_000);
     expect(capped.added).toBe(22_000);
     const corrected = await saveManualSteps(userId, 20_000, creature, gameDate(), "set");
     expect(corrected.entry.steps).toBe(20_000);
     expect(corrected.added).toBe(-20_000);
-    expect(corrected.gains).toEqual({ healthGain: 0, xpGain: 0 });
+    expect(corrected.gains).toEqual({ healthGain: 0, xpGain: 0, steps: 0 });
   });
 });

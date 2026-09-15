@@ -77,7 +77,7 @@ describe("feedCreature", () => {
     expect(result.creature.health).toBeCloseTo(90.5, 2);
     expect(result.creature.hunger).toBeCloseTo(30, 2);
     expect(result.creature.mood).toBe(100);
-    expect(result.creature.xp).toBe(15); // steps walked as an egg give no XP; +15 for a healthy meal
+    expect(result.creature.xp).toBe(19); // steps walked as an egg give no XP; +15 for a healthy meal, ×1,25 while happy
     expect(result.mealsToday).toBe(1);
   });
 

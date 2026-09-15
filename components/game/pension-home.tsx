@@ -17,7 +17,7 @@ import type { PublicProfile } from "@/lib/friends/service";
 import type { ChestStatus } from "@/lib/game/accessories";
 import { SHOP_ITEMS, type ShopItemId } from "@/lib/game/config";
 import type { CreatureView } from "@/lib/game/creature-view";
-import { ageLabel, creatureLine, hungerLabel } from "@/lib/game/dialogue";
+import { ageLabel, creatureLine, hungerLabel, moodHelp, moodLabel } from "@/lib/game/dialogue";
 import { SHOP_ITEM_IDS } from "@/lib/game/medicine";
 import type { Inventory } from "@/lib/shop/service";
 import { cn } from "@/lib/utils/cn";
@@ -138,7 +138,8 @@ export function PensionHome({ creature: initial, accessories, boarding, owner, i
       <section className="space-y-3 rounded-3xl border border-ink-600/80 bg-ink-800/90 p-4 shadow-card">
         <Gauge icon={Heart} label="Santé" value={creature.health} barClass="bg-health" />
         <Gauge icon={Utensils} label="Faim" value={creature.hunger} barClass="bg-hunger" caption={hungerLabel(creature.hunger)} />
-        <Gauge icon={Smile} label="Humeur" value={creature.mood} barClass="bg-mood" />
+        <Gauge icon={Smile} label="Humeur" value={creature.mood} barClass="bg-mood" caption={`${Math.round(creature.mood)} % · ${moodLabel(creature.moodBand, creature.moodEffects)}`} />
+        <p className="text-[11px] leading-snug text-cream-700">{moodHelp(creature.moodEffects)}</p>
         <p className="pt-1 text-xs text-cream-700">
           {creature.xp} XP
           {creature.xpToNextStage !== null ? ` · encore ${creature.xpToNextStage} XP avant le stade suivant` : " · stade maximal atteint"}

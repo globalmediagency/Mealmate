@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { applyMoodToXp } from "@/lib/game/mood";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createEgg, getActiveCreature, hatchEgg, nameCreature } from "@/lib/creatures/service";
 import { getDb } from "@/lib/db";
@@ -94,7 +95,7 @@ describe("sync", () => {
       [2, "Vélo", 4000],
     ]);
     expect(result.skipped).toBe(1);
-    expect(result.gains).toEqual({ healthGain: 0, xpGain: 0 });
+    expect(result.gains).toEqual({ healthGain: 0, xpGain: 0, steps: 0 });
     expect(result.creature?.eggSteps).toBe(10_500);
     expect(result.status.lastSyncAt).toBe(T0.toISOString());
     expect(result.status.nextSyncAt).toBe(minutes(5).toISOString());
@@ -111,7 +112,7 @@ describe("sync", () => {
     await hatchEgg(userId, minutes(6));
     await nameCreature(userId, "Pixel");
     const creature = (await getActiveCreature(userId))!;
-    const before = { health: creature.health, xp: creature.xp };
+    const before = { health: creature.health, xp: creature.xp, mood: creature.mood };
 
     const { api, counters } = fakeApi([run(1, 5), { ...run(2, 10), sportType: "Ride" }, { ...run(4, 3), sportType: "Walk" }]);
     const result = await syncStrava(userId, api, creature, minutes(10));
@@ -119,16 +120,17 @@ describe("sync", () => {
     expect(result.imported.map((a) => a.id)).toEqual([4]);
     expect(result.skipped).toBe(2);
     // Day total 15 000 + 6 500 + 4 000 + 3 900 = 29 400, nothing credited before: +10 health (cap), +58 XP.
-    expect(result.gains).toEqual({ healthGain: 10, xpGain: 58 });
+    expect(result.gains).toEqual({ healthGain: 10, xpGain: 58, steps: 29_400 });
     expect(result.creature?.health).toBe(Math.min(100, before.health + 10));
-    expect(result.creature?.xp).toBe(before.xp + 58);
+    expect(result.creature?.xp).toBe(before.xp + applyMoodToXp(58, before.mood));
+    expect(result.creature?.chestBonusSteps).toBe(before.mood >= 70 ? 2_940 : 0);
     const rows = await getDb().select().from(stepEntries).where(eq(stepEntries.userId, userId));
     expect(rows.filter((r) => r.date === today).every((r) => r.creditedSteps === r.steps)).toBe(true);
 
     // Next sync: +1 300 steps crosses one more thousand → XP only (health cap reached).
     const more = fakeApi([{ ...run(5, 1), sportType: "Walk" }]);
     const again = await syncStrava(userId, more.api, result.creature, minutes(16));
-    expect(again.gains).toEqual({ healthGain: 0, xpGain: 2 });
+    expect(again.gains).toEqual({ healthGain: 0, xpGain: 2, steps: 1_300 });
   });
 
   it("ignores activity days before the hatch day when crediting", async () => {
@@ -136,7 +138,7 @@ describe("sync", () => {
     const { api } = fakeApi([run(6, 5, `${shiftDate(today, -1)}T08:00:00Z`)]);
     const result = await syncStrava(userId, api, creature, minutes(22));
     expect(result.imported).toHaveLength(1);
-    expect(result.gains).toEqual({ healthGain: 0, xpGain: 0 });
+    expect(result.gains).toEqual({ healthGain: 0, xpGain: 0, steps: 0 });
   });
 
   it("refreshes an expired access token before calling the API", async () => {

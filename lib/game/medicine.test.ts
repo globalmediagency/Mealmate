@@ -28,6 +28,7 @@ function creature(overrides: Partial<Creature> = {}): Creature {
     lifespanDays: null,
     mournedAt: null,
     accessoryDrops: 0,
+    chestBonusSteps: 0,
     ...overrides,
   };
 }

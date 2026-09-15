@@ -47,7 +47,7 @@ export async function getStepHistory(userId: string, days: number, today = gameD
 
 export type SaveStepsResult = {
   entry: StepEntry;
-  gains: { healthGain: number; xpGain: number };
+  gains: { healthGain: number; xpGain: number; steps: number };
   /** Steps actually added to the day (0 or negative when the total was corrected downwards). */
   added: number;
 };
@@ -82,10 +82,10 @@ export async function saveManualSteps(
     .returning();
   let entry = rows[0];
 
-  let gains = { healthGain: 0, xpGain: 0 };
+  let gains = { healthGain: 0, xpGain: 0, steps: 0 };
   if (creature?.status === "alive") {
     const credit = stepCredit(steps, previous?.creditedSteps ?? 0);
-    gains = { healthGain: credit.healthGain, xpGain: credit.xpGain };
+    gains = { healthGain: credit.healthGain, xpGain: credit.xpGain, steps: credit.steps };
     if (credit.credited !== entry.creditedSteps) {
       const updated = await getDb()
         .update(stepEntries)

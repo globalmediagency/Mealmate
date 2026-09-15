@@ -11,7 +11,7 @@ import type { BoardingView } from "@/lib/boarding/service";
 import { getSpecies } from "@/lib/creatures";
 import type { PublicProfile } from "@/lib/friends/service";
 import type { CreatureView } from "@/lib/game/creature-view";
-import { ageLabel, hungerLabel } from "@/lib/game/dialogue";
+import { ageLabel, hungerLabel, moodLabel } from "@/lib/game/dialogue";
 import { EndBoardingButton } from "./boarding-actions";
 import { Gauge } from "./gauge";
 
@@ -62,7 +62,7 @@ export function BoardedAway({ creature, accessories, boarding, host }: { creatur
       <section className="space-y-3 rounded-3xl border border-ink-600/80 bg-ink-800/90 p-4 shadow-card">
         <Gauge icon={Heart} label="Santé" value={creature.health} barClass="bg-health" />
         <Gauge icon={Utensils} label="Faim" value={creature.hunger} barClass="bg-hunger" caption={hungerLabel(creature.hunger)} />
-        <Gauge icon={Smile} label="Humeur" value={creature.mood} barClass="bg-mood" />
+        <Gauge icon={Smile} label="Humeur" value={creature.mood} barClass="bg-mood" caption={`${Math.round(creature.mood)} % · ${moodLabel(creature.moodBand, creature.moodEffects)}`} />
         <p className="pt-1 text-xs text-cream-700">{creature.xp} XP · ses stats sont à jour, où qu&apos;elle soit</p>
       </section>
 

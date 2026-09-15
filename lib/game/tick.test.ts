@@ -29,6 +29,7 @@ function creature(overrides: Partial<Creature> = {}): Creature {
     lifespanDays: null,
     mournedAt: null,
     accessoryDrops: 0,
+    chestBonusSteps: 0,
     ...overrides,
   };
 }
@@ -43,6 +44,15 @@ describe("effectiveHours", () => {
 });
 
 describe("applyTick", () => {
+  it("drains health while the mood is gloomy, even when fed (spec § 3.18)", () => {
+    // facile: mood −0.5/h. From 25, gloomy (< 20) after 10 h → 10 gloomy hours × 0.5 pt.
+    const { creature: c } = applyTick(creature({ mood: 25 }), hours(20));
+    expect(c.mood).toBeCloseTo(15);
+    expect(c.health).toBeCloseTo(95);
+    const fine = applyTick(creature({ mood: 60 }), hours(20)).creature;
+    expect(fine.health).toBe(100);
+  });
+
   it("does nothing for eggs, dead creatures or when no time elapsed", () => {
     expect(applyTick(creature({ status: "egg" }), hours(5)).changed).toBe(false);
     expect(applyTick(creature({ status: "dead" }), hours(5)).changed).toBe(false);

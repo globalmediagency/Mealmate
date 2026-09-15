@@ -38,6 +38,20 @@ type Draft = {
   mealRetentionDays: string;
   thumbsPerStudentReward: string;
   thumbsPerCoachReward: string;
+  mood: Record<MoodField, string>;
+};
+
+const MOOD_FIELDS = ["happyMin", "xpBonusPercent", "lowMax", "xpMalusPercent", "gloomyMax", "healthLossPerHourWhenGloomy", "chestStepsBonusPercent"] as const;
+type MoodField = (typeof MOOD_FIELDS)[number];
+
+const MOOD_LABELS: Record<MoodField, { label: string; help: string }> = {
+  happyMin: { label: "Humeur « ravie » à partir de", help: "Sur 100. Au-dessus : bonus d'XP et pas bonus pour les coffres." },
+  xpBonusPercent: { label: "Bonus d'XP quand ravie (%)", help: "Sur les repas, les parties et les pas." },
+  lowMax: { label: "Humeur « morose » en dessous de", help: "Sur 100. En dessous : malus d'XP." },
+  xpMalusPercent: { label: "Malus d'XP quand morose (%)", help: "Sur les repas, les parties et les pas." },
+  gloomyMax: { label: "Humeur « triste » en dessous de", help: "Sur 100. En dessous : la créature perd de la santé même nourrie." },
+  healthLossPerHourWhenGloomy: { label: "Perte de santé quand triste", help: "Points de santé par heure, en plus de la faim." },
+  chestStepsBonusPercent: { label: "Pas bonus pour les coffres quand ravie (%)", help: "Pas supplémentaires comptés pour les coffres sur chaque pas crédité." },
 };
 
 function toDraft(rules: GameRules): Draft {
@@ -55,6 +69,7 @@ function toDraft(rules: GameRules): Draft {
     mealRetentionDays: String(rules.feeding.mealRetentionDays),
     thumbsPerStudentReward: String(rules.coaching.thumbsPerStudentReward),
     thumbsPerCoachReward: String(rules.coaching.thumbsPerCoachReward),
+    mood: Object.fromEntries(MOOD_FIELDS.map((f) => [f, String(rules.mood[f])])) as Draft["mood"],
   };
 }
 
@@ -69,6 +84,7 @@ function toPatch(draft: Draft): GameRulesPatch {
     feeding: { maxMealsPerDay: num(draft.maxMealsPerDay), rejectScreenPhotos: draft.rejectScreenPhotos, mealRetentionDays: num(draft.mealRetentionDays) },
     boarding: { maxPerHost: num(draft.maxPerHost), cooldownMultiplier: num(draft.cooldownMultiplier) },
     coaching: { thumbsPerStudentReward: num(draft.thumbsPerStudentReward), thumbsPerCoachReward: num(draft.thumbsPerCoachReward) },
+    mood: Object.fromEntries(MOOD_FIELDS.map((f) => [f, num(draft.mood[f])])) as GameRulesPatch["mood"],
   };
 }
 
@@ -86,6 +102,7 @@ function safePreview(draft: Draft): GameRules | null {
       patch.feeding?.mealRetentionDays,
       patch.coaching?.thumbsPerStudentReward,
       patch.coaching?.thumbsPerCoachReward,
+      ...MOOD_FIELDS.map((f) => patch.mood?.[f]),
     ];
     if (flat.some((v) => v === undefined || Number.isNaN(v))) return null;
     return mergeRules(patch);
@@ -271,6 +288,28 @@ export function RulesForm({ initialRules, storedPatch, updatedAt, updatedBy }: R
           <input type="text" inputMode="numeric" value={draft.thumbsPerCoachReward} onChange={(e) => setDraft((d) => ({ ...d, thumbsPerCoachReward: e.target.value }))} className={inputClass} />
           <span className="block text-[11px] text-cream-700">Verts ou rouges, tous élèves confondus · défaut {DEFAULT_RULES.coaching.thumbsPerCoachReward}</span>
         </label>
+      </section>
+
+      <section className="grid gap-3 rounded-3xl border border-ink-600/80 bg-ink-800/90 p-4 shadow-card sm:grid-cols-2">
+        <h2 className="font-display text-xl text-cream-50 sm:col-span-2">Effets de l&apos;humeur</h2>
+        <p className="-mt-2 text-xs text-cream-500 sm:col-span-2">
+          L&apos;humeur baisse chaque heure (tableau ci-dessus), remonte de +5 par repas et +15 par partie. Ces seuils décident de ses effets.
+        </p>
+        {MOOD_FIELDS.map((field) => (
+          <label key={field} className="space-y-1 text-sm">
+            <span className="text-cream-100">{MOOD_LABELS[field].label}</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={draft.mood[field]}
+              onChange={(e) => setDraft((d) => ({ ...d, mood: { ...d.mood, [field]: e.target.value } }))}
+              className={inputClass}
+            />
+            <span className="block text-[11px] text-cream-700">
+              {MOOD_LABELS[field].help} · défaut {DEFAULT_RULES.mood[field]}
+            </span>
+          </label>
+        ))}
       </section>
 
       <section className="rounded-3xl border border-sage-700/50 bg-sage-800/20 p-4">

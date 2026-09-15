@@ -98,11 +98,15 @@ export async function equipAccessory(userId: string, creature: Creature, slot: S
   return getOutfit(creature.id);
 }
 
-/** Chest status for a living creature: the holder's steps since the hatch day (the host's during a stay at a friend's). */
+/**
+ * Chest status for a living creature: the holder's steps since the hatch day
+ * (the host's during a stay at a friend's) plus the bonus steps banked while
+ * happy (spec § 3.18).
+ */
 export async function getChestStatus(creature: Creature): Promise<ChestStatus> {
   if (creature.status !== "alive" || !creature.hatchedAt) return chestStatus(0, 0);
   const total = await creatureStepsSince(creature, gameDate(creature.hatchedAt));
-  return chestStatus(total, creature.accessoryDrops);
+  return chestStatus(total + creature.chestBonusSteps, creature.accessoryDrops);
 }
 
 /** Options shared by actions a host may perform on a creature entrusted to them. */

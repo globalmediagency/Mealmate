@@ -3,22 +3,22 @@ import { clampManualSteps, crackLevel, hatchProgress, stepCredit } from "./steps
 
 describe("stepCredit", () => {
   it("credits one health and two xp per thousand steps", () => {
-    expect(stepCredit(3400, 0)).toEqual({ healthGain: 3, xpGain: 6, credited: 3400 });
+    expect(stepCredit(3400, 0)).toEqual({ healthGain: 3, xpGain: 6, credited: 3400, steps: 3400 });
   });
 
   it("only credits the new thousands after an edit", () => {
-    expect(stepCredit(5200, 3400)).toEqual({ healthGain: 2, xpGain: 4, credited: 5200 });
-    expect(stepCredit(3900, 3400)).toEqual({ healthGain: 0, xpGain: 0, credited: 3900 });
+    expect(stepCredit(5200, 3400)).toEqual({ healthGain: 2, xpGain: 4, credited: 5200, steps: 1800 });
+    expect(stepCredit(3900, 3400)).toEqual({ healthGain: 0, xpGain: 0, credited: 3900, steps: 500 });
   });
 
   it("caps health at +10 per day but not xp", () => {
-    expect(stepCredit(25_000, 0)).toEqual({ healthGain: 10, xpGain: 50, credited: 25_000 });
-    expect(stepCredit(30_000, 25_000)).toEqual({ healthGain: 0, xpGain: 10, credited: 30_000 });
-    expect(stepCredit(12_000, 8_000)).toEqual({ healthGain: 2, xpGain: 8, credited: 12_000 });
+    expect(stepCredit(25_000, 0)).toEqual({ healthGain: 10, xpGain: 50, credited: 25_000, steps: 25_000 });
+    expect(stepCredit(30_000, 25_000)).toEqual({ healthGain: 0, xpGain: 10, credited: 30_000, steps: 5_000 });
+    expect(stepCredit(12_000, 8_000)).toEqual({ healthGain: 2, xpGain: 8, credited: 12_000, steps: 4_000 });
   });
 
   it("never removes effects when the total is lowered", () => {
-    expect(stepCredit(2000, 5000)).toEqual({ healthGain: 0, xpGain: 0, credited: 5000 });
+    expect(stepCredit(2000, 5000)).toEqual({ healthGain: 0, xpGain: 0, credited: 5000, steps: 0 });
   });
 });
 

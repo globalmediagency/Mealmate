@@ -6,7 +6,8 @@ import { creatures, type Creature } from "@/lib/db/schema";
 import { CREATURE_NAME, TIERS, type Tier } from "@/lib/game/config";
 import { getDropWeights } from "@/lib/game/drops-service";
 import { drawSpecies } from "@/lib/game/rarity";
-import type { GameRules } from "@/lib/game/rules";
+import { applyMoodToXp, chestBonusSteps } from "@/lib/game/mood";
+import { DEFAULT_RULES, type GameRules } from "@/lib/game/rules";
 import { getGameRules } from "@/lib/game/rules-service";
 import { gameDate } from "@/lib/game/time";
 import { sumStepsSince } from "@/lib/steps/service";
@@ -162,17 +163,23 @@ export async function getObtainedSpeciesIds(userId: string): Promise<string[]> {
   return rows.map((row) => row.speciesId).filter((id): id is string => Boolean(id));
 }
 
-/** Applies walking effects to a living creature (health capped at 100). */
-export async function applyStepGains(
-  creature: Creature,
-  gains: { healthGain: number; xpGain: number },
-): Promise<Creature> {
-  if (creature.status !== "alive" || (gains.healthGain <= 0 && gains.xpGain <= 0)) return creature;
+export type StepGains = { healthGain: number; xpGain: number; steps?: number };
+
+/**
+ * Applies walking effects to a living creature (health capped at 100). The XP
+ * follows the creature's mood (bonus / malus) and a happy creature banks extra
+ * chest steps on the newly credited `steps` (spec § 3.18).
+ */
+export async function applyStepGains(creature: Creature, gains: StepGains, rules: GameRules = DEFAULT_RULES): Promise<Creature> {
+  if (creature.status !== "alive" || (gains.healthGain <= 0 && gains.xpGain <= 0 && (gains.steps ?? 0) <= 0)) return creature;
+  const xpGain = applyMoodToXp(gains.xpGain, creature.mood, rules.mood);
+  const bonusSteps = chestBonusSteps(gains.steps ?? 0, creature.mood, rules.mood);
   const rows = await getDb()
     .update(creatures)
     .set({
       health: Math.min(100, creature.health + gains.healthGain),
-      xp: creature.xp + gains.xpGain,
+      xp: creature.xp + xpGain,
+      chestBonusSteps: creature.chestBonusSteps + bonusSteps,
     })
     .where(eq(creatures.id, creature.id))
     .returning();

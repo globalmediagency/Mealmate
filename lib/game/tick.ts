@@ -1,6 +1,7 @@
 import type { Creature } from "@/lib/db/schema";
 import { HEALTH_STATE, type Tier } from "./config";
 import { DEFAULT_RULES, type GameRules } from "./rules";
+import { gloomyHours } from "./mood";
 import { daysBetween, hoursBetween } from "./time";
 
 const HOUR_MS = 3_600_000;
@@ -48,7 +49,11 @@ export function applyTick(creature: Creature, now: Date = new Date(), rules: Gam
   const hoursUntilStarving =
     hunger0 >= threshold ? 0 : tier.hungerPerHour > 0 ? (threshold - hunger0) / tier.hungerPerHour : Number.POSITIVE_INFINITY;
   const starvingHours = Math.max(0, t - hoursUntilStarving);
-  const health = clamp(creature.health - tier.healthLossPerHourWhenStarving * starvingHours, 0, 100);
+  const starvingLoss = tier.healthLossPerHourWhenStarving * starvingHours;
+
+  // A gloomy creature (mood under the threshold) loses health too, even when fed (spec § 3.18).
+  const gloomyLoss = rules.mood.healthLossPerHourWhenGloomy * gloomyHours(creature.mood, tier.moodLossPerHour, t, rules.mood);
+  const health = clamp(creature.health - starvingLoss - gloomyLoss, 0, 100);
 
   const mood = clamp(creature.mood - tier.moodLossPerHour * t, 0, 100);
 
@@ -57,8 +62,8 @@ export function applyTick(creature: Creature, now: Date = new Date(), rules: Gam
   if (health < HEALTH_STATE.tiredMin) {
     if (!sickSince) {
       // Estimate when health crossed the threshold (never before the last tick).
-      const hoursBelow =
-        tier.healthLossPerHourWhenStarving > 0 ? (HEALTH_STATE.tiredMin - health) / tier.healthLossPerHourWhenStarving : 0;
+      const lossRate = tier.healthLossPerHourWhenStarving + (gloomyLoss > 0 ? rules.mood.healthLossPerHourWhenGloomy : 0);
+      const hoursBelow = lossRate > 0 ? (HEALTH_STATE.tiredMin - health) / lossRate : 0;
       const estimate = new Date(now.getTime() - hoursBelow * HOUR_MS);
       sickSince = estimate < creature.lastTickAt ? creature.lastTickAt : estimate;
     }

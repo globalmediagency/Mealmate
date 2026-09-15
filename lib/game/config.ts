@@ -190,6 +190,24 @@ export const BOARDING = {
   cooldownMultiplier: 1,
 } as const;
 
+/** Mood effects (spec § 3.18). Admin-tunable defaults; thresholds compare the mood gauge (0–100). */
+export const MOOD = {
+  /** Mood at or above this: XP bonus and extra chest steps. */
+  happyMin: 70,
+  /** XP bonus (%) on meals, games and steps when happy. */
+  xpBonusPercent: 25,
+  /** Mood strictly below this: XP malus. */
+  lowMax: 30,
+  /** XP malus (%) when low. */
+  xpMalusPercent: 25,
+  /** Mood strictly below this: health drops even when fed. */
+  gloomyMax: 20,
+  /** Health lost per hour while gloomy. */
+  healthLossPerHourWhenGloomy: 0.5,
+  /** Extra chest steps (%) counted on steps credited while happy. */
+  chestStepsBonusPercent: 10,
+} as const;
+
 export const PLAY = {
   maxPerDay: 3,
   durationSeconds: 20,

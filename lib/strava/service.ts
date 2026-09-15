@@ -3,6 +3,8 @@ import { DomainError } from "@/lib/api/errors";
 import { applyStepGains, refreshEggSteps } from "@/lib/creatures/service";
 import { getDb } from "@/lib/db";
 import { stepEntries, stravaConnections, type Creature, type StravaConnection } from "@/lib/db/schema";
+import type { GameRules } from "@/lib/game/rules";
+import { getGameRules } from "@/lib/game/rules-service";
 import { stepCredit } from "@/lib/game/steps";
 import { activityDate, activityStepEquivalent, sportLabel, syncGate, syncWindowStart } from "@/lib/game/strava";
 import { gameDate } from "@/lib/game/time";
@@ -109,7 +111,7 @@ export type SyncResult = {
  * day across every source so the "+10 health per day" cap holds, then all
  * entries of the day are marked credited (Σ credited = Σ steps).
  */
-type Gains = { healthGain: number; xpGain: number };
+type Gains = { healthGain: number; xpGain: number; steps: number };
 
 /**
  * Converts the user's not-yet-credited steps of `dates` into gains, per day,
@@ -128,7 +130,7 @@ async function creditDays(userId: string, dates: string[]): Promise<Map<string, 
     .groupBy(stepEntries.date);
   for (const row of rows) {
     const credit = stepCredit(Number(row.total), Number(row.credited));
-    byDate.set(row.date, { healthGain: credit.healthGain, xpGain: credit.xpGain });
+    byDate.set(row.date, { healthGain: credit.healthGain, xpGain: credit.xpGain, steps: credit.steps });
   }
   await db
     .update(stepEntries)
@@ -139,11 +141,12 @@ async function creditDays(userId: string, dates: string[]): Promise<Map<string, 
 
 function gainsFor(creature: Creature, byDate: Map<string, Gains>): Gains {
   const since = creature.hatchedAt ? gameDate(creature.hatchedAt) : null;
-  const gains = { healthGain: 0, xpGain: 0 };
+  const gains = { healthGain: 0, xpGain: 0, steps: 0 };
   for (const [date, g] of byDate) {
     if (since !== null && date < since) continue;
     gains.healthGain += g.healthGain;
     gains.xpGain += g.xpGain;
+    gains.steps += g.steps;
   }
   return gains;
 }
@@ -153,7 +156,7 @@ function gainsFor(creature: Creature, byDate: Map<string, Gains>): Gains {
  * `creature` (the user's own egg or creature) and to every creature of
  * `others` (living creatures boarded with the user).
  */
-export async function syncStrava(userId: string, api: StravaApi, creature: Creature | null, now: Date = new Date(), others: Creature[] = []): Promise<SyncResult> {
+export async function syncStrava(userId: string, api: StravaApi, creature: Creature | null, now: Date = new Date(), others: Creature[] = [], rules?: GameRules): Promise<SyncResult> {
   const conn = await getConnection(userId);
   if (!conn) throw new DomainError("not_connected", "Connecte d'abord ton compte Strava.", 409);
   const gate = syncGate(conn.lastSyncAt, now);
@@ -189,15 +192,16 @@ export async function syncStrava(userId: string, api: StravaApi, creature: Creat
 
   const updated = await db.update(stravaConnections).set({ lastSyncAt: now }).where(eq(stravaConnections.userId, userId)).returning();
 
-  let gains = { healthGain: 0, xpGain: 0 };
+  let gains: Gains = { healthGain: 0, xpGain: 0, steps: 0 };
   let next = creature;
   if (creature?.status === "egg") next = await refreshEggSteps(creature);
   const living = [creature, ...others].filter((c): c is Creature => c !== null && c.status === "alive");
   if (living.length > 0 && imported.length > 0) {
     const byDate = await creditDays(userId, imported.map((a) => a.date));
+    const effectiveRules = rules ?? (await getGameRules());
     for (const held of living) {
       const heldGains = gainsFor(held, byDate);
-      const updated = await applyStepGains(held, heldGains);
+      const updated = await applyStepGains(held, heldGains, effectiveRules);
       if (creature && held.id === creature.id) {
         gains = heldGains;
         next = updated;

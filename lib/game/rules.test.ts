@@ -11,6 +11,13 @@ describe("rules", () => {
     expect(DEFAULT_RULES.boarding).toEqual({ maxPerHost: 5, cooldownMultiplier: 1 });
     expect(DEFAULT_RULES.coaching).toEqual({ thumbsPerStudentReward: 5, thumbsPerCoachReward: 10 });
     expect(DEFAULT_RULES.feeding.mealRetentionDays).toBe(30);
+    expect(DEFAULT_RULES.mood).toEqual({ happyMin: 70, xpBonusPercent: 25, lowMax: 30, xpMalusPercent: 25, gloomyMax: 20, healthLossPerHourWhenGloomy: 0.5, chestStepsBonusPercent: 10 });
+  });
+
+  it("tunes the mood rules", () => {
+    const rules = mergeRules({ mood: { happyMin: 60, chestStepsBonusPercent: 0 } });
+    expect(rules.mood).toMatchObject({ happyMin: 60, chestStepsBonusPercent: 0, xpBonusPercent: 25 });
+    expect(gameRulesPatchSchema.safeParse({ mood: { xpMalusPercent: 150 } }).success).toBe(false);
   });
 
   it("tunes the boarding rules", () => {

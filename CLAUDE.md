@@ -105,6 +105,10 @@ Avant chaque commit de fin de phase : `npm run build && npm run lint && npm test
 - En-têtes de sécurité dans `next.config.ts` ; pages privées en `robots: noindex` via les layouts `(app)`, `admin`, `dev`.
 - Accessibilité : cibles ≥ 44 px (`min-h-11` / `h-11 w-11`, avec marge négative pour les icônes de fermeture), focus global dans `globals.css`, lien d'évitement `.skip-link` dans le layout `(app)`.
 
+## Humeur
+
+- Effets purs dans `lib/game/mood.ts` (`moodBand`, `applyMoodToXp`, `chestBonusSteps`, `gloomyHours`), seuils dans `rules.mood` (`MOOD` de `config.ts` = défauts, réglables depuis `/admin`). Toujours passer l'humeur **d'avant l'action** : `mealEffects({ mood })`, `playEffects(score, mood, rules)`, `applyStepGains(creature, gains, rules)` (les `gains` portent `steps`, les pas nouvellement crédités). Le tick applique la perte de santé « triste ». Les pas bonus de coffre s'accumulent dans `creatures.chest_bonus_steps` (migration 012) et sont ajoutés par `getChestStatus()`. La vue expose `moodBand` + `moodEffects` (`moodEffectsFor`) pour les libellés `moodLabel()` / `moodHelp()` de `lib/game/dialogue.ts`.
+
 ## Nourrissage et IA
 
 - Toute lecture d'une créature vivante passe par `getActiveCreatureTicked()` (tick paresseux). Ne jamais lire `creatures` directement pour afficher des stats.

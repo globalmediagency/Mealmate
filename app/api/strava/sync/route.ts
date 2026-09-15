@@ -17,7 +17,7 @@ export async function POST() {
     const rules = await getGameRules();
     const held = await getHeldCreatures(session.user.id, now, rules);
     // The own creature away at a friend's is not credited (the host's steps feed it); boarded ones are.
-    const result = await syncStrava(session.user.id, stravaApi, held.away ? null : held.own, now, held.boarded.map((h) => h.creature));
+    const result = await syncStrava(session.user.id, stravaApi, held.away ? null : held.own, now, held.boarded.map((h) => h.creature), rules);
     return ok({
       imported: result.imported,
       skipped: result.skipped,

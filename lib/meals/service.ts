@@ -115,7 +115,7 @@ export async function feedCreature(input: FeedInput): Promise<FeedResult> {
     throw new DomainError("screen_photo", "Cette photo semble prise depuis un écran ou une image imprimée. Photographie ta vraie assiette !", 422);
   }
 
-  const effects = mealEffects({ score: analysis.score, tier: creature.tier as Tier, hunger: creature.hunger, rules });
+  const effects = mealEffects({ score: analysis.score, tier: creature.tier as Tier, hunger: creature.hunger, mood: creature.mood, rules });
   const mealId = randomUUID();
   const key = mealImageKey(userId, mealId);
   await storage.put(key, image.bytes, image.mimeType);
@@ -146,7 +146,7 @@ export async function feedCreature(input: FeedInput): Promise<FeedResult> {
   const results: FedCreature[] = [];
   for (const held of fed) {
     const target = held.creature;
-    const own = target.id === creature.id ? effects : mealEffects({ score: analysis.score, tier: target.tier as Tier, hunger: target.hunger, rules });
+    const own = target.id === creature.id ? effects : mealEffects({ score: analysis.score, tier: target.tier as Tier, hunger: target.hunger, mood: target.mood, rules });
     const health = clamp(target.health + own.healthDelta, 0, 100);
     const [updated] = await db
       .update(creatures)

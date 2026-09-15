@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BOARDING, COACHING, FEEDING, HUNGER_DAMAGE_THRESHOLD, TICK, TIER_CONFIG, TIERS, type Tier, type TierConfig } from "./config";
+import { BOARDING, COACHING, FEEDING, HUNGER_DAMAGE_THRESHOLD, MOOD, TICK, TIER_CONFIG, TIERS, type Tier, type TierConfig } from "./config";
 
 /** Per-tier demands that the admin can tune (spec § 3.1). */
 export type TierRules = Pick<
@@ -20,6 +20,17 @@ export type BoardingRules = {
   cooldownMultiplier: number;
 };
 
+/** Mood effects (spec § 3.18). */
+export type MoodRules = {
+  happyMin: number;
+  xpBonusPercent: number;
+  lowMax: number;
+  xpMalusPercent: number;
+  gloomyMax: number;
+  healthLossPerHourWhenGloomy: number;
+  chestStepsBonusPercent: number;
+};
+
 export type GameRules = {
   tiers: Record<Tier, TierRules>;
   /** Hunger above which health starts dropping. */
@@ -28,6 +39,7 @@ export type GameRules = {
   feeding: { maxMealsPerDay: number; rejectScreenPhotos: boolean; mealRetentionDays: number };
   boarding: BoardingRules;
   coaching: { thumbsPerStudentReward: number; thumbsPerCoachReward: number };
+  mood: MoodRules;
 };
 
 const pickTier = (config: TierConfig): TierRules => ({
@@ -52,6 +64,7 @@ export const DEFAULT_RULES: GameRules = {
   feeding: { maxMealsPerDay: FEEDING.maxMealsPerDay, rejectScreenPhotos: FEEDING.rejectScreenPhotos, mealRetentionDays: FEEDING.mealRetentionDays },
   boarding: { maxPerHost: BOARDING.maxPerHost, cooldownMultiplier: BOARDING.cooldownMultiplier },
   coaching: { thumbsPerStudentReward: COACHING.thumbsPerStudentReward, thumbsPerCoachReward: COACHING.thumbsPerCoachReward },
+  mood: { ...MOOD },
 };
 
 const tierRulesSchema = z
@@ -79,6 +92,17 @@ export const gameRulesPatchSchema = z
       .partial(),
     boarding: z.object({ maxPerHost: z.coerce.number().int().min(0).max(50), cooldownMultiplier: z.coerce.number().min(0).max(20) }).partial(),
     coaching: z.object({ thumbsPerStudentReward: z.coerce.number().int().min(1).max(100), thumbsPerCoachReward: z.coerce.number().int().min(1).max(100) }).partial(),
+    mood: z
+      .object({
+        happyMin: z.coerce.number().min(0).max(100),
+        xpBonusPercent: z.coerce.number().min(0).max(500),
+        lowMax: z.coerce.number().min(0).max(100),
+        xpMalusPercent: z.coerce.number().min(0).max(100),
+        gloomyMax: z.coerce.number().min(0).max(100),
+        healthLossPerHourWhenGloomy: z.coerce.number().min(0).max(50),
+        chestStepsBonusPercent: z.coerce.number().min(0).max(500),
+      })
+      .partial(),
   })
   .partial();
 
@@ -97,6 +121,7 @@ export function mergeRules(patch: GameRulesPatch | null | undefined, base: GameR
     feeding: { ...base.feeding, ...(patch.feeding ?? {}) },
     boarding: { ...base.boarding, ...(patch.boarding ?? {}) },
     coaching: { ...base.coaching, ...(patch.coaching ?? {}) },
+    mood: { ...base.mood, ...(patch.mood ?? {}) },
   };
 }
 

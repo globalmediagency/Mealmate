@@ -301,6 +301,7 @@ export function FoodCatchGame({ creature, accessories, playsLeft: initialPlaysLe
             </p>
             <p className="text-xs text-cream-500">
               +{result.effects.moodDelta} humeur · +{result.effects.xpDelta} XP
+              {result.effects.xpMultiplier > 1 ? " (bonne humeur : XP ×" + result.effects.xpMultiplier.toLocaleString("fr-FR") + ")" : result.effects.xpMultiplier < 1 ? " (humeur basse : XP ×" + result.effects.xpMultiplier.toLocaleString("fr-FR") + ")" : ""}
               {stats.current.junkHit > 0 ? ` · ${stats.current.junkHit} malbouffe attrapée${stats.current.junkHit > 1 ? "s" : ""}` : ""}
             </p>
             <div className="mt-2 flex gap-2">

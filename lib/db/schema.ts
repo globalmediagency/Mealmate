@@ -145,6 +145,8 @@ export const creatures = pgTable(
     mournedAt: timestamptz("mourned_at"),
     /** Accessory chests already opened for this creature (phase 5). */
     accessoryDrops: integer("accessory_drops").notNull().default(0),
+    /** Extra chest steps earned while happy (spec § 3.18, migration 012). */
+    chestBonusSteps: integer("chest_bonus_steps").notNull().default(0),
   },
   (table) => [
     index("creatures_user_status_idx").on(table.userId, table.status),

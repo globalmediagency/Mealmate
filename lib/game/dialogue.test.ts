@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CreatureView } from "./creature-view";
+import { moodEffectsFor, type CreatureView } from "./creature-view";
 import { ageLabel, creatureLine, hungerLabel } from "./dialogue";
 
 function view(overrides: Partial<CreatureView> = {}): CreatureView {
@@ -32,6 +32,8 @@ function view(overrides: Partial<CreatureView> = {}): CreatureView {
     sickDaysBeforeDeath: 7,
     hungerDamageThreshold: 80,
     healthyScoreThreshold: 40,
+    moodBand: "happy",
+    moodEffects: moodEffectsFor({ status: "alive", mood: 72 }),
     ...overrides,
   };
 }
@@ -42,7 +44,8 @@ describe("creatureLine", () => {
     expect(creatureLine(view({ health: 50, hunger: 85 }))).toBe("J'ai trop faim…");
     expect(creatureLine(view({ health: 50, hunger: 65 }))).toBe("J'ai faim…");
     expect(creatureLine(view({ health: 50 }))).toBe("Je suis un peu fatigué·e…");
-    expect(creatureLine(view({ mood: 20 }))).toBe("On joue ? Je m'ennuie.");
+    expect(creatureLine(view({ mood: 35, moodBand: "neutral" }))).toBe("On joue ? Je m'ennuie.");
+    expect(creatureLine(view({ mood: 10, moodBand: "gloomy" }))).toBe("J'ai le cœur lourd… tu viens jouer ?");
   });
 
   it("is stable for a given day", () => {

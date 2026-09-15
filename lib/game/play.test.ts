@@ -16,7 +16,13 @@ describe("computePlayScore", () => {
 
 describe("playEffects", () => {
   it("gives +15 mood, +5 xp, +5 more when perfect", () => {
-    expect(playEffects(40)).toEqual({ moodDelta: 15, xpDelta: 5, perfect: false });
-    expect(playEffects(100)).toEqual({ moodDelta: 15, xpDelta: 10, perfect: true });
+    expect(playEffects(40)).toEqual({ moodDelta: 15, xpDelta: 5, perfect: false, xpMultiplier: 1 });
+    expect(playEffects(100)).toEqual({ moodDelta: 15, xpDelta: 10, perfect: true, xpMultiplier: 1 });
+  });
+
+  it("scales the XP with the mood before the game", () => {
+    expect(playEffects(100, 90)).toMatchObject({ xpDelta: 13, xpMultiplier: 1.25 });
+    expect(playEffects(100, 10)).toMatchObject({ xpDelta: 8, xpMultiplier: 0.75 });
+    expect(playEffects(40, 50)).toMatchObject({ xpDelta: 5, xpMultiplier: 1 });
   });
 });

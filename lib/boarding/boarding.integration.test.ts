@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { applyMoodToXp } from "@/lib/game/mood";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { MealAnalysis } from "@/lib/ai/meal-schema";
 import { getChestStatus, getOwnedAccessories, openChest } from "@/lib/accessories/service";
@@ -220,10 +221,10 @@ describe("the host takes care of the creature", () => {
     const before = (await getDb().select().from(creatures).where(eq(creatures.id, misoId)))[0];
     const result = await saveStepsForHeld(bob, 6_000, "set", D1, T1);
     expect(result.credited).toBe(2);
-    expect(result.gains).toEqual({ healthGain: 6, xpGain: 12 });
+    expect(result.gains).toEqual({ healthGain: 6, xpGain: 12, steps: 6_000 });
     expect(result.own?.name).toBe("Roux");
     const after = (await getDb().select().from(creatures).where(eq(creatures.id, misoId)))[0];
-    expect(after.xp).toBe(before.xp + 12);
+    expect(after.xp).toBe(before.xp + applyMoodToXp(12, before.mood));
   });
 
   it("earns Miso's chests with the host's steps, not the owner's", async () => {
@@ -242,7 +243,7 @@ describe("the host takes care of the creature", () => {
     const miso = (await getHeldCreature(bob, misoId, T1)).creature;
     await expect(recordPlay(bob, miso, 80, T1)).rejects.toMatchObject({ code: "forbidden" });
     const played = await recordPlay(bob, miso, 80, T1, { boarded: true });
-    expect(played.creature.xp).toBe(miso.xp + 5);
+    expect(played.creature.xp).toBe(miso.xp + applyMoodToXp(5, miso.mood));
 
     await getDb().update(creatures).set({ health: 40, sickSince: null }).where(eq(creatures.id, misoId));
     await creditPurchase({ sessionId: "cs_board_1", userId: bob, item: "sirop", amountCents: 299 });

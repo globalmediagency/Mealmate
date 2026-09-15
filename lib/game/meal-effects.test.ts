@@ -16,6 +16,12 @@ describe("mealEffects", () => {
     expect(effects.healthDelta).toBe(5.3);
   });
 
+  it("scales the XP with the creature's mood when given", () => {
+    expect(mealEffects({ score: 82, tier: "facile", hunger: 50, mood: 90 })).toMatchObject({ xpDelta: 19, xpMultiplier: 1.25 });
+    expect(mealEffects({ score: 82, tier: "facile", hunger: 50, mood: 10 })).toMatchObject({ xpDelta: 11, xpMultiplier: 0.75 });
+    expect(mealEffects({ score: 82, tier: "facile", hunger: 50 }).xpMultiplier).toBe(1);
+  });
+
   it("always reduces hunger by 40 and raises mood by 5", () => {
     const effects = mealEffects({ score: 30, tier: "facile", hunger: 90 });
     expect(effects.hungerDelta).toBe(-40);

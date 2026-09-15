@@ -32,7 +32,7 @@ import { DangerZone } from "@/components/account/danger-zone";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { Card, CardTitle } from "@/components/ui/card";
 import { playableTiers, speciesByTierAll, toSpeciesSummary, getSpecies } from "@/lib/creatures";
-import type { CreatureView } from "@/lib/game/creature-view";
+import { moodEffectsFor, type CreatureView } from "@/lib/game/creature-view";
 import { creatureLine } from "@/lib/game/dialogue";
 import { DEFAULT_RULES } from "@/lib/game/rules";
 import { gameDate, shiftDate } from "@/lib/game/time";
@@ -75,6 +75,8 @@ function mockCreature(overrides: Partial<CreatureView>): CreatureView {
     sickDaysBeforeDeath: 7,
     hungerDamageThreshold: 80,
     healthyScoreThreshold: 40,
+    moodBand: "happy",
+    moodEffects: moodEffectsFor({ status: "alive", mood: 72 }),
     ...overrides,
   };
 }
