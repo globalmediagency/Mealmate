@@ -275,9 +275,9 @@ export const DEFENSE = {
   tongueSeconds: 0.6,
   tongueExtendFraction: 0.4,
   tongueCooldownMs: 900,
-  /** The tongue leaves the mouth: this far ahead of the creature's centre, this high; it always goes out at least `tongueMinLength`. */
+  /** Where the tongue leaves from before the creature's own mouth is known (`CreatureMesh.mouth`); it always goes out at least `tongueMinLength`. */
   tongueBaseOffset: 0.4,
-  tongueBaseHeight: 0.85,
+  tongueBaseHeight: 0.8,
   tongueMinLength: 1.2,
 } as const;
 

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { DEFENSE } from "@/lib/game/config";
 import { bonusBlinking, eggPosition, tongueExtension, type DefenseState, type EffectKind } from "@/lib/game/defense";
+import type { MouthPosition } from "./creature-mesh";
 import { buildFoodMesh, type FoodMesh, type FoodModelKind } from "./food-mesh";
 
 const SMOKE_PUFFS = 5;
@@ -40,6 +41,8 @@ export class DefenseScene {
   private readonly tongue = new THREE.Group();
   private readonly tongueBody: THREE.Mesh;
   private readonly tongueTip: THREE.Mesh;
+  /** The defending creature's mouth, where the tongue leaves from (defaults until the creature is built). */
+  private mouth: MouthPosition = { height: DEFENSE.tongueBaseHeight, front: DEFENSE.tongueBaseOffset };
   private readonly freeShadows: THREE.Mesh[] = [];
   private readonly freeBars: HealthBar[] = [];
   private readonly shadowMaterial = new THREE.MeshBasicMaterial({ color: 0x0b1210, transparent: true, opacity: 0.28, depthWrite: false });
@@ -66,10 +69,10 @@ export class DefenseScene {
     this.aim.visible = false;
     this.root.add(this.aim);
     const tongueMaterial = new THREE.MeshStandardMaterial({ color: TONGUE_COLOR, roughness: 0.5 });
-    const tongueGeometry = new THREE.CylinderGeometry(0.075, 0.1, 1, 12);
+    const tongueGeometry = new THREE.CylinderGeometry(0.045, 0.06, 1, 12);
     this.tongueBody = new THREE.Mesh(tongueGeometry, tongueMaterial);
     this.tongueTip = new THREE.Mesh(this.sphere, tongueMaterial);
-    this.tongueTip.scale.setScalar(0.11);
+    this.tongueTip.scale.setScalar(0.07);
     this.tongue.add(this.tongueBody, this.tongueTip);
     this.tongue.visible = false;
     this.root.add(this.tongue);
@@ -88,6 +91,11 @@ export class DefenseScene {
     front.renderOrder = 11;
     this.root.add(back, front);
     return { back, front };
+  }
+
+  /** Tells the scene where the creature's mouth is, so the tongue comes out of it. */
+  setMouth(mouth: MouthPosition | null) {
+    if (mouth) this.mouth = mouth;
   }
 
   /** One model per food kind, built once and cloned per food (geometries and materials shared). */
@@ -288,9 +296,12 @@ export class DefenseScene {
     this.tongue.visible = tongue !== null;
     if (tongue) {
       const ext = tongueExtension(tongue.t);
-      const from = new THREE.Vector3(tongue.dir.x * DEFENSE.tongueBaseOffset, tongue.dir.y * DEFENSE.tongueBaseOffset, DEFENSE.tongueBaseHeight);
-      const reach = DEFENSE.tongueBaseOffset + (tongue.length - DEFENSE.tongueBaseOffset) * ext;
-      const to = new THREE.Vector3(tongue.dir.x * reach, tongue.dir.y * reach, DEFENSE.tongueBaseHeight + (TONGUE_TIP_HEIGHT - DEFENSE.tongueBaseHeight) * ext);
+      // Out of the lower lip: just ahead of the mouth's surface, a touch below it.
+      const baseOffset = this.mouth.front + 0.02;
+      const baseHeight = Math.max(TONGUE_TIP_HEIGHT + 0.05, this.mouth.height - 0.04);
+      const from = new THREE.Vector3(tongue.dir.x * baseOffset, tongue.dir.y * baseOffset, baseHeight);
+      const reach = baseOffset + Math.max(0, tongue.length - baseOffset) * ext;
+      const to = new THREE.Vector3(tongue.dir.x * reach, tongue.dir.y * reach, baseHeight + (TONGUE_TIP_HEIGHT - baseHeight) * ext);
       const span = to.clone().sub(from);
       const length = Math.max(0.05, span.length());
       this.tongueBody.position.copy(from).add(span.clone().multiplyScalar(0.5));

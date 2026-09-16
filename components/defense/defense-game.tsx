@@ -203,6 +203,7 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPer
         if (!input) return;
         s.ensureTarget(id, input);
         s.attach(id, sc.root);
+        sc.setMouth(s.mouthOf(id));
       }
       detections.set(id, found.corners);
     }

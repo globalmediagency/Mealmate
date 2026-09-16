@@ -20,9 +20,13 @@ export type CreatureMeshInput = {
   textures: TextureSource;
 };
 
+/** Where the mouth is, in the creature's own frame (marker sides): height above the feet and distance ahead of the centre. */
+export type MouthPosition = { height: number; front: number };
+
 export type CreatureMesh = {
   /** Feet at the origin, standing along +y, facing +z. */
   root: THREE.Group;
+  mouth: MouthPosition;
   animate(seconds: number): void;
   dispose(): void;
 };
@@ -228,8 +232,12 @@ export function buildCreatureMesh(input: CreatureMeshInput): CreatureMesh {
 
   const baseScaleY = root.scale.y;
   const blinkPeriod = 3.2 + (hashOf(species.id) % 20) / 10;
+  // The mouth's place in the creature's frame (the tongue of "Défendre" leaves from there).
+  root.updateMatrixWorld(true);
+  const mouthWorld = mouth.getWorldPosition(new THREE.Vector3());
   return {
     root,
+    mouth: { height: mouthWorld.y, front: mouthWorld.z },
     animate(seconds) {
       if (state === "dead") return;
       root.scale.y = baseScaleY * (1 + 0.015 * Math.sin(seconds * 2.2));

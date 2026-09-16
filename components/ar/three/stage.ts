@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { cameraFovDeg, pickPose, posesFromCorners, type Pose3d } from "@/lib/ar/pose3d";
 import type { Corner } from "../marker-camera";
-import { buildCreatureMesh, type CreatureMesh, type CreatureMeshInput } from "./creature-mesh";
+import { buildCreatureMesh, type CreatureMesh, type CreatureMeshInput, type MouthPosition } from "./creature-mesh";
 
 export { textureFromSvg } from "./textures";
 export type { Corner } from "../marker-camera";
@@ -101,6 +101,11 @@ export class ThreeStage {
 
   isTracked(id: number): boolean {
     return this.slots.has(id);
+  }
+
+  /** Where a creature's mouth is (height above the paper, distance ahead of its centre), in marker sides. */
+  mouthOf(id: number): MouthPosition | null {
+    return this.slots.get(id)?.mesh.mouth ?? null;
   }
 
   /** Turns a creature on its marker (radians about the paper's normal, positive = counter-clockwise seen from above). */
