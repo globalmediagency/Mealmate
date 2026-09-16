@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Egg, Ellipsis, Footprints, UtensilsCrossed, Users } from "lucide-react";
+import { useLiveArena } from "@/components/arena/live-arena";
 import { cn } from "@/lib/utils/cn";
 
 const ITEMS = [
@@ -17,6 +18,7 @@ type BottomNavProps = { badges?: Partial<Record<string, number>> };
 
 export function BottomNav({ badges = {} }: BottomNavProps) {
   const pathname = usePathname();
+  const live = useLiveArena();
   return (
     <nav
       aria-label="Navigation principale"
@@ -25,7 +27,7 @@ export function BottomNav({ badges = {} }: BottomNavProps) {
       <ul className="mx-auto flex w-full max-w-md items-stretch justify-between px-2">
         {ITEMS.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);
-          const badge = badges[href] ?? 0;
+          const badge = (badges[href] ?? 0) + (href === "/friends" ? live.invites : 0);
           return (
             <li key={href} className="flex-1">
               <Link

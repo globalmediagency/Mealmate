@@ -491,6 +491,40 @@ export async function listMatchesFor(userId: string, now: Date, rules: GameRules
 }
 
 /** Pending invitations, for the Amis tab badge. */
+export type ArenaInviteNotice = {
+  matchId: string;
+  hostId: string;
+  hostName: string;
+  createdAt: string;
+  /** The other guests (ready or invited), without the host and the reader. */
+  players: string[];
+};
+
+/** The reader's pending invitations, newest first, for the live notice shown on every page (no write, no settle). */
+export async function listArenaInvites(userId: string, now: Date = new Date()): Promise<ArenaInviteNotice[]> {
+  const db = getDb();
+  const limit = new Date(now.getTime() - ARENA.lobbyTtlMinutes * MINUTE_MS);
+  const rows = await db
+    .select({ match: arenaMatches })
+    .from(arenaPlayers)
+    .innerJoin(arenaMatches, eq(arenaMatches.id, arenaPlayers.matchId))
+    .where(and(eq(arenaPlayers.userId, userId), eq(arenaPlayers.status, "invited"), eq(arenaMatches.status, "lobby"), gt(arenaMatches.createdAt, limit)))
+    .orderBy(desc(arenaMatches.createdAt))
+    .limit(5);
+  if (rows.length === 0) return [];
+  const players = await db.select().from(arenaPlayers).where(inArray(arenaPlayers.matchId, rows.map((r) => r.match.id)));
+  const names = await publicProfiles([...players.map((p) => p.userId), ...rows.map((r) => r.match.hostId)]);
+  return rows.map(({ match }) => ({
+    matchId: match.id,
+    hostId: match.hostId,
+    hostName: names.get(match.hostId)?.username ?? "Un ami",
+    createdAt: match.createdAt.toISOString(),
+    players: players
+      .filter((p) => p.matchId === match.id && p.userId !== userId && p.userId !== match.hostId && (p.status === "ready" || p.status === "invited"))
+      .map((p) => names.get(p.userId)?.username ?? "Un ami"),
+  }));
+}
+
 export async function countArenaInvites(userId: string, now: Date = new Date()): Promise<number> {
   const limit = new Date(now.getTime() - ARENA.lobbyTtlMinutes * MINUTE_MS);
   const [row] = await getDb()

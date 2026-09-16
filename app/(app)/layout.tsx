@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { LiveArena } from "@/components/arena/live-arena";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { ConfigMissingScreen } from "@/components/system/config-missing-screen";
 import { SchemaOutdatedScreen } from "@/components/system/schema-outdated-screen";
@@ -38,8 +39,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <a href="#main" className="skip-link">
         Aller au contenu
       </a>
-      <main id="main" className="mx-auto w-full max-w-md px-4 pt-3 safe-top">{children}</main>
-      <BottomNav badges={{ "/friends": pendingRequests + pendingTrades + coaching + arenaInvites, "/home": unseenGifts + unseenBoardings + ownerNotices }} />
+      {/* Arena invitations are live (polled by the phone) and reach every page: their count is added client-side to the Amis badge. */}
+      <LiveArena initialInvites={arenaInvites}>
+        <main id="main" className="mx-auto w-full max-w-md px-4 pt-3 safe-top">{children}</main>
+        <BottomNav badges={{ "/friends": pendingRequests + pendingTrades + coaching, "/home": unseenGifts + unseenBoardings + ownerNotices }} />
+      </LiveArena>
     </div>
   );
 }

@@ -20,6 +20,7 @@ import { ArViewer } from "@/components/ar/ar-viewer";
 import { Creature3dView } from "@/components/ar/three/creature-3d-view";
 import { FoodGallery } from "@/components/ar/three/food-gallery";
 import { ArenaMatch } from "@/components/arena/arena-match";
+import { ArenaInvitePreview } from "@/components/arena/live-arena";
 import { previewArenaSnapshot } from "@/components/arena/preview-transport";
 import { DefenseGame } from "@/components/defense/defense-game";
 import { Species3dButton } from "@/components/admin/species-3d-dialog";
@@ -46,7 +47,7 @@ import { ShopPanel } from "@/components/shop/shop-panel";
 import { StravaCard } from "@/components/game/strava-card";
 import { DangerZone } from "@/components/account/danger-zone";
 import { BottomNav } from "@/components/layout/bottom-nav";
-import { Card, CardTitle } from "@/components/ui/card";
+import { Card, CardText, CardTitle } from "@/components/ui/card";
 import { ALL_SPECIES, playableTiers, speciesByTierAll, toSpeciesSummary, getSpecies } from "@/lib/creatures";
 import { moodEffectsFor, type CreatureView } from "@/lib/game/creature-view";
 import { creatureLine } from "@/lib/game/dialogue";
@@ -57,7 +58,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "turnaround", "creature-3d", "defense", "defense-boss", "arena", "arena-rtc", "food-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "turnaround", "creature-3d", "defense", "defense-boss", "arena", "arena-rtc", "arena-invite", "food-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -198,6 +199,18 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
       break;
     case "food-3d":
       content = <FoodGallery />;
+      break;
+    case "arena-invite":
+      // The live notice an invited friend sees on any page.
+      content = (
+        <div className="space-y-4">
+          <Card>
+            <CardTitle>Invitation à l&apos;arène</CardTitle>
+            <CardText className="mt-1">L&apos;encart apparaît en bas de n&apos;importe quelle page quand un ami ouvre une partie ; « Plus tard » le replie pour la session.</CardText>
+          </Card>
+          <ArenaInvitePreview />
+        </div>
+      );
       break;
     case "arena-rtc":
       // The same table seen from two tabs (`?as=me` and `?as=lea`) linked for real over WebRTC; each tab keeps its own in-memory referee.

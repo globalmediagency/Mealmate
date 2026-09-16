@@ -16,6 +16,7 @@ import {
   createMatch,
   eatBonuses,
   leaveMatch,
+  listArenaInvites,
   listMatchesFor,
   listSignals,
   postSignal,
@@ -91,6 +92,10 @@ describe("lobby", () => {
     expect(players.every((p) => p.marker >= 0)).toBe(true);
     expect(await countArenaInvites(bob, T0)).toBe(1);
     expect(await countArenaInvites(alice, T0)).toBe(0);
+    const notices = await listArenaInvites(bob, T0);
+    expect(notices).toEqual([{ matchId: match.id, hostId: alice, hostName: "Alice", createdAt: T0.toISOString(), players: [] }]);
+    expect(await listArenaInvites(alice, T0)).toEqual([]);
+    expect(await listArenaInvites(bob, at(ARENA.lobbyTtlMinutes * 60 + 1))).toEqual([]);
 
     await expect(createMatch(alice, [bob], T0, RULES)).rejects.toMatchObject({ code: "arena_busy" });
     await expect(startMatch(alice, match.id, T0, RULES)).rejects.toMatchObject({ code: "not_enough_players" });
@@ -107,6 +112,7 @@ describe("lobby", () => {
     await cancelMatch(alice, match.id, at(1), RULES);
     expect((await snapshot(bob, match.id, at(1), RULES)).match.status).toBe("cancelled");
     expect(await countArenaInvites(bob, at(1))).toBe(0);
+    expect(await listArenaInvites(bob, at(1))).toEqual([]);
   });
 
   it("forgets a lobby nobody started", async () => {

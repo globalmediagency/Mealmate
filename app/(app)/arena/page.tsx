@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ArenaList, type FriendOption } from "@/components/arena/arena-list";
+import { NotificationOptIn } from "@/components/arena/notification-opt-in";
 import { MarkerCard } from "@/components/ar/marker-card";
 import { PageHeader } from "@/components/layout/page-header";
 import { ensureCreatureMarker } from "@/lib/ar/service";
@@ -41,6 +42,7 @@ export default async function ArenaPage() {
     <div className="space-y-5 animate-rise">
       <PageHeader title="Arène" subtitle="Une bataille d'œufs entre amis, en réalité augmentée." />
       <ArenaList listing={listing} friends={options} blocked={blocked} maxPlayers={ARENA.maxPlayers} />
+      <NotificationOptIn />
       {marker ? <MarkerCard name={marker.name} markerId={marker.id} creatureId={marker.creatureId} /> : null}
       <p className="text-center text-xs text-cream-700">
         {rules.arena.durationSeconds} secondes, {rules.arena.hp} points de vie, {rules.arena.eggDamage} de dégâts par œuf. Les points de vie perdus ici ne touchent pas la vraie

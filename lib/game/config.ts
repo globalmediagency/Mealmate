@@ -312,6 +312,8 @@ export const ARENA = {
   /** How often the phones ask the server for news, in polling mode. */
   pollMs: 500,
   lobbyPollMs: 2000,
+  /** Invitations reach every page of the app: the phone asks for news at this pace (slower when the tab is hidden). */
+  notices: { pollMs: 5000, hiddenPollMs: 30_000 },
   /** Direct link between the phones (WebRTC data channels), when the admin enables it: the referee is still polled, more slowly. */
   rtc: {
     /** Referee poll while the direct link carries the eggs and tongues. */
