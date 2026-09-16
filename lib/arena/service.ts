@@ -252,6 +252,13 @@ async function loadFor(userId: string, matchId: string): Promise<{ match: ArenaM
 }
 
 const participants = (players: ArenaPlayer[]) => players.filter((p) => p.status === "ready" || p.status === "left");
+
+/** The caller must be a ready player of a match still open (lobby or battle), e.g. to receive relay credentials. */
+export async function assertArenaPlayer(userId: string, matchId: string): Promise<void> {
+  const { match, me } = await loadFor(userId, matchId);
+  if (match.status !== "lobby" && match.status !== "playing") throw new DomainError("arena_closed", "La partie est terminée.", 409);
+  if (me.status !== "ready") throw new DomainError("not_found", "Tu ne participes pas à cette partie.", 404);
+}
 const alivePlayers = (players: ArenaPlayer[]) => players.filter((p) => p.status === "ready" && p.hp > 0 && !p.eliminatedAt);
 
 /**

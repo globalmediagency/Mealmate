@@ -21,6 +21,7 @@ const SERVICE_LABELS: Array<{ key: keyof ReturnType<typeof getConfigStatus>; lab
   { key: "stripe", label: "Boutique (Stripe)" },
   { key: "strava", label: "Strava" },
   { key: "admin", label: "Espace admin (/admin)" },
+  { key: "turn", label: "Relais TURN Cloudflare (Arène)" },
 ];
 
 export default async function MorePage() {

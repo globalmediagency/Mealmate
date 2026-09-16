@@ -26,6 +26,7 @@ Google AI Studio, Stripe, Strava. Aucune installation locale n'est nécessaire.
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | pour `/admin` | Réglage des exigences des créatures |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | pour la boutique | Paiements de test |
 | `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` | pour Strava | Import d'activités |
+| `CLOUDFLARE_TURN_KEY_ID` / `CLOUDFLARE_TURN_API_TOKEN` | non | Relais TURN de l'Arène (liaison directe entre téléphones sur des réseaux différents) |
 | `NEXT_PUBLIC_DEV_GALLERY` | non | `true` pour ouvrir `/dev/creatures` et `/dev/screens` (lue au build) |
 | `NEXT_PUBLIC_CONTACT_EMAIL` | non | Adresse affichée dans les mentions légales |
 
@@ -213,6 +214,23 @@ supprimés au bout de 30 jours, pour toi comme pour ton coach. Dans **Admin › 
    modèle : `GEMINI_MODEL=gemini-3.6-flash` par exemple. Avec `NEXT_PUBLIC_DEV_GALLERY=true`, la page
    `/dev/gemini` liste les modèles visibles et l'ordre d'essai.
 
+### Cloudflare TURN — liaison directe de l'Arène (optionnel)
+
+Sans relais, la liaison directe WebRTC de l'Arène (case « WebRTC » de **Admin › Règles de jeu › Arène**) ne
+s'ouvre qu'entre téléphones qui peuvent se joindre : même Wi-Fi, ou partage de connexion de l'un d'eux.
+Avec le relais TURN de Cloudflare (1 000 Go gratuits par mois, l'Arène en consomme quelques centaines de
+Ko par bataille), elle s'ouvre aussi entre deux réseaux différents, forfaits mobiles compris.
+
+1. <https://dash.cloudflare.com> → **Realtime** (anciennement « Calls ») → **TURN** → **Create TURN key**
+   → nom `mealmate`.
+2. Copie le **Key ID** et le **API token** affichés (le jeton n'est montré qu'une fois) → Vercel
+   `CLOUDFLARE_TURN_KEY_ID`, `CLOUDFLARE_TURN_API_TOKEN` → Redeploy.
+3. Vérification : **Plus → état des services** affiche « Relais TURN Cloudflare (Arène) » configuré ; dans une
+   bataille avec la case WebRTC cochée, deux téléphones sur des réseaux différents affichent « Direct 1/1 ».
+
+Le jeton ne quitte jamais le serveur : chaque joueur reçoit des identifiants TURN temporaires (4 heures),
+réservés aux joueurs d'une partie ouverte. Sans les variables, rien ne change.
+
 ### Stripe — boutique en mode test (phase 7)
 
 Prérequis : la migration [`db/migrations/005_gifts_trades.sql`](./db/migrations/005_gifts_trades.sql)
@@ -322,6 +340,7 @@ apparaissent alors, sans connexion nécessaire :
     toutes les demi-secondes ; avec la case « WebRTC » de **Admin › Règles de jeu › Arène**, ils ouvrent en plus une
     liaison directe entre eux (les œufs et les langues des autres apparaissent aussitôt, une pastille « Direct 1/1 »
     le confirme, le serveur reste l'arbitre) et reviennent au sondage seul s'ils ne parviennent pas à se joindre.
+    Sur des réseaux différents, configure le relais Cloudflare TURN (section « Cloudflare TURN » plus bas).
 
 ## 5. Limites connues
 
@@ -341,9 +360,9 @@ apparaissent alors, sans connexion nécessaire :
   il est perdu) et le jeu demande WebGL (Chrome ou Safari récents).
 - **Arène** : synchronisation par le serveur toutes les 500 ms (l'œuf d'un ami apparaît avec ce léger délai) ; les
   touches sont jugées par le téléphone du tireur ; deux créatures d'une même partie ne peuvent pas partager un numéro
-  de marqueur (l'application refuse d'ouvrir la partie et le dit) ; la liaison directe WebRTC passe par des serveurs
-  STUN publics sans relais (TURN) : deux téléphones sur des réseaux mobiles différents peuvent ne pas se joindre et
-  restent alors sur le sondage (pastille « Direct 0/1 »), sans rien perdre du jeu.
+  de marqueur (l'application refuse d'ouvrir la partie et le dit) ; sans les variables Cloudflare TURN, la liaison
+  directe WebRTC passe par des serveurs STUN publics seulement : deux téléphones sur des réseaux mobiles différents
+  peuvent ne pas se joindre et restent alors sur le sondage (pastille « Direct 0/1 »), sans rien perdre du jeu.
 - **Gemini** : quota gratuit limité ; en cas d'erreur, le repas n'est pas compté et un message
   l'explique.
 

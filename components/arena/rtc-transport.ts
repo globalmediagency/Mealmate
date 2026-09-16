@@ -10,8 +10,13 @@ export type SignalEnvelope = { id: number; from: string; payload: unknown };
 export interface Signaling {
   send(to: string, signal: ArenaSignal): Promise<void>;
   poll(since: number): Promise<{ signals: SignalEnvelope[]; cursor: number }>;
+  /** Extra ICE servers for this match (a TURN relay with short-lived credentials), when the server has some. */
+  iceServers?(): Promise<RTCIceServer[]>;
   close(): void;
 }
+
+/** Waiting longer than this for the relay credentials would delay the link more than the relay saves. */
+const ICE_SERVERS_TIMEOUT_MS = 4000;
 
 /** Signals through `/api/arena/:id/signals` (spec § 3.22). */
 export class HttpSignaling implements Signaling {
@@ -31,6 +36,14 @@ export class HttpSignaling implements Signaling {
     const response = await fetch(`/api/arena/${this.matchId}/signals?since=${since}`, { cache: "no-store" });
     if (!response.ok) throw new Error(`signals ${response.status}`);
     return (await response.json()) as { signals: SignalEnvelope[]; cursor: number };
+  }
+
+  /** `GET /api/arena/:id/ice`: the Cloudflare TURN relay when configured, otherwise nothing (public STUN stays). */
+  async iceServers(): Promise<RTCIceServer[]> {
+    const response = await fetch(`/api/arena/${this.matchId}/ice`, { cache: "no-store" });
+    if (!response.ok) throw new Error(`ice ${response.status}`);
+    const body = (await response.json()) as { iceServers?: RTCIceServer[] };
+    return Array.isArray(body.iceServers) ? body.iceServers : [];
   }
 
   close(): void {}
@@ -122,6 +135,9 @@ export class RtcTransport implements ArenaTransport {
   private polling = false;
   private unsubscribe: (() => void) | null = null;
   private readonly peerListeners = new Set<PeerListener>();
+  /** Public STUN, plus the relay's servers once fetched. */
+  private iceServers: RTCIceServer[] = ARENA.rtc.iceServers.map((urls) => ({ urls }));
+  private relay = false;
 
   constructor(
     private readonly inner: ArenaTransport,
@@ -130,6 +146,11 @@ export class RtcTransport implements ArenaTransport {
     signalCursor = 0,
   ) {
     this.signalCursor = signalCursor;
+  }
+
+  /** Whether a TURN relay backs the link (for the HUD and the tests). */
+  get hasRelay(): boolean {
+    return this.relay;
   }
 
   get snapshot(): ArenaSnapshot | null {
@@ -189,9 +210,29 @@ export class RtcTransport implements ArenaTransport {
     if (this.running) return;
     this.running = true;
     this.inner.start();
-    this.unsubscribe = this.inner.subscribe((snapshot) => this.syncPeers(snapshot));
-    if (this.inner.snapshot) this.syncPeers(this.inner.snapshot);
-    this.schedule(0);
+    void this.prepare().then(() => {
+      if (!this.running) return;
+      this.unsubscribe = this.inner.subscribe((snapshot) => this.syncPeers(snapshot));
+      if (this.inner.snapshot) this.syncPeers(this.inner.snapshot);
+      this.schedule(0);
+    });
+  }
+
+  /** Fetches the relay's credentials first (bounded wait): the connections opened afterwards can use it. */
+  private async prepare(): Promise<void> {
+    if (!this.signaling.iceServers) return;
+    try {
+      const extra = await Promise.race([
+        this.signaling.iceServers(),
+        new Promise<RTCIceServer[]>((resolve) => setTimeout(() => resolve([]), ICE_SERVERS_TIMEOUT_MS)),
+      ]);
+      if (extra.length > 0) {
+        this.iceServers = [...this.iceServers, ...extra];
+        this.relay = extra.some((server) => (Array.isArray(server.urls) ? server.urls : [server.urls]).some((url) => url.startsWith("turn")));
+      }
+    } catch (error) {
+      console.warn("[arena] relay credentials unavailable, STUN only", error);
+    }
   }
 
   stop(): void {
@@ -320,7 +361,7 @@ export class RtcTransport implements ArenaTransport {
 
   private newConnection(peer: Peer, initiator: boolean): RTCPeerConnection {
     this.closePeer(peer);
-    const pc = new RTCPeerConnection({ iceServers: ARENA.rtc.iceServers.map((urls) => ({ urls })) });
+    const pc = new RTCPeerConnection({ iceServers: this.iceServers });
     peer.pc = pc;
     peer.state = "connecting";
     peer.attemptAt = Date.now();

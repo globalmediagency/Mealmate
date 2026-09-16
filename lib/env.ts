@@ -53,6 +53,8 @@ export type ConfigStatus = {
   stripe: boolean;
   strava: boolean;
   admin: boolean;
+  /** Cloudflare TURN relay for the arena's direct link (optional). */
+  turn: boolean;
 };
 
 /** Non-secret overview of which integrations are configured (booleans only). */
@@ -73,6 +75,7 @@ export function getConfigStatus(): ConfigStatus {
     stripe: has("STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"),
     strava: has("STRAVA_CLIENT_ID", "STRAVA_CLIENT_SECRET"),
     admin: has("ADMIN_USERNAME", "ADMIN_PASSWORD"),
+    turn: has("CLOUDFLARE_TURN_KEY_ID", "CLOUDFLARE_TURN_API_TOKEN"),
   };
 }
 
