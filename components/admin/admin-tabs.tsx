@@ -10,6 +10,7 @@ const TABS = [
   { href: "/admin/accessoires", label: "Accessoires" },
   { href: "/admin/aliments", label: "Aliments" },
   { href: "/admin/joueurs", label: "Joueurs" },
+  { href: "/admin/reseau", label: "Réseau" },
 ] as const;
 
 /** Section tabs of the admin area (hidden on the login page). */

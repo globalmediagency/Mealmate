@@ -1,4 +1,5 @@
 import type { ArenaEventView, ArenaSnapshot, ShotInput, ShotOutcome, TongueInput, TongueOutcome } from "@/lib/arena/service";
+import { selectedPairKind, type CandidateKind } from "@/lib/arena/rtc-diagnostic";
 import { isOfferer, parsePeerMessage, parseSignal, randomNonce, type ArenaSignal, type PeerMessage } from "@/lib/arena/rtc-protocol";
 import { ARENA } from "@/lib/game/config";
 import type { ArenaErrorListener, ArenaListener, ArenaTransport, LinkState, LobbyAction, PeerListener } from "./transport";
@@ -96,6 +97,8 @@ type Peer = {
   attemptAt: number;
   /** When this phone last said hello (non-offerer side). */
   helloAt: number;
+  /** How the pair is joined once connected (host, STUN or TURN relay). */
+  via: CandidateKind | null;
 };
 
 /** An attempt older than this is considered stuck: a new hello or offer replaces it. */
@@ -186,7 +189,7 @@ export class RtcTransport implements ArenaTransport {
   linkState(): LinkState {
     let connected = 0;
     for (const peer of this.peers.values()) if (peer.state === "connected") connected += 1;
-    return { mode: "webrtc", connected, total: this.peers.size };
+    return { mode: "webrtc", connected, total: this.peers.size, peers: [...this.peers.values()].map((p) => ({ userId: p.userId, state: p.state, via: p.via })) };
   }
 
   broadcast(message: PeerMessage): void {
@@ -257,17 +260,30 @@ export class RtcTransport implements ArenaTransport {
     peer.channel = null;
     peer.pc = null;
     peer.state = "idle";
+    peer.via = null;
   }
 
-  /** Follows the players of the match: a new ready player becomes a peer to link with. */
+  /** Once linked, reads which candidate pair carries the channel (same network, STUN or relay), for the HUD. */
+  private async inspect(peer: Peer, pc: RTCPeerConnection): Promise<void> {
+    try {
+      const stats = await pc.getStats();
+      if (peer.pc === pc) peer.via = selectedPairKind(stats.values() as Iterable<Record<string, unknown>>);
+    } catch {
+      // Stats are optional.
+    }
+  }
+
+  /** Follows the players of the match: once this phone's player is ready, every other ready player becomes a peer to link with. */
   private syncPeers(snapshot: ArenaSnapshot) {
     if (snapshot.match.status === "finished" || snapshot.match.status === "cancelled") {
       this.closeAll();
       return;
     }
+    const me = snapshot.players.find((p) => p.userId === this.me);
+    if (!me || me.status !== "ready") return;
     for (const player of snapshot.players) {
       if (player.userId === this.me || player.status !== "ready" || this.peers.has(player.userId)) continue;
-      const peer: Peer = { userId: player.userId, pc: null, channel: null, session: null, state: "idle", attemptAt: 0, helloAt: 0 };
+      const peer: Peer = { userId: player.userId, pc: null, channel: null, session: null, state: "idle", attemptAt: 0, helloAt: 0, via: null };
       this.peers.set(player.userId, peer);
       if (isOfferer(this.me, peer.userId)) void this.offerTo(peer);
       else void this.hello(peer);
@@ -378,7 +394,9 @@ export class RtcTransport implements ArenaTransport {
   private attachChannel(peer: Peer, channel: RTCDataChannel) {
     peer.channel = channel;
     channel.onopen = () => {
-      if (peer.channel === channel) peer.state = "connected";
+      if (peer.channel !== channel) return;
+      peer.state = "connected";
+      if (peer.pc) void this.inspect(peer, peer.pc);
     };
     channel.onclose = () => {
       if (peer.channel === channel && peer.state === "connected") peer.state = "failed";

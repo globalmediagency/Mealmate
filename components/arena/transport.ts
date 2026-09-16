@@ -8,12 +8,20 @@ export type ArenaErrorListener = (message: string) => void;
 /** A message from another phone over the direct link, shaped like a server event (`id` 0, `payload` = the message). */
 export type PeerListener = (event: ArenaEventView) => void;
 
+export type LinkPeer = {
+  userId: string;
+  state: "idle" | "connecting" | "connected" | "failed";
+  /** How the pair is joined once connected: `host` (same network), `srflx` (through STUN), `relay` (through TURN). */
+  via: "host" | "srflx" | "prflx" | "relay" | null;
+};
+
 export type LinkState = {
   /** `polling`: the server relays everything; `webrtc`: the phones also talk to each other. */
   mode: "polling" | "webrtc";
   /** Peers linked directly, out of the other players of the match (0/0 in polling mode). */
   connected: number;
   total: number;
+  peers: LinkPeer[];
 };
 
 /**
@@ -49,7 +57,7 @@ export interface ArenaTransport {
   subscribePeers(listener: PeerListener): () => void;
 }
 
-export const NO_LINK: LinkState = { mode: "polling", connected: 0, total: 0 };
+export const NO_LINK: LinkState = { mode: "polling", connected: 0, total: 0, peers: [] };
 
 /** A snapshot with every player carrying their creature: incremental ones borrow it from the previous complete one. */
 export function completeSnapshot(incoming: ArenaSnapshot, previous: ArenaSnapshot | null): ArenaSnapshot {
@@ -314,7 +322,7 @@ class LazyRtcTransport implements ArenaTransport {
   }
 
   linkState(): LinkState {
-    return this.link?.linkState() ?? { mode: "webrtc", connected: 0, total: 0 };
+    return this.link?.linkState() ?? { mode: "webrtc", connected: 0, total: 0, peers: [] };
   }
 
   broadcast(message: PeerMessage): void {

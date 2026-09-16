@@ -64,6 +64,21 @@ const TWO_PI = Math.PI * 2;
 /** An egg thrown by a phone whose own creature is out of view starts from the phone itself. */
 const CAMERA_HAND = new THREE.Vector3(0, -0.12, -0.05);
 
+const linkKey = (link: LinkState) => link.peers.map((p) => `${p.userId}:${p.state}:${p.via ?? ""}`).join("|");
+
+/** Short label of the direct link for the HUD pill. */
+function linkLabel(link: LinkState): string {
+  const base = `Direct ${link.connected}/${link.total}`;
+  if (link.total === 0) return base;
+  if (link.connected === link.total) {
+    const relay = link.peers.some((p) => p.via === "relay");
+    const known = link.peers.some((p) => p.via !== null);
+    return `${base} · ${relay ? "relais" : known ? "local" : "ok"}`;
+  }
+  const failed = link.peers.some((p) => p.state === "failed");
+  return `${base} · ${failed ? "sondage" : "connexion…"}`;
+}
+
 const IDLE_HUD: Hud = { status: "lobby", secondsLeft: 0, hp: 0, maxHp: 0, standing: true, seen: 0, mineSeen: false, ever: false, target: null, others: [], link: NO_LINK };
 
 const participants = (snapshot: ArenaSnapshot): ArenaPlayerView[] => snapshot.players.filter((p) => p.status === "ready" || p.status === "left");
@@ -484,7 +499,8 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
       othersKey(prev.others) !== othersKey(next.others) ||
       prev.link.mode !== next.link.mode ||
       prev.link.connected !== next.link.connected ||
-      prev.link.total !== next.link.total
+      prev.link.total !== next.link.total ||
+      linkKey(prev.link) !== linkKey(next.link)
     ) {
       hudRef.current = next;
       setHud(next);
@@ -620,9 +636,10 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
                 {hud.link.mode === "webrtc" ? (
                   <li
                     className={cn("rounded-full px-2.5 py-1 text-[11px] font-semibold backdrop-blur", hud.link.total > 0 && hud.link.connected === hud.link.total ? "bg-sage-700/70 text-sage-100" : "bg-ink-950/70 text-cream-500")}
-                    title="Liaison directe entre les téléphones (WebRTC) ; le serveur reste l'arbitre"
+                    title={`Liaison directe entre les téléphones (WebRTC) ; le serveur reste l'arbitre. ${hud.link.peers.map((p) => `${p.userId.slice(0, 6)} : ${p.state}${p.via ? ` via ${p.via}` : ""}`).join(" · ")}`}
+                    data-link-label
                   >
-                    Direct {hud.link.connected}/{hud.link.total}
+                    {linkLabel(hud.link)}
                   </li>
                 ) : null}
                 {hud.others.map((o) => (

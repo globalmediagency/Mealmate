@@ -13,6 +13,8 @@ export type TurnOptions = {
   ttlSeconds?: number;
   fetchImpl?: typeof fetch;
   now?: () => number;
+  /** Ignore the cached credentials and ask Cloudflare again (admin diagnostic). */
+  fresh?: boolean;
 };
 
 /** A battle lasts minutes; credentials live long enough for a lobby and a few matches. */
@@ -63,7 +65,7 @@ export async function getTurnIceServers(options: TurnOptions = {}): Promise<IceS
   if (!keyId || !token) return null;
   const now = options.now ?? Date.now;
   const ttl = options.ttlSeconds ?? TURN_TTL_SECONDS;
-  if (cache && cache.keyId === keyId && cache.expiresAt > now()) return cache.servers;
+  if (!options.fresh && cache && cache.keyId === keyId && cache.expiresAt > now()) return cache.servers;
   const doFetch = options.fetchImpl ?? fetch;
   try {
     const response = await doFetch(ENDPOINT(keyId), {

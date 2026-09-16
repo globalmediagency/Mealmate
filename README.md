@@ -226,7 +226,10 @@ Ko par bataille), elle s'ouvre aussi entre deux réseaux différents, forfaits m
 2. Copie le **Key ID** et le **API token** affichés (le jeton n'est montré qu'une fois) → Vercel
    `CLOUDFLARE_TURN_KEY_ID`, `CLOUDFLARE_TURN_API_TOKEN` → Redeploy.
 3. Vérification : **Plus → état des services** affiche « Relais TURN Cloudflare (Arène) » configuré ; dans une
-   bataille avec la case WebRTC cochée, deux téléphones sur des réseaux différents affichent « Direct 1/1 ».
+   bataille avec la case WebRTC cochée, deux téléphones sur des réseaux différents affichent « Direct 1/1 · relais ».
+4. En cas de doute : **Admin › Réseau** → « Lancer le test » depuis le téléphone qui pose problème, sur son propre
+   réseau. Le test vérifie tour à tour les identifiants obtenus de Cloudflare, les chemins trouvés (local, STUN,
+   relais), une liaison de test par le relais seul (temps de connexion et aller-retour), puis la case WebRTC.
 
 Le jeton ne quitte jamais le serveur : chaque joueur reçoit des identifiants TURN temporaires (4 heures),
 réservés aux joueurs d'une partie ouverte. Sans les variables, rien ne change.
