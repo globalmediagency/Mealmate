@@ -20,6 +20,7 @@ import { ARENA } from "@/lib/game/config";
 import { clampAim, yawToward, type Vec2 } from "@/lib/game/defense";
 import type { FoodModelKind } from "@/components/ar/three/food-mesh";
 import { cn } from "@/lib/utils/cn";
+import { linkKey, linkLabel } from "./link-label";
 import { NO_LINK, type ArenaTransport, type LinkState } from "./transport";
 
 type StageModule = typeof import("@/components/ar/three/stage");
@@ -63,21 +64,6 @@ const YAW_SPEED = 10;
 const TWO_PI = Math.PI * 2;
 /** An egg thrown by a phone whose own creature is out of view starts from the phone itself. */
 const CAMERA_HAND = new THREE.Vector3(0, -0.12, -0.05);
-
-const linkKey = (link: LinkState) => link.peers.map((p) => `${p.userId}:${p.state}:${p.via ?? ""}`).join("|");
-
-/** Short label of the direct link for the HUD pill. */
-function linkLabel(link: LinkState): string {
-  const base = `Direct ${link.connected}/${link.total}`;
-  if (link.total === 0) return base;
-  if (link.connected === link.total) {
-    const relay = link.peers.some((p) => p.via === "relay");
-    const known = link.peers.some((p) => p.via !== null);
-    return `${base} · ${relay ? "relais" : known ? "local" : "ok"}`;
-  }
-  const failed = link.peers.some((p) => p.state === "failed");
-  return `${base} · ${failed ? "sondage" : "connexion…"}`;
-}
 
 const IDLE_HUD: Hud = { status: "lobby", secondsLeft: 0, hp: 0, maxHp: 0, standing: true, seen: 0, mineSeen: false, ever: false, target: null, others: [], link: NO_LINK };
 

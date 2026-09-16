@@ -9,6 +9,7 @@ import { Button, LinkButton } from "@/components/ui/button";
 import { Card, CardText, CardTitle } from "@/components/ui/card";
 import type { ArenaPlayerView, ArenaSnapshot } from "@/lib/arena/service";
 import { cn } from "@/lib/utils/cn";
+import { CoopGame } from "@/components/coop/coop-game";
 import { ArenaGame } from "./arena-game";
 import { PreviewTransport } from "./preview-transport";
 import { ChannelSignaling, RtcTransport } from "./rtc-transport";
@@ -31,6 +32,7 @@ const SKIPPED_LABEL: Record<string, string> = {
   play_limit: "Plus de partie disponible aujourd'hui : la bataille ne rapporte rien, mais elle a compté !",
   no_creature: "Ta créature n'est plus là pour recevoir la récompense.",
   absent: "Tu n'as pas pris part à la bataille.",
+  unfinished: "La partie s'est arrêtée sans bilan : pas de récompense cette fois.",
 };
 
 function rankLabel(rank: number | null): string {
@@ -103,18 +105,24 @@ export function ArenaMatch({ initial, webrtc, preview = false, previewRtc = fals
   const ready = players.filter((p) => p.status === "ready");
   const canStart = match.isHost && match.status === "lobby" && ready.length >= 2;
   const inGame = me?.status === "ready" && (match.status === "lobby" || match.status === "playing");
+  const coop = match.mode === "coop";
+  const coopResult = match.coop?.result ?? null;
   const ranked = [...players].filter((p) => p.status === "ready" || p.status === "left").sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
   const reward = me?.reward ?? null;
 
   return (
     <div className="space-y-4 animate-rise" data-arena-match data-status={match.status}>
       <header>
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-cream-50">Arène</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-cream-50">{coop ? "Défendre à deux" : "Arène"}</h1>
         <p className="mt-0.5 text-sm text-cream-500">
           {match.status === "lobby"
-            ? `${ready.length} joueur${ready.length > 1 ? "s" : ""} prêt${ready.length > 1 ? "s" : ""} · ${match.durationSeconds} s de bataille, ${match.maxHp} points de vie chacun.`
+            ? coop
+              ? `${ready.length} joueur${ready.length > 1 ? "s" : ""} prêt${ready.length > 1 ? "s" : ""} · la malbouffe attaque chaque créature, ${match.defense.hp} points de vie chacune.`
+              : `${ready.length} joueur${ready.length > 1 ? "s" : ""} prêt${ready.length > 1 ? "s" : ""} · ${match.durationSeconds} s de bataille, ${match.maxHp} points de vie chacun.`
             : match.status === "playing"
-              ? "Vise les créatures adverses, attrape les bons aliments avec la langue."
+              ? coop
+                ? "Protégez vos créatures ensemble : vise n'importe laquelle, la langue attrape les bons aliments près de la tienne."
+                : "Vise les créatures adverses, attrape les bons aliments avec la langue."
               : match.status === "finished"
                 ? "La bataille est terminée."
                 : "Cette partie a été annulée."}
@@ -169,15 +177,75 @@ export function ArenaMatch({ initial, webrtc, preview = false, previewRtc = fals
           </div>
           {me?.status === "declined" || me?.status === "left" ? <CardText className="mt-3">Tu ne participes pas à cette partie.</CardText> : null}
           <CardText className="mt-3 text-xs">
-            Chaque joueur pose le marqueur de sa créature sur la même table. Lance la caméra dès maintenant pour vérifier que les créatures sont reconnues ; la bataille démarre pour
-            tout le monde quand l&apos;hôte la lance. Une partie compte dans la limite quotidienne, comme « Jouer » et « Défendre ».
+            Chaque joueur pose le marqueur de sa créature sur la même table. Lance la caméra dès maintenant pour vérifier que les créatures sont reconnues ; la partie démarre pour
+            tout le monde quand l&apos;hôte la lance{coop ? ", et c'est son téléphone qui mène la malbouffe : il doit garder l'écran allumé" : ""}. Une partie compte dans la limite quotidienne, comme « Jouer » et « Défendre ».
           </CardText>
         </Card>
       ) : null}
 
-      {inGame ? <ArenaGame transport={transport} initial={snapshot} preview={preview} onLeave={() => void act("leave")} /> : null}
+      {inGame && coop ? <CoopGame transport={transport} initial={snapshot} preview={preview} onLeave={() => void act("leave")} /> : null}
+      {inGame && !coop ? <ArenaGame transport={transport} initial={snapshot} preview={preview} onLeave={() => void act("leave")} /> : null}
 
-      {match.status === "finished" ? (
+      {match.status === "finished" && coop ? (
+        <Card data-arena-results data-coop-results>
+          <div className="flex items-center gap-2">
+            <Trophy className="h-6 w-6 text-brass-300" aria-hidden="true" />
+            <CardTitle>Bilan de la défense</CardTitle>
+          </div>
+          {coopResult ? (
+            <>
+              <div className="mt-3 rounded-2xl bg-ink-900/70 p-3 text-center">
+                <p className="font-display text-5xl font-semibold text-cream-50">{coopResult.score}</p>
+                <p className="text-sm text-cream-300">{coopResult.perfect ? "Défense parfaite, à deux !" : coopResult.score >= 70 ? "Belle défense d'équipe !" : "La malbouffe a gagné cette fois, on réessaie ?"}</p>
+              </div>
+              <ul className="mt-3 divide-y divide-ink-600/80">
+                {ranked
+                  .filter((p) => p.status === "ready")
+                  .map((p) => {
+                    const summary = coopResult.summaries[p.userId];
+                    return (
+                      <li key={p.userId} className={cn("flex min-h-11 items-center justify-between gap-3 py-2 text-sm", p.mine && "font-semibold text-cream-50")}>
+                        <span>
+                          {p.creatureName ?? "sa créature"} <span className="text-cream-500">· {p.mine ? "toi" : p.username}</span>
+                        </span>
+                        <span className="text-right text-xs text-cream-500">
+                          {summary
+                            ? `vague ${summary.wavesCleared + 1} · ${summary.destroyed}/${summary.spawned} détruit${summary.destroyed > 1 ? "s" : ""}${summary.bosses > 0 ? ` · ${summary.bosses} boss` : ""}${summary.goodEaten > 0 ? ` · ${summary.goodEaten} bon${summary.goodEaten > 1 ? "s" : ""} aliment${summary.goodEaten > 1 ? "s" : ""}` : ""}`
+                            : "—"}
+                        </span>
+                      </li>
+                    );
+                  })}
+              </ul>
+            </>
+          ) : (
+            <CardText className="mt-2">La partie s&apos;est arrêtée sans bilan (temps écoulé sans hôte) : pas de récompense.</CardText>
+          )}
+          {reward && "score" in reward ? (
+            <p className="mt-3 text-center text-xs text-cream-500">
+              +{reward.effects.moodDelta} humeur · +{reward.effects.xpDelta} XP
+              {reward.effects.xpMultiplier > 1
+                ? ` (bonne humeur : XP ×${reward.effects.xpMultiplier.toLocaleString("fr-FR")})`
+                : reward.effects.xpMultiplier < 1
+                  ? ` (humeur basse : XP ×${reward.effects.xpMultiplier.toLocaleString("fr-FR")})`
+                  : ""}{" "}
+              · {reward.playsLeft} partie{reward.playsLeft > 1 ? "s" : ""} restante{reward.playsLeft > 1 ? "s" : ""} aujourd&apos;hui
+            </p>
+          ) : reward && "skipped" in reward ? (
+            <CardText className="mt-3">{SKIPPED_LABEL[reward.skipped] ?? "Pas de récompense pour cette partie."}</CardText>
+          ) : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <LinkButton href="/arena" variant="brass" className="w-auto px-5">
+              Nouvelle partie
+            </LinkButton>
+            <LinkButton href="/home" variant="secondary" className="w-auto px-5">
+              Retour à l&apos;accueil
+            </LinkButton>
+          </div>
+        </Card>
+      ) : null}
+
+      {match.status === "finished" && !coop ? (
         <Card data-arena-results>
           <div className="flex items-center gap-2">
             <Trophy className="h-6 w-6 text-brass-300" aria-hidden="true" />

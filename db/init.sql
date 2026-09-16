@@ -165,7 +165,7 @@ CREATE TABLE IF NOT EXISTS play_sessions (
   score       integer NOT NULL,
   kind        text NOT NULL DEFAULT 'catch',
   created_at  timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT play_sessions_kind_check CHECK (kind IN ('catch', 'defense', 'arena'))
+  CONSTRAINT play_sessions_kind_check CHECK (kind IN ('catch', 'defense', 'arena', 'coop'))
 );
 CREATE INDEX IF NOT EXISTS play_sessions_creature_created_idx ON play_sessions (creature_id, created_at);
 
@@ -355,8 +355,13 @@ CREATE TABLE IF NOT EXISTS arena_matches (
   ends_at          timestamptz,
   finished_at      timestamptz,
   next_bonus_at    timestamptz,
+  mode             text NOT NULL DEFAULT 'arena',
+  seed             integer NOT NULL DEFAULT 0,
+  state            jsonb,
+  state_at         timestamptz,
   created_at       timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT arena_matches_status_check CHECK (status IN ('lobby', 'playing', 'finished', 'cancelled'))
+  CONSTRAINT arena_matches_status_check CHECK (status IN ('lobby', 'playing', 'finished', 'cancelled')),
+  CONSTRAINT arena_matches_mode_check CHECK (mode IN ('arena', 'coop'))
 );
 CREATE INDEX IF NOT EXISTS arena_matches_host_status_idx ON arena_matches (host_id, status);
 

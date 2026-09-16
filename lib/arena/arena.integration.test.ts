@@ -15,7 +15,9 @@ import {
   countArenaInvites,
   createMatch,
   eatBonuses,
+  finishCoop,
   leaveMatch,
+  logCoopEvent,
   listArenaInvites,
   listMatchesFor,
   listSignals,
@@ -24,7 +26,10 @@ import {
   respondToInvite,
   snapshot,
   startMatch,
+  storeCoopState,
 } from "./service";
+import { createDefense, startDefense } from "@/lib/game/defense";
+import { coopRandom, serializeDefense } from "@/lib/game/coop";
 
 let tdb: TestDatabase;
 let alice: string;
@@ -93,7 +98,7 @@ describe("lobby", () => {
     expect(await countArenaInvites(bob, T0)).toBe(1);
     expect(await countArenaInvites(alice, T0)).toBe(0);
     const notices = await listArenaInvites(bob, T0);
-    expect(notices).toEqual([{ matchId: match.id, hostId: alice, hostName: "Alice", createdAt: T0.toISOString(), players: [] }]);
+    expect(notices).toEqual([{ matchId: match.id, hostId: alice, hostName: "Alice", createdAt: T0.toISOString(), players: [], mode: "arena" }]);
     expect(await listArenaInvites(alice, T0)).toEqual([]);
     expect(await listArenaInvites(bob, at(ARENA.lobbyTtlMinutes * 60 + 1))).toEqual([]);
 
@@ -324,3 +329,55 @@ describe("battle", () => {
     expect(players.every((p) => p.rewardedAt !== null)).toBe(true);
   });
 });
+
+describe("Défendre à deux", () => {
+  it("runs a cooperative battle: the host publishes its simulation, partners relay their moves, the team is scored once", async () => {
+    const t0 = 90_000; // the next game day: the daily play limit starts afresh
+    const { match } = await createMatch(alice, [bob], at(t0), RULES, { mode: "coop" });
+    expect(match.mode).toBe("coop");
+    expect(match.seed).toBeGreaterThan(0);
+    expect((await listArenaInvites(bob, at(t0))).map((n) => n.mode)).toEqual(["coop"]);
+    // Cross invitations only unite lobbies of the same mode.
+    await expect(createMatch(bob, [alice], at(t0 + 1), RULES, { mode: "arena" })).resolves.toMatchObject({ match: { mode: "arena" } });
+    const listing = await listMatchesFor(bob, at(t0 + 2), RULES);
+    expect(listing.open.map((s) => s.match.mode)).toEqual(["arena"]);
+    await cancelMatch(bob, listing.open[0].match.id, at(t0 + 3), RULES);
+    await respondToInvite(bob, match.id, true, at(t0 + 4), RULES);
+    const started = await startMatch(alice, match.id, at(t0 + 5), RULES);
+    expect(started.match.mode).toBe("coop");
+    expect(started.match.coop).toEqual({ live: null, liveAt: null, result: null });
+    expect(started.match.secondsLeft).toBe(1200);
+    // The host's simulation is stored for the phones that poll; a guest cannot publish one.
+    const state = createDefense(RULES.defense);
+    startDefense(state);
+    const random = coopRandom(match.seed, 0);
+    const live = { hostTime: 123, states: { [alice]: { state: serializeDefense(state), rng: random.state() } } };
+    await storeCoopState(alice, match.id, live, at(t0 + 6));
+    await expect(storeCoopState(bob, match.id, live, at(t0 + 6))).rejects.toMatchObject({ code: "forbidden" });
+    await expect(storeCoopState(alice, match.id, { nope: true }, at(t0 + 6))).rejects.toMatchObject({ code: "validation_error" });
+    const bobView = await snapshot(bob, match.id, at(t0 + 7), RULES, { since: 0 });
+    expect(bobView.match.coop?.live?.hostTime).toBe(123);
+    expect(bobView.match.coop?.live?.states[alice].rng).toBe(random.state());
+    expect(bobView.match.coop?.liveAt).toBe(at(t0 + 6).toISOString());
+    expect(bobView.bonuses).toEqual([]);
+    // Partners' moves travel through the event log.
+    await logCoopEvent(bob, match.id, "smash", { frame: alice, hits: [3], x: 0.4, y: 0.1, nonce: "s1" }, at(t0 + 8));
+    await expect(logCoopEvent(dave, match.id, "fire", {}, at(t0 + 8))).rejects.toMatchObject({ code: "not_found" });
+    const aliceView = await snapshot(alice, match.id, at(t0 + 9), RULES, { since: 0 });
+    expect(aliceView.events.some((e) => e.kind === "smash" && e.actorId === bob && e.payload.nonce === "s1")).toBe(true);
+    // The team is scored from each creature's summary; every ready player gets the same reward.
+    const summary = { spawned: 10, destroyed: 8, reached: 2, wavesCleared: 3, shots: 12, bosses: 1, goodEaten: 1, healed: 10, junkEaten: 0, goodWasted: 0 };
+    const done = await finishCoop(alice, match.id, { [alice]: summary, [bob]: { ...summary, destroyed: 10, reached: 0 } }, at(t0 + 10), RULES);
+    expect(done.match.status).toBe("finished");
+    expect(done.match.coop?.result?.score).toBe(90);
+    expect(done.match.coop?.result?.perfect).toBe(false);
+    expect(done.me?.reward).toMatchObject({ score: 90 });
+    await expect(finishCoop(bob, match.id, { [bob]: summary }, at(t0 + 11), RULES)).rejects.toMatchObject({ code: "arena_over" });
+    const bobDone = await snapshot(bob, match.id, at(t0 + 12), RULES);
+    expect(bobDone.me?.reward).toMatchObject({ score: 90 });
+    expect(bobDone.players.map((p) => p.rank)).toEqual([1, 1]);
+    const sessions = await getDb().select().from(playSessions).where(eq(playSessions.kind, "coop"));
+    expect(sessions).toHaveLength(2);
+  });
+});
+

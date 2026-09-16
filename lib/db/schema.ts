@@ -251,7 +251,7 @@ export const playSessions = pgTable(
       table.creatureId,
       table.createdAt,
     ),
-    check("play_sessions_kind_check", sql`${table.kind} in ('catch', 'defense', 'arena')`),
+    check("play_sessions_kind_check", sql`${table.kind} in ('catch', 'defense', 'arena', 'coop')`),
   ],
 );
 
@@ -559,11 +559,19 @@ export const arenaMatches = pgTable(
     finishedAt: timestamptz("finished_at"),
     /** When the next good food pops (lazy: applied on the next read). */
     nextBonusAt: timestamptz("next_bonus_at"),
+    /** `arena`: everyone for themselves; `coop`: "Défendre à deux", the junk attacks every creature (migration 016). */
+    mode: text("mode", { enum: ["arena", "coop"] }).notNull().default("arena"),
+    /** Seed of the coop waves, shared by every phone. */
+    seed: integer("seed").notNull().default(0),
+    /** Coop: the host's latest simulation (and the final result), for the phones that poll. */
+    state: jsonb("state"),
+    stateAt: timestamptz("state_at"),
     createdAt: timestamptz("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("arena_matches_host_status_idx").on(table.hostId, table.status),
     check("arena_matches_status_check", sql`${table.status} IN ('lobby', 'playing', 'finished', 'cancelled')`),
+    check("arena_matches_mode_check", sql`${table.mode} IN ('arena', 'coop')`),
   ],
 );
 

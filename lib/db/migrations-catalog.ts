@@ -286,6 +286,26 @@ CREATE INDEX IF NOT EXISTS arena_events_match_id_idx ON arena_events (match_id, 
 ALTER TABLE play_sessions DROP CONSTRAINT IF EXISTS play_sessions_kind_check;
 ALTER TABLE play_sessions ADD CONSTRAINT play_sessions_kind_check CHECK (kind IN ('catch', 'defense', 'arena'));`,
   },
+  {
+    id: "016",
+    file: "016_coop_defense.sql",
+    title: "Défendre à deux : mode coopératif des parties entre amis",
+    checks: [
+      { table: "arena_matches", column: "mode" },
+      { table: "arena_matches", column: "seed" },
+      { table: "arena_matches", column: "state" },
+      { table: "arena_matches", column: "state_at" },
+    ],
+    sql: `ALTER TABLE arena_matches ADD COLUMN IF NOT EXISTS mode text NOT NULL DEFAULT 'arena';
+ALTER TABLE arena_matches DROP CONSTRAINT IF EXISTS arena_matches_mode_check;
+ALTER TABLE arena_matches ADD CONSTRAINT arena_matches_mode_check CHECK (mode IN ('arena', 'coop'));
+ALTER TABLE arena_matches ADD COLUMN IF NOT EXISTS seed integer NOT NULL DEFAULT 0;
+ALTER TABLE arena_matches ADD COLUMN IF NOT EXISTS state jsonb;
+ALTER TABLE arena_matches ADD COLUMN IF NOT EXISTS state_at timestamptz;
+
+ALTER TABLE play_sessions DROP CONSTRAINT IF EXISTS play_sessions_kind_check;
+ALTER TABLE play_sessions ADD CONSTRAINT play_sessions_kind_check CHECK (kind IN ('catch', 'defense', 'arena', 'coop'));`,
+  },
 ];
 
 /** Migrations whose checks fail against the given set of existing `table` / `table.column` keys. */

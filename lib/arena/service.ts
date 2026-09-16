@@ -27,7 +27,11 @@ import {
 } from "@/lib/db/schema";
 import { acceptedFriendIds, publicProfiles } from "@/lib/friends/service";
 import { arenaScore, arenaSecondsLeft, placeArenaBonus, rankArenaPlayers } from "@/lib/game/arena";
-import { ARENA } from "@/lib/game/config";
+import { ARENA, COOP } from "@/lib/game/config";
+import { coopScore, parseCoopState, type CoopStateMessage } from "@/lib/game/coop";
+import type { DefenseSummary } from "@/lib/game/defense";
+import { randomSeed } from "@/lib/game/random";
+import type { DefenseRules } from "@/lib/game/rules";
 import { deriveState } from "@/lib/game/creature-view";
 import { stageForXp } from "@/lib/game/growth";
 import type { PlayEffects } from "@/lib/game/play";
@@ -59,7 +63,21 @@ export type ArenaMatchView = {
   createdAt: string;
   /** For a cancelled lobby united with another one: where its players went. */
   mergedInto: string | null;
+  /** `arena`: everyone for themselves; `coop`: "Défendre à deux" (spec § 3.23). */
+  mode: ArenaMode;
+  /** Seed of the coop waves, the same on every phone. */
+  seed: number;
+  /** The defense rules the coop simulation runs with. */
+  defense: DefenseRules;
+  /** Coop only: the host's latest published simulation and, once finished, the team's result. */
+  coop: { live: CoopStateMessage | null; liveAt: string | null; result: CoopResultStored | null } | null;
 };
+
+export type ArenaMode = ArenaMatch["mode"];
+
+/** What `arena_matches.state` holds for a coop match. */
+export type CoopStored = { live?: unknown; result?: CoopResultStored };
+export type CoopResultStored = { score: number; perfect: boolean; summaries: Record<string, DefenseSummary> };
 
 export type ArenaReward = { score: number; perfect: boolean; effects: PlayEffects; playsLeft: number } | { skipped: string };
 
@@ -118,6 +136,12 @@ async function logEvent(matchId: string, actorId: string | null, kind: string, p
   await getDb().insert(arenaEvents).values({ matchId, actorId, kind, payload, createdAt: now });
 }
 
+function coopView(match: ArenaMatch): ArenaMatchView["coop"] {
+  if (match.mode !== "coop") return null;
+  const stored = (match.state ?? {}) as CoopStored;
+  return { live: parseCoopState(stored.live), liveAt: iso(match.stateAt), result: stored.result ?? null };
+}
+
 function toMatchView(match: ArenaMatch, userId: string, now: Date, rules: GameRules, mergedInto: string | null = null): ArenaMatchView {
   return {
     id: match.id,
@@ -134,6 +158,10 @@ function toMatchView(match: ArenaMatch, userId: string, now: Date, rules: GameRu
     webrtc: rules.arena.webrtc,
     createdAt: match.createdAt.toISOString(),
     mergedInto,
+    mode: match.mode,
+    seed: match.seed,
+    defense: rules.defense,
+    coop: coopView(match),
   };
 }
 
@@ -187,7 +215,8 @@ export type CreateMatchOutcome = { match: ArenaMatch; players: ArenaPlayer[] };
  * named creature; the host also needs a game left today. Rules are frozen in
  * the match so an admin change never surprises a running battle.
  */
-export async function createMatch(hostId: string, friendIds: string[], now: Date, rules: GameRules): Promise<CreateMatchOutcome> {
+export async function createMatch(hostId: string, friendIds: string[], now: Date, rules: GameRules, options: { mode?: ArenaMode } = {}): Promise<CreateMatchOutcome> {
+  const mode: ArenaMode = options.mode ?? "arena";
   const ids = [...new Set(friendIds)].filter((id) => id !== hostId);
   if (ids.length === 0) throw new DomainError("no_friends", "Invite au moins un ami.", 400);
   if (ids.length > ARENA.maxPlayers - 1) throw new DomainError("too_many", `${ARENA.maxPlayers} joueurs au maximum, toi compris.`, 400);
@@ -218,7 +247,7 @@ export async function createMatch(hostId: string, friendIds: string[], now: Date
   }
 
   // One of the guests already opened a lobby and invited the host: join it instead of opening a second one (the older lobby keeps its host).
-  const reciprocal = await lobbiesInvitingHostedBy(hostId, ids, now);
+  const reciprocal = await lobbiesInvitingHostedBy(hostId, ids, now, mode);
   if (reciprocal.length > 0) {
     const target = reciprocal[0];
     const [joined] = await db
@@ -239,7 +268,7 @@ export async function createMatch(hostId: string, friendIds: string[], now: Date
 
   const [match] = await db
     .insert(arenaMatches)
-    .values({ hostId, status: "lobby", maxHp: rules.arena.hp, eggDamage: rules.arena.eggDamage, durationSeconds: rules.arena.durationSeconds, createdAt: now })
+    .values({ hostId, status: "lobby", mode, seed: randomSeed(), maxHp: rules.arena.hp, eggDamage: rules.arena.eggDamage, durationSeconds: rules.arena.durationSeconds, createdAt: now })
     .returning();
   const players = await db
     .insert(arenaPlayers)
@@ -248,7 +277,7 @@ export async function createMatch(hostId: string, friendIds: string[], now: Date
       ...invited.map((p) => ({ matchId: match.id, userId: p.userId, creatureId: p.creature.id, marker: p.marker, status: "invited" as const, hp: match.maxHp, createdAt: now })),
     ])
     .returning();
-  await logEvent(match.id, hostId, "created", { invited: ids }, now);
+  await logEvent(match.id, hostId, "created", { invited: ids, mode }, now);
   return { match, players };
 }
 
@@ -276,15 +305,15 @@ async function loadFor(userId: string, matchId: string): Promise<{ match: ArenaM
 
 const participants = (players: ArenaPlayer[]) => players.filter((p) => p.status === "ready" || p.status === "left");
 
-/** Open lobbies hosted by one of `hostIds` in which `userId` is invited, oldest first. */
-async function lobbiesInvitingHostedBy(userId: string, hostIds: string[], now: Date): Promise<ArenaMatch[]> {
+/** Open lobbies of the same mode hosted by one of `hostIds` in which `userId` is invited, oldest first. */
+async function lobbiesInvitingHostedBy(userId: string, hostIds: string[], now: Date, mode: ArenaMode): Promise<ArenaMatch[]> {
   if (hostIds.length === 0) return [];
   const limit = new Date(now.getTime() - ARENA.lobbyTtlMinutes * MINUTE_MS);
   const rows = await getDb()
     .select({ match: arenaMatches })
     .from(arenaMatches)
     .innerJoin(arenaPlayers, and(eq(arenaPlayers.matchId, arenaMatches.id), eq(arenaPlayers.userId, userId), eq(arenaPlayers.status, "invited")))
-    .where(and(eq(arenaMatches.status, "lobby"), gt(arenaMatches.createdAt, limit), inArray(arenaMatches.hostId, hostIds)));
+    .where(and(eq(arenaMatches.status, "lobby"), eq(arenaMatches.mode, mode), gt(arenaMatches.createdAt, limit), inArray(arenaMatches.hostId, hostIds)));
   return rows.map((r) => r.match).sort(olderFirst);
 }
 
@@ -359,7 +388,7 @@ async function mergeLobbies(into: ArenaMatch, from: ArenaMatch, now: Date): Prom
 /** Open lobbies hosted by a guest of `match` in which `match`'s host is invited: two friends invited each other. */
 async function reciprocalLobbies(match: ArenaMatch, players: ArenaPlayer[], now: Date): Promise<ArenaMatch[]> {
   const guestHosts = players.filter((p) => p.userId !== match.hostId && (p.status === "invited" || p.status === "ready")).map((p) => p.userId);
-  const lobbies = await lobbiesInvitingHostedBy(match.hostId, guestHosts, now);
+  const lobbies = await lobbiesInvitingHostedBy(match.hostId, guestHosts, now, match.mode);
   return lobbies.filter((m) => m.id !== match.id);
 }
 
@@ -372,6 +401,65 @@ async function mergeReciprocal(match: ArenaMatch, players: ArenaPlayer[], now: D
   if (older) await mergeLobbies(older, match, now);
   else for (const newer of others) await mergeLobbies(match, newer, now);
   return { match: await loadMatch(match.id), players: await loadPlayers(match.id, match.hostId) };
+}
+
+/** A coop battle in progress where the caller takes part. */
+async function loadCoop(userId: string, matchId: string): Promise<{ match: ArenaMatch; me: ArenaPlayer; players: ArenaPlayer[] }> {
+  const loaded = await loadFor(userId, matchId);
+  if (loaded.match.mode !== "coop") throw new DomainError("not_coop", "Cette partie n'est pas une défense à deux.", 409);
+  if (loaded.match.status !== "playing") throw new DomainError("arena_over", "La partie est terminée.", 409);
+  if (loaded.me.status !== "ready") throw new DomainError("eliminated", "Tu ne participes pas à cette partie.", 409);
+  return loaded;
+}
+
+/** The host publishes its simulation for the phones that poll (spec § 3.23). */
+export async function storeCoopState(userId: string, matchId: string, live: unknown, now: Date): Promise<void> {
+  const { match } = await loadCoop(userId, matchId);
+  if (match.hostId !== userId) throw new DomainError("forbidden", "Seul l'hôte publie l'état de la partie.", 403);
+  const parsed = parseCoopState(live);
+  if (!parsed) throw new DomainError("validation_error", "État de partie illisible.", 400);
+  const stored = (match.state ?? {}) as CoopStored;
+  await getDb()
+    .update(arenaMatches)
+    .set({ state: { ...stored, live: parsed }, stateAt: now })
+    .where(and(eq(arenaMatches.id, matchId), eq(arenaMatches.status, "playing")));
+}
+
+export const COOP_EVENT_KINDS = ["fire", "smash", "lick", "catch"] as const;
+export type CoopEventKind = (typeof COOP_EVENT_KINDS)[number];
+
+/** A player's egg, landing, tongue or catch, relayed to the other phones through the event log. */
+export async function logCoopEvent(userId: string, matchId: string, kind: CoopEventKind, payload: Record<string, unknown>, now: Date): Promise<void> {
+  await loadCoop(userId, matchId);
+  await logEvent(matchId, userId, kind, payload, now);
+}
+
+/**
+ * Ends a coop battle with each creature's summary: the team's score is the
+ * mean of the creatures' defense scores; every ready player is rewarded
+ * lazily on their next read. Any ready player may end it (the host, or a
+ * guest when the host went silent); the first one wins.
+ */
+export async function finishCoop(userId: string, matchId: string, summaries: Record<string, DefenseSummary>, now: Date, rules: GameRules): Promise<ArenaSnapshot> {
+  const { match, players } = await loadCoop(userId, matchId);
+  const ready = players.filter((p) => p.status === "ready");
+  const ownSummaries = ready.map((p) => summaries[p.userId]).filter((s): s is DefenseSummary => s !== undefined);
+  if (ownSummaries.length === 0) throw new DomainError("validation_error", "Il manque le bilan des créatures.", 400);
+  const result: CoopResultStored = { ...coopScore(ownSummaries, rules.defense), summaries };
+  const stored = (match.state ?? {}) as CoopStored;
+  const db = getDb();
+  const [closed] = await db
+    .update(arenaMatches)
+    .set({ status: "finished", finishedAt: now, state: { ...stored, result } })
+    .where(and(eq(arenaMatches.id, matchId), eq(arenaMatches.status, "playing")))
+    .returning({ id: arenaMatches.id });
+  if (closed) {
+    for (const p of participants(players)) {
+      await db.update(arenaPlayers).set({ rank: p.status === "ready" ? 1 : 2 }).where(eq(arenaPlayers.id, p.id));
+    }
+    await logEvent(matchId, userId, "finish", { reason: "coop", score: result.score, perfect: result.perfect }, now);
+  }
+  return snapshot(userId, matchId, now, rules);
 }
 
 /** The caller must be a ready player of a match still open (lobby or battle), e.g. to receive relay credentials. */
@@ -391,7 +479,7 @@ async function finishIfOver(match: ArenaMatch, players: ArenaPlayer[], now: Date
   if (match.status !== "playing") return match;
   const timeUp = match.endsAt !== null && now.getTime() >= match.endsAt.getTime();
   const standing = alivePlayers(players);
-  if (!timeUp && standing.length > 1) return match;
+  if (!timeUp && (match.mode === "coop" || standing.length > 1)) return match;
   const finishedAt = timeUp && match.endsAt ? match.endsAt : now;
   const db = getDb();
   const [closed] = await db
@@ -461,15 +549,17 @@ async function rewardIfDue(match: ArenaMatch, me: ArenaPlayer, now: Date, rules:
     .returning();
   if (!reserved) return (await db.select().from(arenaPlayers).where(eq(arenaPlayers.id, me.id)))[0] ?? me;
   let reward: ArenaReward;
+  const coopResult = match.mode === "coop" ? ((match.state ?? {}) as CoopStored).result : undefined;
   if (me.status !== "ready") reward = { skipped: me.status === "left" ? "left" : "absent" };
+  else if (match.mode === "coop" && !coopResult) reward = { skipped: "unfinished" };
   else {
     const count = participants(await loadPlayers(match.id, match.hostId)).length;
-    const { score, perfect } = arenaScore(me.hp, match.maxHp, me.rank ?? count, count);
+    const { score, perfect } = coopResult ?? arenaScore(me.hp, match.maxHp, me.rank ?? count, count);
     try {
       const [creature] = await db.select().from(creatures).where(and(eq(creatures.id, me.creatureId), eq(creatures.userId, me.userId))).limit(1);
       if (!creature) throw new DomainError("no_creature", "Créature introuvable.", 409);
       const ticked = await tickCreature(creature, now, rules);
-      const result = await recordPlay(me.userId, ticked, score, now, {}, rules, "arena");
+      const result = await recordPlay(me.userId, ticked, score, now, {}, rules, match.mode === "coop" ? "coop" : "arena");
       reward = { score, perfect, effects: result.effects, playsLeft: result.playsLeft };
     } catch (error) {
       reward = { skipped: error instanceof DomainError ? error.code : "error" };
@@ -487,7 +577,7 @@ async function settle(match: ArenaMatch, players: ArenaPlayer[], now: Date, rand
   }
   if (match.status === "lobby") return mergeReciprocal(match, players, now);
   if (match.status !== "playing") return { match, players };
-  await tickBonuses(match, players, now, random);
+  if (match.mode !== "coop") await tickBonuses(match, players, now, random);
   const finished = await finishIfOver(match, players, now);
   if (finished.status !== match.status) return { match: finished, players: await loadPlayers(match.id, match.hostId) };
   return { match: finished, players };
@@ -629,6 +719,7 @@ export type ArenaInviteNotice = {
   hostId: string;
   hostName: string;
   createdAt: string;
+  mode: ArenaMode;
   /** The other guests (ready or invited), without the host and the reader. */
   players: string[];
 };
@@ -655,6 +746,7 @@ export async function listArenaInvites(userId: string, now: Date = new Date()): 
     hostId: match.hostId,
     hostName: names.get(match.hostId)?.username ?? "Un ami",
     createdAt: match.createdAt.toISOString(),
+    mode: match.mode,
     players: players
       .filter((p) => p.matchId === match.id && p.userId !== userId && p.userId !== match.hostId && (p.status === "ready" || p.status === "invited"))
       .map((p) => names.get(p.userId)?.username ?? "Un ami"),
@@ -703,10 +795,11 @@ export async function startMatch(hostId: string, matchId: string, now: Date, rul
   const ready = players.filter((p) => p.status === "ready");
   if (ready.length < 2) throw new DomainError("not_enough_players", "Attends qu'au moins un ami rejoigne la partie.", 409);
   const db = getDb();
-  const endsAt = new Date(now.getTime() + match.durationSeconds * 1000);
+  const coop = match.mode === "coop";
+  const endsAt = new Date(now.getTime() + (coop ? COOP.maxSeconds : match.durationSeconds) * 1000);
   const [started] = await db
     .update(arenaMatches)
-    .set({ status: "playing", startedAt: now, endsAt, nextBonusAt: new Date(now.getTime() + ARENA.firstBonusSeconds * 1000) })
+    .set({ status: "playing", startedAt: now, endsAt, nextBonusAt: coop ? null : new Date(now.getTime() + ARENA.firstBonusSeconds * 1000) })
     .where(and(eq(arenaMatches.id, matchId), eq(arenaMatches.status, "lobby")))
     .returning();
   if (!started) throw new DomainError("arena_closed", "Cette partie a déjà commencé.", 409);

@@ -330,6 +330,22 @@ export const ARENA = {
   },
 } as const;
 
+/** "Défendre à deux" (spec § 3.23): the cooperative defense on several papers. */
+export const COOP = {
+  /** The host publishes its simulation this often over the direct link, and to the server. */
+  broadcastMs: 500,
+  storeMs: 1000,
+  /** A guest catching up on a published state steps it forward in these increments, up to this long. */
+  catchUpStepSeconds: 1 / 60,
+  maxCatchUpSeconds: 2,
+  /** Without news from the host for this long, a guest may end the battle itself. */
+  hostSilenceMs: 20_000,
+  /** Safety net: a battle nobody ended is closed after this. */
+  maxSeconds: 1200,
+  /** The crosshair picks the creature whose paper it points at within this distance of the creature (marker sides). */
+  aimMaxRadius: 3.4,
+} as const;
+
 /** Growth stages by XP (spec § 3.8). */
 export const STAGES = [
   { id: "bebe", label: "Bébé", minXp: 0 },

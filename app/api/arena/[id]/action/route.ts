@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { fail, handleRouteError, ok } from "@/lib/api/respond";
-import { cancelMatch, eatBonuses, leaveMatch, recordShot, respondToInvite, startMatch } from "@/lib/arena/service";
+import { cancelMatch, eatBonuses, finishCoop, leaveMatch, logCoopEvent, recordShot, respondToInvite, startMatch, storeCoopState } from "@/lib/arena/service";
 import { getSession } from "@/lib/auth/session";
 import { getGameRules } from "@/lib/game/rules-service";
 
@@ -8,6 +8,23 @@ export const dynamic = "force-dynamic";
 
 const idSchema = z.string().uuid();
 const coordinate = z.coerce.number().finite().min(-20).max(20);
+const counter = z.coerce.number().int().min(0).max(100_000);
+const summarySchema = z.object({
+  spawned: counter,
+  destroyed: counter,
+  reached: counter,
+  wavesCleared: z.coerce.number().int().min(0).max(1000),
+  shots: counter,
+  bosses: counter,
+  goodEaten: counter,
+  healed: counter,
+  junkEaten: counter,
+  goodWasted: counter,
+});
+const idList = z.array(z.number().int().min(0)).max(64);
+const frame = z.string().min(1).max(64);
+/** The host's simulation is a few kilobytes; refuse anything absurd. */
+const MAX_STATE_JSON = 262_144;
 
 const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("join") }),
@@ -30,6 +47,20 @@ const actionSchema = z.discriminatedUnion("action", [
     length: z.coerce.number().finite().min(0).max(10).default(0),
     nonce: z.string().max(64).optional(),
   }),
+  // "Défendre à deux" (spec § 3.23): the host publishes its simulation, everybody relays eggs, landings, tongues and catches, anyone ready may end.
+  z.object({ action: z.literal("state"), state: z.unknown() }),
+  z.object({
+    action: z.literal("fire"),
+    frame,
+    x: coordinate,
+    y: coordinate,
+    from: z.object({ x: coordinate, y: coordinate, z: coordinate }).nullable().default(null),
+    nonce: z.string().max(64).optional(),
+  }),
+  z.object({ action: z.literal("smash"), frame, hits: idList, x: coordinate, y: coordinate, nonce: z.string().max(64).optional() }),
+  z.object({ action: z.literal("lick"), frame, angle: z.coerce.number().finite(), length: z.coerce.number().finite().min(0).max(10), nonce: z.string().max(64).optional() }),
+  z.object({ action: z.literal("catch"), frame, bonusIds: idList, junkIds: idList, nonce: z.string().max(64).optional() }),
+  z.object({ action: z.literal("finish"), summaries: z.record(z.string().min(1).max(64), summarySchema) }),
 ]);
 
 /**
@@ -62,6 +93,21 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         return ok(await recordShot(userId, matchId, { targetUserId: body.targetUserId, x: body.x, y: body.y, hit: body.hit, nonce: body.nonce }, now));
       case "eat":
         return ok(await eatBonuses(userId, matchId, { bonusIds: body.bonusIds, angle: body.angle, length: body.length, nonce: body.nonce }, now));
+      case "state": {
+        if (JSON.stringify(body.state ?? null).length > MAX_STATE_JSON) return fail("validation_error", "État de partie trop volumineux.", 413);
+        await storeCoopState(userId, matchId, body.state, now);
+        return ok({ stored: true });
+      }
+      case "fire":
+      case "smash":
+      case "lick":
+      case "catch": {
+        const { action, ...payload } = body;
+        await logCoopEvent(userId, matchId, action, payload, now);
+        return ok({ logged: true });
+      }
+      case "finish":
+        return ok(await finishCoop(userId, matchId, body.summaries, now, rules));
     }
   } catch (error) {
     return handleRouteError(error);

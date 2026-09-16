@@ -75,6 +75,8 @@ export type Tongue = {
   t: number;
   /** Whether the catch at full extension has been resolved. */
   caught: boolean;
+  /** Only drawn (a partner's tongue in "Défendre à deux"): catches nothing here, the partner reports what it took. */
+  cosmetic?: boolean;
 };
 
 export type Enemy = {
@@ -113,7 +115,14 @@ export type Egg = {
   /** Flight progress 0–1. */
   t: number;
   duration: number;
+  /** Only drawn (a partner's egg in "Défendre à deux"): smashes nothing here, the partner reports what it hit. */
+  cosmetic?: boolean;
 };
+
+/** What one egg did when it landed, for a partner phone to report to the host (spec § 3.23). */
+export type Smash = { hits: number[]; x: number; y: number };
+/** What one tongue took at full extension, likewise. */
+export type Catch = { bonusIds: number[]; junkIds: number[] };
 
 export type EffectKind = "smoke" | "splat" | "ouch" | "hit" | "heal";
 
@@ -161,9 +170,14 @@ export type DefenseState = {
   lastFireAt: number;
   bonusTimer: number;
   lastTongueAt: number;
+  /** Landings and catches of this phone's own eggs and tongue since the caller last drained them (bounded). */
+  recentSmashes: Smash[];
+  recentCatches: Catch[];
 };
 
 const TAU = Math.PI * 2;
+/** Undrained smash and catch records are forgotten beyond this (the solo game never reads them). */
+const MAX_RECENT = 8;
 
 export function createDefense(rules: DefenseRules = DEFAULT_RULES.defense): DefenseState {
   return {
@@ -188,6 +202,8 @@ export function createDefense(rules: DefenseRules = DEFAULT_RULES.defense): Defe
     lastFireAt: -Infinity,
     bonusTimer: DEFENSE.goodSpawnMinSeconds * 0.5,
     lastTongueAt: -Infinity,
+    recentSmashes: [],
+    recentCatches: [],
   };
 }
 
@@ -309,14 +325,29 @@ function catchWithTongue(state: DefenseState) {
   const tongue = state.tongue;
   if (!tongue || tongue.caught) return;
   tongue.caught = true;
+  if (tongue.cosmetic) return;
   const ax = tongue.dir.x * 0.3;
   const ay = tongue.dir.y * 0.3;
   const bx = tongue.dir.x * tongue.length;
   const by = tongue.dir.y * tongue.length;
+  const junkIds = state.enemies
+    .filter((enemy) => !enemy.boss && enemy.phase === "moving" && enemy.z <= DEFENSE.tongueHeight && distanceToSegment(enemy.x, enemy.y, ax, ay, bx, by) <= DEFENSE.tongueRadius + enemy.radius)
+    .map((enemy) => enemy.id);
+  const bonusIds = state.bonuses.filter((bonus) => distanceToSegment(bonus.x, bonus.y, ax, ay, bx, by) <= DEFENSE.tongueRadius + DEFENSE.goodRadius).map((bonus) => bonus.id);
+  applyCatch(state, { bonusIds, junkIds });
+  state.recentCatches.push({ bonusIds, junkIds });
+  if (state.recentCatches.length > MAX_RECENT) state.recentCatches.shift();
+}
+
+/**
+ * Eats the given good foods (heal, capped) and junk foods (damage) when they
+ * are still there: what a tongue took, here or on a partner's phone.
+ */
+export function applyCatch(state: DefenseState, taken: Catch) {
+  const junk = new Set(taken.junkIds);
   const enemies: Enemy[] = [];
   for (const enemy of state.enemies) {
-    const eaten = !enemy.boss && enemy.phase === "moving" && enemy.z <= DEFENSE.tongueHeight && distanceToSegment(enemy.x, enemy.y, ax, ay, bx, by) <= DEFENSE.tongueRadius + enemy.radius;
-    if (!eaten) {
+    if (!junk.has(enemy.id) || enemy.boss) {
       enemies.push(enemy);
       continue;
     }
@@ -325,9 +356,10 @@ function catchWithTongue(state: DefenseState) {
     addEffect(state, "ouch", 0, 0, 0.9, 0.45);
   }
   state.enemies = enemies;
+  const good = new Set(taken.bonusIds);
   const bonuses: Bonus[] = [];
   for (const bonus of state.bonuses) {
-    if (distanceToSegment(bonus.x, bonus.y, ax, ay, bx, by) > DEFENSE.tongueRadius + DEFENSE.goodRadius) {
+    if (!good.has(bonus.id)) {
       bonuses.push(bonus);
       continue;
     }
@@ -427,14 +459,30 @@ export function eggPosition(egg: Egg): { x: number; y: number; z: number } {
 
 function land(state: DefenseState, egg: Egg) {
   addEffect(state, "splat", egg.to.x, egg.to.y, egg.to.z, 0.55);
+  if (egg.cosmetic) return;
+  const hits = state.enemies
+    .filter((enemy) => enemy.phase === "moving" && Math.hypot(enemy.x - egg.to.x, enemy.y - egg.to.y) <= DEFENSE.blastRadius + enemy.radius && enemy.z <= DEFENSE.blastHeight)
+    .map((enemy) => enemy.id);
+  smashDefense(state, { hits, x: egg.to.x, y: egg.to.y }, false);
+  state.recentSmashes.push({ hits, x: egg.to.x, y: egg.to.y });
+  if (state.recentSmashes.length > MAX_RECENT) state.recentSmashes.shift();
+}
+
+/**
+ * Applies an egg's landing: the good foods under it are wasted, each listed
+ * food still there takes a hit (a boss needs several). Used by the landing
+ * itself and, in "Défendre à deux", by the host for a partner's report.
+ */
+export function smashDefense(state: DefenseState, smash: Smash, withSplat = true) {
+  if (withSplat) addEffect(state, "splat", smash.x, smash.y, 0.12, 0.55);
   // A good food under an egg is smashed: nobody eats it.
-  const keptBonuses = state.bonuses.filter((b) => Math.hypot(b.x - egg.to.x, b.y - egg.to.y) > DEFENSE.blastRadius + DEFENSE.goodRadius);
+  const keptBonuses = state.bonuses.filter((b) => Math.hypot(b.x - smash.x, b.y - smash.y) > DEFENSE.blastRadius + DEFENSE.goodRadius);
   state.summary.goodWasted += state.bonuses.length - keptBonuses.length;
   state.bonuses = keptBonuses;
+  const hit = new Set(smash.hits);
   const survivors: Enemy[] = [];
   for (const enemy of state.enemies) {
-    const near = enemy.phase === "moving" && Math.hypot(enemy.x - egg.to.x, enemy.y - egg.to.y) <= DEFENSE.blastRadius + enemy.radius && enemy.z <= DEFENSE.blastHeight;
-    if (!near) {
+    if (!hit.has(enemy.id)) {
       survivors.push(enemy);
       continue;
     }
@@ -522,21 +570,33 @@ export function stepDefense(state: DefenseState, dt: number, random: () => numbe
  * Throws an egg toward a point of the paper: the creature turns to face it and
  * the egg lands there after a short arc. Returns false while reloading.
  */
-export function fireDefense(state: DefenseState, target: Vec2): boolean {
+export type FireOptions = {
+  /** Where the egg starts (a partner's creature, in this paper's frame); default: this creature. */
+  from?: { x: number; y: number; z: number };
+  /** A partner's egg: drawn, not counted, no reload, smashes nothing (the partner reports). */
+  cosmetic?: boolean;
+};
+
+export function fireDefense(state: DefenseState, target: Vec2, options: FireOptions = {}): boolean {
   if (state.status !== "wave" && state.status !== "intro") return false;
-  if (state.time - state.lastFireAt < state.rules.fireCooldownMs / 1000) return false;
+  if (!options.cosmetic && state.time - state.lastFireAt < state.rules.fireCooldownMs / 1000) return false;
   const aim = clampAim(target);
-  state.lastFireAt = state.time;
-  state.yaw = yawToward(aim);
-  state.summary.shots += 1;
   const distance = Math.hypot(aim.x, aim.y);
   const dir = distance > 0 ? { x: aim.x / distance, y: aim.y / distance } : { x: 0, y: -1 };
+  if (!options.cosmetic) {
+    state.lastFireAt = state.time;
+    state.summary.shots += 1;
+    if (!options.from) state.yaw = yawToward(aim);
+  }
+  const from = options.from ?? { x: dir.x * 0.3, y: dir.y * 0.3, z: 1 };
+  const flight = Math.hypot(aim.x - from.x, aim.y - from.y);
   state.eggs.push({
     id: state.nextId++,
-    from: { x: dir.x * 0.3, y: dir.y * 0.3, z: 1 },
+    from,
     to: { x: aim.x, y: aim.y, z: 0.12 },
     t: 0,
-    duration: DEFENSE.eggFlightSeconds + DEFENSE.eggFlightPerSide * distance,
+    duration: DEFENSE.eggFlightSeconds + DEFENSE.eggFlightPerSide * flight,
+    ...(options.cosmetic ? { cosmetic: true } : {}),
   });
   return true;
 }
@@ -547,15 +607,15 @@ export function fireDefense(state: DefenseState, target: Vec2): boolean {
  * comes back. One tongue at a time, then a short reload. Returns false when
  * it cannot.
  */
-export function tongueDefense(state: DefenseState, target: Vec2): boolean {
+export function tongueDefense(state: DefenseState, target: Vec2, options: { cosmetic?: boolean } = {}): boolean {
   if (state.status !== "wave" && state.status !== "intro") return false;
-  if (state.tongue || state.time - state.lastTongueAt < DEFENSE.tongueCooldownMs / 1000) return false;
+  if (!options.cosmetic && (state.tongue || state.time - state.lastTongueAt < DEFENSE.tongueCooldownMs / 1000)) return false;
   const aim = clampAim(target);
   const distance = Math.hypot(aim.x, aim.y);
   const dir = distance > 0 ? { x: aim.x / distance, y: aim.y / distance } : { x: 0, y: -1 };
-  state.lastTongueAt = state.time;
+  if (!options.cosmetic) state.lastTongueAt = state.time;
   state.yaw = yawToward(aim);
-  state.tongue = { dir, length: Math.max(DEFENSE.tongueMinLength, Math.min(DEFENSE.tongueMaxLength, distance)), t: 0, caught: false };
+  state.tongue = { dir, length: Math.max(DEFENSE.tongueMinLength, Math.min(DEFENSE.tongueMaxLength, distance)), t: 0, caught: false, ...(options.cosmetic ? { cosmetic: true } : {}) };
   return true;
 }
 

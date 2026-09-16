@@ -104,6 +104,7 @@ Si tu avais déjà exécuté `db/init.sql` avant une phase, colle ses migrations
 - voir en vrai (un marqueur par créature) : [`db/migrations/013_creatures_ar_marker.sql`](./db/migrations/013_creatures_ar_marker.sql)
 - défendre (type de partie enregistré) : [`db/migrations/014_play_sessions_kind.sql`](./db/migrations/014_play_sessions_kind.sql)
 - arène (bataille entre amis) : [`db/migrations/015_arena.sql`](./db/migrations/015_arena.sql)
+- défendre à deux (mode coopératif) : [`db/migrations/016_coop_defense.sql`](./db/migrations/016_coop_defense.sql)
 
 Si une migration manque, l'application l'indique elle-même : au lieu de planter, elle affiche « La base de données doit être mise à jour » avec le SQL exact à copier dans Neon → SQL Editor (bouton « Copier le SQL »). Recharge la page une fois le SQL exécuté.
 
@@ -346,6 +347,11 @@ apparaissent alors, sans connexion nécessaire :
     liaison directe entre eux (les œufs et les langues des autres apparaissent aussitôt, une pastille « Direct 1/1 »
     le confirme, le serveur reste l'arbitre) et reviennent au sondage seul s'ils ne parviennent pas à se joindre.
     Sur des réseaux différents, configure le relais Cloudflare TURN (section « Cloudflare TURN » plus bas).
+13. **Défendre à deux** (migration `016`) : dans Arène, choisis « Défendre à deux » en créant la partie. Vos marqueurs
+    côte à côte, la malbouffe attaque chaque créature : vise n'importe laquelle avec le centre de l'écran, lance des
+    œufs, la langue attrape les fruits près de ta créature. C'est le téléphone de l'hôte qui mène la partie : il garde
+    l'écran allumé ; la partie s'arrête quand toutes les créatures sont K.-O. ou sur « Terminer ». Score d'équipe
+    (moyenne des deux défenses) et mêmes récompenses que Jouer, dans la même limite quotidienne.
 
 ## 5. Limites connues
 
@@ -363,6 +369,8 @@ apparaissent alors, sans connexion nécessaire :
   quitte. Sans WebGL, le dessin tourne par pas de 45° (huit vues).
 - **Défendre** : le marqueur doit rester dans l'image pendant qu'on vise (le jeu se met en pause quand
   il est perdu) et le jeu demande WebGL (Chrome ou Safari récents).
+- **Défendre à deux** : le téléphone de l'hôte fait tourner la partie ; s'il quitte l'écran, la malbouffe se fige pour
+  tout le monde jusqu'à son retour, et sans nouvelles pendant 20 s un invité peut terminer la partie avec son propre bilan.
 - **Arène** : synchronisation par le serveur toutes les 500 ms (l'œuf d'un ami apparaît avec ce léger délai) ; les
   touches sont jugées par le téléphone du tireur ; deux créatures d'une même partie ne peuvent pas partager un numéro
   de marqueur (l'application refuse d'ouvrir la partie et le dit) ; sans les variables Cloudflare TURN, la liaison

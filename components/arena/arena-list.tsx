@@ -1,13 +1,13 @@
 "use client";
 
-import { Swords } from "lucide-react";
+import { Shield, Swords } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardText, CardTitle } from "@/components/ui/card";
-import type { ArenaListing, ArenaSnapshot } from "@/lib/arena/service";
+import type { ArenaListing, ArenaMode, ArenaSnapshot } from "@/lib/arena/service";
 import { cn } from "@/lib/utils/cn";
 
 export type FriendOption = { userId: string; username: string; creatureName: string | null; available: boolean };
@@ -22,6 +22,13 @@ export type ArenaListProps = {
 
 const dateFormat = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
 
+const MODE_LABEL: Record<ArenaMode, string> = { arena: "Arène", coop: "Défendre à deux" };
+
+const MODES: Array<{ id: ArenaMode; label: string; help: string; icon: typeof Swords }> = [
+  { id: "arena", label: "Arène", help: "Chacun pour soi : lance des œufs sur les créatures des autres.", icon: Swords },
+  { id: "coop", label: "Défendre à deux", help: "Ensemble contre la malbouffe qui attaque toutes vos créatures.", icon: Shield },
+];
+
 function names(snapshot: ArenaSnapshot): string {
   return snapshot.players
     .filter((p) => p.status === "ready" || p.status === "invited")
@@ -33,6 +40,7 @@ function names(snapshot: ArenaSnapshot): string {
 export function ArenaList({ listing, friends, blocked, maxPlayers }: ArenaListProps) {
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>([]);
+  const [mode, setMode] = useState<ArenaMode>("arena");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const available = friends.filter((f) => f.available);
@@ -45,7 +53,7 @@ export function ArenaList({ listing, friends, blocked, maxPlayers }: ArenaListPr
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch("/api/arena", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ friendIds: selected }) });
+      const response = await fetch("/api/arena", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ friendIds: selected, mode }) });
       const body = (await response.json().catch(() => null)) as ArenaSnapshot | { error: { message: string } } | null;
       if (!response.ok || !body || "error" in body) {
         setError(body && "error" in body ? body.error.message : "Impossible d'ouvrir la partie.");
@@ -70,7 +78,7 @@ export function ArenaList({ listing, friends, blocked, maxPlayers }: ArenaListPr
               return (
                 <li key={s.match.id} className="flex min-h-11 items-center justify-between gap-3 py-2 text-sm">
                   <span className="text-cream-100">
-                    <span className="font-semibold">{host?.username ?? "Un ami"}</span> t&apos;invite · {names(s)}
+                    <span className="font-semibold">{host?.username ?? "Un ami"}</span> t&apos;invite · {MODE_LABEL[s.match.mode]} · {names(s)}
                   </span>
                   <Link href={`/arena/${s.match.id}`} className="shrink-0 rounded-full bg-brass-400 px-3 py-1.5 text-xs font-semibold text-ink-950 hover:bg-brass-300">
                     Voir
@@ -89,7 +97,7 @@ export function ArenaList({ listing, friends, blocked, maxPlayers }: ArenaListPr
             {listing.open.map((s) => (
               <li key={s.match.id} className="flex min-h-11 items-center justify-between gap-3 py-2 text-sm">
                 <span className="text-cream-100">
-                  {s.match.status === "playing" ? "Bataille en cours" : "Salle d'attente"} · {names(s)}
+                  {MODE_LABEL[s.match.mode]} · {s.match.status === "playing" ? "en cours" : "salle d'attente"} · {names(s)}
                 </span>
                 <Link href={`/arena/${s.match.id}`} className="shrink-0 rounded-full bg-sage-500 px-3 py-1.5 text-xs font-semibold text-ink-950 hover:bg-sage-400">
                   Reprendre
@@ -103,11 +111,30 @@ export function ArenaList({ listing, friends, blocked, maxPlayers }: ArenaListPr
       <Card data-arena-create>
         <div className="flex items-center gap-2">
           <Swords className="h-5 w-5 text-sage-300" aria-hidden="true" />
-          <CardTitle>Nouvelle bataille</CardTitle>
+          <CardTitle>Nouvelle partie</CardTitle>
         </div>
         <CardText className="mt-1">
           Invite jusqu&apos;à {maxPlayers - 1} amis dont la créature est vivante. Chacun pose son marqueur sur la même table et cadre la table avec son téléphone.
         </CardText>
+        <div className="mt-3 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Type de partie">
+          {MODES.map(({ id, label, help, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={mode === id}
+              onClick={() => setMode(id)}
+              data-arena-mode={id}
+              className={cn("flex min-h-11 flex-col items-start gap-1 rounded-2xl border px-3 py-2 text-left transition-colors", mode === id ? "border-brass-400/70 bg-brass-400/10" : "border-ink-600/80 bg-ink-900/60 hover:border-ink-500")}
+            >
+              <span className="flex items-center gap-1.5 text-sm font-semibold text-cream-50">
+                <Icon className="h-4 w-4 text-sage-300" aria-hidden="true" />
+                {label}
+              </span>
+              <span className="text-[11px] leading-snug text-cream-500">{help}</span>
+            </button>
+          ))}
+        </div>
         {blocked ? (
           <Alert tone="warning" className="mt-3">
             {blocked}
@@ -144,7 +171,7 @@ export function ArenaList({ listing, friends, blocked, maxPlayers }: ArenaListPr
               </Alert>
             ) : null}
             <Button onClick={() => void create()} disabled={selected.length === 0 || busy} variant="brass" className="mt-3 w-auto px-6">
-              {busy ? "Ouverture…" : `Inviter${selected.length > 0 ? ` (${selected.length})` : ""} et ouvrir la partie`}
+              {busy ? "Ouverture…" : `Inviter${selected.length > 0 ? ` (${selected.length})` : ""} · ${MODE_LABEL[mode]}`}
             </Button>
           </>
         )}
@@ -160,7 +187,8 @@ export function ArenaList({ listing, friends, blocked, maxPlayers }: ArenaListPr
               return (
                 <li key={s.match.id} className="flex min-h-11 items-center justify-between gap-3 py-2 text-sm">
                   <span className="text-cream-100">
-                    {s.match.finishedAt ? dateFormat.format(new Date(s.match.finishedAt)) : ""} · {rank === null ? "—" : rank === 1 ? "1er" : `${rank}e`} sur {count}
+                    {s.match.finishedAt ? dateFormat.format(new Date(s.match.finishedAt)) : ""} · {MODE_LABEL[s.match.mode]} ·{" "}
+                    {s.match.mode === "coop" ? (s.match.coop?.result ? `${s.match.coop.result.score} pts à ${count}` : "sans bilan") : `${rank === null ? "—" : rank === 1 ? "1er" : `${rank}e`} sur ${count}`}
                   </span>
                   <Link href={`/arena/${s.match.id}`} className="shrink-0 text-xs font-semibold text-sage-300 underline">
                     Détail

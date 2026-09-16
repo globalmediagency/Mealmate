@@ -1,8 +1,10 @@
-import type { ArenaEventView, ArenaPlayerView, ArenaSnapshot, ShotInput, ShotOutcome, TongueInput, TongueOutcome } from "@/lib/arena/service";
+import type { ArenaEventView, ArenaMode, ArenaPlayerView, ArenaSnapshot, CoopResultStored, ShotInput, ShotOutcome, TongueInput, TongueOutcome } from "@/lib/arena/service";
+import { coopScore, parseCoopState, type CoopStateMessage } from "@/lib/game/coop";
+import { DEFAULT_RULES } from "@/lib/game/rules";
 import { arenaScore, placeArenaBonus, rankArenaPlayers } from "@/lib/game/arena";
 import { ARENA } from "@/lib/game/config";
 import { playEffects } from "@/lib/game/play";
-import { NO_LINK, type ArenaErrorListener, type ArenaListener, type ArenaTransport, type LinkState, type LobbyAction } from "./transport";
+import { NO_LINK, type ArenaErrorListener, type ArenaListener, type ArenaTransport, type CoopAction, type LinkState, type LobbyAction } from "./transport";
 
 /** The two players of the preview: the viewer (marker 17) and Léa (marker 42). */
 export const PREVIEW_ME = "preview-me";
@@ -58,11 +60,30 @@ function basePlayers(side: PreviewSide = "me"): Player[] {
 }
 
 /** The lobby the dev screen starts from (server-renderable data). */
-export function previewArenaSnapshot(side: PreviewSide = "me", webrtc = false): ArenaSnapshot {
+export function previewArenaSnapshot(side: PreviewSide = "me", webrtc = false, mode: ArenaMode = "arena"): ArenaSnapshot {
   const now = new Date().toISOString();
   const players = basePlayers(side);
   return {
-    match: { id: MATCH_ID, status: "lobby", hostId: players[0].userId, isHost: true, maxHp: MAX_HP, eggDamage: EGG_DAMAGE, durationSeconds: DURATION, startedAt: null, endsAt: null, finishedAt: null, secondsLeft: 0, webrtc, createdAt: now, mergedInto: null },
+    match: {
+      id: MATCH_ID,
+      status: "lobby",
+      hostId: players[0].userId,
+      isHost: true,
+      maxHp: MAX_HP,
+      eggDamage: EGG_DAMAGE,
+      durationSeconds: DURATION,
+      startedAt: null,
+      endsAt: null,
+      finishedAt: null,
+      secondsLeft: 0,
+      webrtc,
+      createdAt: now,
+      mergedInto: null,
+      mode,
+      seed: 4242,
+      defense: DEFAULT_RULES.defense,
+      coop: mode === "coop" ? { live: null, liveAt: null, result: null } : null,
+    },
     players,
     bonuses: [],
     events: [],
@@ -96,6 +117,10 @@ export class PreviewTransport implements ArenaTransport {
   private timer: ReturnType<typeof setInterval> | null = null;
   private readonly listeners = new Set<ArenaListener>();
   private readonly random: () => number;
+  /** Coop: the host's published simulation and the team's result. */
+  private coopLive: CoopStateMessage | null = null;
+  private coopLiveAt: string | null = null;
+  private coopResult: CoopResultStored | null = null;
 
   constructor(initial: ArenaSnapshot = previewArenaSnapshot(), random: () => number = Math.random) {
     this.snapshot = initial;
@@ -125,6 +150,29 @@ export class PreviewTransport implements ArenaTransport {
 
   subscribePeers(): () => void {
     return () => {};
+  }
+
+  /** Coop moves: the state is kept for the snapshot, a finish closes the battle with the team's score; relays are no-ops (nobody else here). */
+  async coop(action: CoopAction): Promise<boolean> {
+    if (this.status !== "playing") return false;
+    if (action.action === "state") {
+      const parsed = parseCoopState(action.state);
+      if (!parsed) return false;
+      this.coopLive = parsed;
+      this.coopLiveAt = new Date().toISOString();
+    } else if (action.action === "finish") {
+      const summaries = Object.values(action.summaries);
+      this.coopResult = { ...coopScore(summaries, DEFAULT_RULES.defense), summaries: action.summaries };
+      this.status = "finished";
+      this.finishedAt = Date.now();
+      for (const p of this.players) {
+        p.rank = 1;
+        if (p.mine) p.reward = { score: this.coopResult.score, perfect: this.coopResult.perfect, effects: playEffects(this.coopResult.score), playsLeft: 2 };
+      }
+      this.log(this.me.userId, "finish", { reason: "coop", score: this.coopResult.score });
+      this.emit();
+    }
+    return true;
   }
 
   subscribe(listener: ArenaListener, onError?: ArenaErrorListener): () => void {
@@ -186,7 +234,9 @@ export class PreviewTransport implements ArenaTransport {
 
   private tick() {
     const now = Date.now();
-    if (this.status === "playing") {
+    if (this.status === "playing" && this.snapshot.match.mode === "coop") {
+      // Coop: the viewer's phone runs the battle itself; nothing to simulate here.
+    } else if (this.status === "playing") {
       if (this.endsAt !== null && now >= this.endsAt) this.finish("time");
       else {
         this.bonuses = this.bonuses.filter((b) => !b.eaten && Date.parse(b.expiresAt) > now);
@@ -251,6 +301,10 @@ export class PreviewTransport implements ArenaTransport {
         webrtc: this.snapshot.match.webrtc,
         createdAt: this.snapshot.match.createdAt,
         mergedInto: null,
+        mode: this.snapshot.match.mode,
+        seed: this.snapshot.match.seed,
+        defense: this.snapshot.match.defense,
+        coop: this.snapshot.match.mode === "coop" ? { live: this.coopLive, liveAt: this.coopLiveAt, result: this.coopResult } : null,
       },
       players,
       bonuses:

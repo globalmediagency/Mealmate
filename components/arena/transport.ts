@@ -1,4 +1,6 @@
 import type { ArenaEventView, ArenaPlayerView, ArenaSnapshot, ShotInput, ShotOutcome, TongueInput, TongueOutcome } from "@/lib/arena/service";
+import type { CoopStateMessage } from "@/lib/game/coop";
+import type { DefenseSummary } from "@/lib/game/defense";
 import type { PeerMessage } from "@/lib/arena/rtc-protocol";
 import { ARENA } from "@/lib/game/config";
 
@@ -55,9 +57,20 @@ export interface ArenaTransport {
   broadcast(message: PeerMessage): void;
   /** Messages of the other phones over the direct link (never called without one). */
   subscribePeers(listener: PeerListener): () => void;
+  /** A "Défendre à deux" move for the server; resolves to false when it was refused or lost. */
+  coop(action: CoopAction): Promise<boolean>;
 }
 
 export const NO_LINK: LinkState = { mode: "polling", connected: 0, total: 0, peers: [] };
+
+/** "Défendre à deux" moves sent to the server (relayed to the phones that poll, and stored for the host's state). */
+export type CoopAction =
+  | { action: "state"; state: CoopStateMessage }
+  | { action: "fire"; frame: string; x: number; y: number; from: { x: number; y: number; z: number } | null; nonce: string }
+  | { action: "smash"; frame: string; hits: number[]; x: number; y: number; nonce: string }
+  | { action: "lick"; frame: string; angle: number; length: number; nonce: string }
+  | { action: "catch"; frame: string; bonusIds: number[]; junkIds: number[]; nonce: string }
+  | { action: "finish"; summaries: Record<string, DefenseSummary> };
 
 /** A snapshot with every player carrying their creature: incremental ones borrow it from the previous complete one. */
 export function completeSnapshot(incoming: ArenaSnapshot, previous: ArenaSnapshot | null): ArenaSnapshot {
@@ -130,6 +143,19 @@ export class PollingTransport implements ArenaTransport {
 
   subscribePeers(): () => void {
     return () => {};
+  }
+
+  async coop(action: CoopAction): Promise<boolean> {
+    try {
+      const result = await request<ArenaSnapshot | { stored?: boolean; logged?: boolean }>(`/api/arena/${this.matchId}/action`, { method: "POST", body: JSON.stringify(action) });
+      if (action.action === "finish" && result && "match" in result) {
+        this.accept(result);
+        this.schedule();
+      }
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   subscribe(listener: ArenaListener, onError?: ArenaErrorListener): () => void {
@@ -336,5 +362,9 @@ class LazyRtcTransport implements ArenaTransport {
       this.peerListeners.delete(listener);
       off?.();
     };
+  }
+
+  coop(action: CoopAction): Promise<boolean> {
+    return this.inner.coop(action);
   }
 }

@@ -2,7 +2,7 @@ import type { ArenaEventView, ArenaSnapshot, ShotInput, ShotOutcome, TongueInput
 import { selectedPairKind, type CandidateKind } from "@/lib/arena/rtc-diagnostic";
 import { isOfferer, parsePeerMessage, parseSignal, randomNonce, type ArenaSignal, type PeerMessage } from "@/lib/arena/rtc-protocol";
 import { ARENA } from "@/lib/game/config";
-import type { ArenaErrorListener, ArenaListener, ArenaTransport, LinkState, LobbyAction, PeerListener } from "./transport";
+import type { ArenaErrorListener, ArenaListener, ArenaTransport, CoopAction, LinkState, LobbyAction, PeerListener } from "./transport";
 
 /** A signal fetched for this phone. */
 export type SignalEnvelope = { id: number; from: string; payload: unknown };
@@ -184,6 +184,10 @@ export class RtcTransport implements ArenaTransport {
 
   lick(input: TongueInput): Promise<TongueOutcome | null> {
     return this.inner.lick(input);
+  }
+
+  coop(action: CoopAction): Promise<boolean> {
+    return this.inner.coop(action);
   }
 
   linkState(): LinkState {

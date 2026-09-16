@@ -9,6 +9,8 @@ export const dynamic = "force-dynamic";
 
 const createSchema = z.object({
   friendIds: z.array(z.string().min(1).max(64)).min(1).max(ARENA.maxPlayers - 1),
+  /** `arena` (everyone for themselves) or `coop` ("Défendre à deux"). */
+  mode: z.enum(["arena", "coop"]).default("arena"),
 });
 
 /** GET /api/arena → the user's invitations, open matches and latest results (spec § 3.22). */
@@ -30,7 +32,7 @@ export async function POST(request: Request) {
     const body = createSchema.parse(await request.json().catch(() => ({})));
     const now = new Date();
     const rules = await getGameRules();
-    const { match } = await createMatch(session.user.id, body.friendIds, now, rules);
+    const { match } = await createMatch(session.user.id, body.friendIds, now, rules, { mode: body.mode });
     return ok(await snapshot(session.user.id, match.id, now, rules), { status: 201 });
   } catch (error) {
     return handleRouteError(error);

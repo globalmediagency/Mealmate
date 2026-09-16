@@ -3,6 +3,7 @@
  * link (spec § 3.22), and the pure rules of the mesh. No DOM here: the
  * WebRTC plumbing lives in `components/arena/rtc-transport.ts`.
  */
+import { parseCoopState, type CoopStateMessage } from "@/lib/game/coop";
 
 /** Signals exchanged through the server to open the direct link. */
 export type ArenaSignal =
@@ -10,12 +11,17 @@ export type ArenaSignal =
   | { type: "offer"; session: string; sdp: string }
   | { type: "answer"; session: string; target: string; sdp: string };
 
-/** Messages carried by the data channel once the link is open. */
+/** Messages carried by the data channel once the link is open (arena, then "Défendre à deux"). */
 export type PeerMessage =
   | { t: "egg"; nonce: string; target: string | null; x: number; y: number }
   | { t: "hit"; nonce: string; target: string | null; x: number; y: number; hit: boolean }
   | { t: "tongue"; nonce: string; angle: number; length: number }
-  | { t: "eat"; nonce: string; bonusIds: string[] };
+  | { t: "eat"; nonce: string; bonusIds: string[] }
+  | { t: "state"; nonce: string; hostTime: number; states: CoopStateMessage["states"] }
+  | { t: "fire"; nonce: string; frame: string; x: number; y: number; from: { x: number; y: number; z: number } | null }
+  | { t: "smash"; nonce: string; frame: string; hits: number[]; x: number; y: number }
+  | { t: "lick"; nonce: string; frame: string; angle: number; length: number }
+  | { t: "catch"; nonce: string; frame: string; bonusIds: number[]; junkIds: number[] };
 
 /** Between two players, the one with the smaller id opens the connection. */
 export function isOfferer(me: string, peer: string): boolean {
@@ -52,10 +58,31 @@ export function parsePeerMessage(raw: unknown): PeerMessage | null {
     case "eat":
       if (!Array.isArray(m.bonusIds) || m.bonusIds.length > 10 || !m.bonusIds.every(isString)) return null;
       return { t: "eat", nonce: m.nonce, bonusIds: m.bonusIds as string[] };
+    case "state": {
+      const parsed = parseCoopState({ hostTime: m.hostTime, states: m.states });
+      return parsed ? { t: "state", nonce: m.nonce, hostTime: parsed.hostTime, states: parsed.states } : null;
+    }
+    case "fire": {
+      if (!isString(m.frame) || !isNumber(m.x) || !isNumber(m.y)) return null;
+      const f = m.from as Record<string, unknown> | null | undefined;
+      const from = f && typeof f === "object" && isNumber(f.x) && isNumber(f.y) && isNumber(f.z) ? { x: f.x, y: f.y, z: f.z } : null;
+      return { t: "fire", nonce: m.nonce, frame: m.frame, x: m.x, y: m.y, from };
+    }
+    case "smash":
+      if (!isString(m.frame) || !isNumber(m.x) || !isNumber(m.y) || !isNumberList(m.hits)) return null;
+      return { t: "smash", nonce: m.nonce, frame: m.frame, hits: m.hits, x: m.x, y: m.y };
+    case "lick":
+      if (!isString(m.frame) || !isNumber(m.angle) || !isNumber(m.length)) return null;
+      return { t: "lick", nonce: m.nonce, frame: m.frame, angle: m.angle, length: m.length };
+    case "catch":
+      if (!isString(m.frame) || !isNumberList(m.bonusIds) || !isNumberList(m.junkIds)) return null;
+      return { t: "catch", nonce: m.nonce, frame: m.frame, bonusIds: m.bonusIds, junkIds: m.junkIds };
     default:
       return null;
   }
 }
+
+const isNumberList = (v: unknown): v is number[] => Array.isArray(v) && v.length <= 64 && v.every(isNumber);
 
 /** Reads a signal fetched from the server, or null when malformed. */
 export function parseSignal(raw: unknown): ArenaSignal | null {

@@ -47,7 +47,7 @@ function notifyInBackground(notice: ArenaInviteNotice, open: () => void) {
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
   try {
     const notification = new Notification("Bataille dans l'arène", {
-      body: `${notice.hostName} t'invite à une bataille d'œufs. Rejoins-la avant qu'elle ne commence !`,
+      body: notice.mode === "coop" ? `${notice.hostName} t'invite à défendre vos créatures ensemble. Rejoins la partie avant qu'elle ne commence !` : `${notice.hostName} t'invite à une bataille d'œufs. Rejoins-la avant qu'elle ne commence !`,
       tag: `arena-${notice.matchId}`,
     });
     notification.onclick = () => {
@@ -94,7 +94,7 @@ export function ArenaInviteToasts({ notices, onDismiss, now = Date.now() }: Aren
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-sm text-cream-50">
-                <span className="font-semibold">{notice.hostName}</span> t&apos;invite à une bataille dans l&apos;arène
+                <span className="font-semibold">{notice.hostName}</span> {notice.mode === "coop" ? "t'invite à défendre à deux" : "t'invite à une bataille dans l'arène"}
               </p>
               <p className="mt-0.5 text-xs text-cream-500">
                 {notice.players.length > 0 ? `Avec ${notice.players.join(", ")} · ` : ""}
@@ -232,7 +232,8 @@ export function LiveArena({ initialInvites, children }: LiveArenaProps) {
 /** Dev screens: the card with sample data, dismissable. */
 export function ArenaInvitePreview() {
   const [notices, setNotices] = useState<ArenaInviteNotice[]>(() => [
-    { matchId: "00000000-0000-4000-8000-000000000042", hostId: "sam", hostName: "Sam", createdAt: new Date(Date.now() - 12_000).toISOString(), players: ["Léa", "Noé"] },
+    { matchId: "00000000-0000-4000-8000-000000000042", hostId: "sam", hostName: "Sam", createdAt: new Date(Date.now() - 12_000).toISOString(), players: ["Léa", "Noé"], mode: "arena" },
+    { matchId: "00000000-0000-4000-8000-000000000043", hostId: "noe", hostName: "Noé", createdAt: new Date(Date.now() - 40_000).toISOString(), players: [], mode: "coop" },
   ]);
   return <ArenaInviteToasts notices={notices} onDismiss={(id) => setNotices((list) => list.filter((n) => n.matchId !== id))} />;
 }
