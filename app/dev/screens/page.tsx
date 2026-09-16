@@ -18,6 +18,7 @@ import { PlayerCard } from "@/components/admin/player-card";
 import { Creature } from "@/components/creatures/creature";
 import { ArViewer } from "@/components/ar/ar-viewer";
 import { Creature3dView } from "@/components/ar/three/creature-3d-view";
+import { FoodGallery } from "@/components/ar/three/food-gallery";
 import { DefenseGame } from "@/components/defense/defense-game";
 import { Species3dButton } from "@/components/admin/species-3d-dialog";
 import { markerSvg } from "@/lib/ar/marker";
@@ -54,7 +55,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "turnaround", "creature-3d", "defense", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "turnaround", "creature-3d", "defense", "food-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -176,6 +177,9 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
           </ul>
         </Card>
       );
+      break;
+    case "food-3d":
+      content = <FoodGallery />;
       break;
     case "defense":
       content = (

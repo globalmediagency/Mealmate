@@ -26,12 +26,10 @@ import {
   type DefenseState,
   type DefenseStatus,
   type DefenseSummary,
-  type JunkKind,
 } from "@/lib/game/defense";
 import { playEffects, type PlayEffects } from "@/lib/game/play";
 import type { DefenseRules } from "@/lib/game/rules";
 import { cn } from "@/lib/utils/cn";
-import { FoodSprites, foodMarkup } from "./food-sprites";
 
 type StageModule = typeof import("@/components/ar/three/stage");
 type SceneModule = typeof import("@/components/ar/three/defense-scene");
@@ -87,7 +85,6 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, creatu
   const box = useRef<HTMLDivElement>(null);
   const glCanvas = useRef<HTMLCanvasElement>(null);
   const sprites = useRef<HTMLDivElement>(null);
-  const foods = useRef<HTMLDivElement>(null);
   const camera = useRef<MarkerCamera | null>(null);
   const stage = useRef<ThreeStage | null>(null);
   const scene = useRef<DefenseScene | null>(null);
@@ -142,11 +139,11 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, creatu
     return () => document.removeEventListener("visibilitychange", onHide);
   }, [teardown]);
 
-  function textureFor(key: string, markup: string | null, size?: number): TexturePromise {
+  function textureFor(key: string, markup: string | null): TexturePromise {
     let promise = textures.current.get(key);
     if (!promise) {
       const three = stageModule.current;
-      promise = markup && three ? three.textureFromSvg(markup, size) : Promise.resolve(null);
+      promise = markup && three ? three.textureFromSvg(markup) : Promise.resolve(null);
       textures.current.set(key, promise);
     }
     return promise;
@@ -163,10 +160,6 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, creatu
     };
   }
 
-  function foodTexture(kind: JunkKind): TexturePromise {
-    return textureFor(`food/${kind}`, foodMarkup(foods.current, kind), 128);
-  }
-
   /** The 3D stage is created once the video size is known and the canvas mounted; without WebGL the game cannot run. */
   function ensureStage(videoWidth: number, videoHeight: number): ThreeStage | null {
     if (stage.current) {
@@ -180,7 +173,7 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, creatu
     try {
       const created = new stageMod.ThreeStage(canvas, videoWidth, videoHeight);
       stage.current = created;
-      scene.current = new sceneMod.DefenseScene((kind) => foodTexture(kind));
+      scene.current = new sceneMod.DefenseScene();
       return created;
     } catch (err) {
       console.warn("[defense] WebGL unavailable", err);
@@ -509,7 +502,6 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, creatu
         ) : null}
       </div>
 
-      <FoodSprites ref={foods} />
       <AccessorySprites ref={sprites} items={[{ speciesId: target.creature.speciesId, accessories: target.creature.accessories }]} />
 
       <p className="text-center text-xs text-cream-700">

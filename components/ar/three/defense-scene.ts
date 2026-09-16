@@ -1,11 +1,7 @@
 import * as THREE from "three";
 import { eggPosition, type DefenseState, type EffectKind, type JunkKind } from "@/lib/game/defense";
+import { buildFoodMesh, type FoodMesh } from "./food-mesh";
 
-export type FoodTextureSource = (kind: JunkKind) => Promise<THREE.Texture | null>;
-
-/** Food sprite side and height above the paper (marker sides). */
-const ENEMY_SIZE = 0.55;
-const ENEMY_LIFT = 0.3;
 const SMOKE_PUFFS = 5;
 const SHELL_BITS = 4;
 const AIM_COLOR = 0xb9d3a4;
@@ -17,16 +13,18 @@ type EffectObject = { kind: EffectKind; group: THREE.Group; materials: THREE.Mat
 
 /**
  * Draws a "Défendre" game (spec § 3.21) inside the marker's frame: junk foods
- * as sprites of their own drawings, eggs on their arc, smoke where a food
+ * as small 3D models (`food-mesh.ts`), eggs on their arc, smoke where a food
  * appears, a splat where an egg lands, a red flash when the creature is hit,
  * and the aim ring where the centre of the screen meets the paper. Objects
  * are pooled and reused; the state is never mutated here.
  */
 export class DefenseScene {
   readonly root = new THREE.Group();
-  private readonly materials = new Map<JunkKind, THREE.SpriteMaterial>();
-  private readonly enemies = new Map<number, THREE.Sprite>();
-  private readonly freeSprites: THREE.Sprite[] = [];
+  private readonly templates = new Map<JunkKind, FoodMesh>();
+  private readonly enemies = new Map<number, { kind: JunkKind; model: THREE.Group; shadow: THREE.Mesh }>();
+  private readonly freeModels = new Map<JunkKind, THREE.Group[]>();
+  private readonly freeShadows: THREE.Mesh[] = [];
+  private readonly shadowMaterial = new THREE.MeshBasicMaterial({ color: 0x0b1210, transparent: true, opacity: 0.28, depthWrite: false });
   private readonly eggs = new Map<number, THREE.Mesh>();
   private readonly freeEggs: THREE.Mesh[] = [];
   private readonly effects = new Map<number, EffectObject>();
@@ -36,9 +34,8 @@ export class DefenseScene {
   private readonly disc = new THREE.CircleGeometry(1, 28);
   private readonly eggMaterial = new THREE.MeshStandardMaterial({ color: 0xf6ecd6, roughness: 0.55 });
   private readonly disposables: { dispose(): void }[] = [];
-  private disposed = false;
 
-  constructor(private readonly textures: FoodTextureSource) {
+  constructor() {
     const ringGeometry = new THREE.RingGeometry(0.14, 0.2, 40);
     const ringMaterial = new THREE.MeshBasicMaterial({ color: AIM_COLOR, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide });
     const ring = new THREE.Mesh(ringGeometry, ringMaterial);
@@ -48,25 +45,22 @@ export class DefenseScene {
     this.aim.position.z = 0.01;
     this.aim.visible = false;
     this.root.add(this.aim);
-    this.disposables.push(this.sphere, this.disc, this.eggMaterial, ringGeometry, ringMaterial);
+    this.disposables.push(this.sphere, this.disc, this.eggMaterial, ringGeometry, ringMaterial, this.shadowMaterial);
   }
 
-  /** One material per food, coloured until its drawing is rasterised. */
-  private materialFor(kind: JunkKind): THREE.SpriteMaterial {
-    let material = this.materials.get(kind);
-    if (!material) {
-      const created = new THREE.SpriteMaterial({ color: 0xd9a066, transparent: true, alphaTest: 0.05 });
-      this.materials.set(kind, created);
-      this.disposables.push(created);
-      void this.textures(kind).then((texture) => {
-        if (!texture || this.disposed) return;
-        created.map = texture;
-        created.color.set(0xffffff);
-        created.needsUpdate = true;
-      });
-      material = created;
+  /** One model per food kind, built once and cloned per food (geometries and materials shared). */
+  private modelFor(kind: JunkKind): THREE.Group {
+    const free = this.freeModels.get(kind);
+    const reused = free?.pop();
+    if (reused) return reused;
+    let template = this.templates.get(kind);
+    if (!template) {
+      template = buildFoodMesh(kind);
+      this.templates.set(kind, template);
     }
-    return material;
+    const model = template.root.clone(true);
+    this.root.add(model);
+    return model;
   }
 
   private buildEffect(kind: EffectKind): EffectObject {
@@ -144,22 +138,32 @@ export class DefenseScene {
     const seenEnemies = new Set<number>();
     for (const enemy of state?.enemies ?? []) {
       seenEnemies.add(enemy.id);
-      let sprite = this.enemies.get(enemy.id);
-      if (!sprite) {
-        sprite = this.freeSprites.pop() ?? new THREE.Sprite(this.materialFor(enemy.kind));
-        sprite.material = this.materialFor(enemy.kind);
-        sprite.scale.set(ENEMY_SIZE, ENEMY_SIZE, 1);
-        this.root.add(sprite);
-        this.enemies.set(enemy.id, sprite);
+      let entry = this.enemies.get(enemy.id);
+      if (!entry) {
+        const shadow = this.freeShadows.pop() ?? new THREE.Mesh(this.disc, this.shadowMaterial);
+        shadow.position.z = 0.004;
+        this.root.add(shadow);
+        entry = { kind: enemy.kind, model: this.modelFor(enemy.kind), shadow };
+        this.enemies.set(enemy.id, entry);
       }
-      sprite.visible = enemy.phase === "moving";
-      sprite.position.set(enemy.x, enemy.y, enemy.z + ENEMY_LIFT);
+      const moving = enemy.phase === "moving";
+      entry.model.visible = moving;
+      entry.shadow.visible = moving;
+      entry.model.position.set(enemy.x, enemy.y, enemy.z);
+      // Faces the creature, with a little wobble as it comes.
+      entry.model.rotation.z = enemy.angle + Math.PI + 0.12 * Math.sin(enemy.age * 5 + enemy.seed * 6);
+      entry.shadow.position.set(enemy.x, enemy.y, 0.004);
+      entry.shadow.scale.setScalar(0.2 / (1 + enemy.z * 1.5));
     }
-    for (const [id, sprite] of this.enemies) {
+    for (const [id, entry] of this.enemies) {
       if (seenEnemies.has(id)) continue;
       this.enemies.delete(id);
-      sprite.visible = false;
-      this.freeSprites.push(sprite);
+      entry.model.visible = false;
+      entry.shadow.visible = false;
+      const free = this.freeModels.get(entry.kind) ?? [];
+      free.push(entry.model);
+      this.freeModels.set(entry.kind, free);
+      this.freeShadows.push(entry.shadow);
     }
 
     const seenEggs = new Set<number>();
@@ -204,10 +208,10 @@ export class DefenseScene {
     }
   }
 
-  /** Releases geometries and materials (the food textures belong to their cache). */
+  /** Releases geometries and materials. */
   dispose() {
-    this.disposed = true;
     this.root.removeFromParent();
+    for (const template of this.templates.values()) template.dispose();
     for (const d of this.disposables) d.dispose();
   }
 }
