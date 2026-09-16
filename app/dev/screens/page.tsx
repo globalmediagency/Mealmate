@@ -16,6 +16,7 @@ import { Incubation } from "@/components/game/incubation";
 import { StepsHistory } from "@/components/game/steps-history";
 import { PlayerCard } from "@/components/admin/player-card";
 import { Creature } from "@/components/creatures/creature";
+import type { StageId } from "@/lib/game/config";
 import { ArViewer } from "@/components/ar/ar-viewer";
 import { Creature3dView } from "@/components/ar/three/creature-3d-view";
 import { FoodGallery } from "@/components/ar/three/food-gallery";
@@ -98,9 +99,9 @@ function mockCreature(overrides: Partial<CreatureView>): CreatureView {
   };
 }
 
-export default async function DevScreensPage({ searchParams }: { searchParams: Promise<{ screen?: string; as?: string }> }) {
+export default async function DevScreensPage({ searchParams }: { searchParams: Promise<{ screen?: string; as?: string; species?: string; stage?: string }> }) {
   if (!isDevGalleryEnabled()) notFound();
-  const { screen: raw, as: side } = await searchParams;
+  const { screen: raw, as: side, species: speciesParam, stage: stageParam } = await searchParams;
   const screen: Screen = SCREENS.includes(raw as Screen) ? (raw as Screen) : "home";
 
   let content: React.ReactNode;
@@ -279,7 +280,26 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
         </div>
       );
       break;
-    case "creature-3d":
+    case "creature-3d": {
+      // `?species=<id>&stage=<stage>`: one species, the 2D drawing next to its volume, to check that the 3D keeps every trait.
+      const compared = speciesParam ? getSpecies(speciesParam) : undefined;
+      const comparedStage: StageId = (["bebe", "enfant", "adulte", "sage"] as const).includes(stageParam as StageId) ? (stageParam as StageId) : "sage";
+      if (compared) {
+        content = (
+          <div className="space-y-4" data-creature-compare={compared.id}>
+            <p className="text-xs text-cream-500">
+              {compared.name} · {compared.id} · {comparedStage}
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-3xl border border-ink-600/80 bg-ink-800/90 p-3">
+                <Creature species={compared} stage={comparedStage} state="healthy" size="100%" animated={false} />
+              </div>
+              <Creature3dView speciesId={compared.id} stage={comparedStage} autoRotate={false} />
+            </div>
+          </div>
+        );
+        break;
+      }
       content = (
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -303,6 +323,7 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
         </div>
       );
       break;
+    }
     case "ar":
       content = (
         <div className="space-y-4">
