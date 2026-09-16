@@ -307,7 +307,9 @@ apparaissent alors, sans connexion nécessaire :
     téléphone.
 11. **Défendre** : depuis l'écran Créature (ou la carte de « Voir en vrai »), lance le jeu : la malbouffe
     surgit autour de ta créature posée sur son marqueur et fonce dessus ; vise avec le centre de l'écran
-    et tire des œufs avec le bouton en bas à droite. Les vagues accélèrent, une vague sur trois
+    et tire des œufs avec le bouton en bas à droite ; le bouton « Langue » attrape les fruits et
+    légumes qui apparaissent un instant pour regagner de la vie (mais avale aussi la malbouffe sur
+    son chemin). Les vagues accélèrent, une vague sur trois
     cache un boss géant à plusieurs œufs, qui surgit à n'importe quel moment (barre de vie au-dessus de lui) ; la partie s'arrête à
     zéro point de vie (dans le jeu seulement). Trois parties par jour, jeu et défense confondus.
 

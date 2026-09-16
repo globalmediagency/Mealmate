@@ -40,7 +40,42 @@ export const JUNK_FOODS: Record<JunkKind, JunkFood> = {
   cake: { motion: "straight", damage: 25, speed: 0.75, wave: 5 },
 };
 
+/** Good foods: fruits and vegetables the tongue can eat to heal (spec § 3.21). */
+export const GOOD_KINDS = ["apple", "carrot", "broccoli", "banana", "strawberry", "tomato"] as const satisfies readonly FoodKind[];
+export type GoodKind = (typeof GOOD_KINDS)[number];
+
+/** Health points a good food gives back when eaten. */
+export const GOOD_FOODS: Record<GoodKind, { heal: number }> = {
+  apple: { heal: 10 },
+  carrot: { heal: 8 },
+  broccoli: { heal: 12 },
+  banana: { heal: 8 },
+  strawberry: { heal: 6 },
+  tomato: { heal: 8 },
+};
+
 export type Vec2 = { x: number; y: number };
+
+/** A good food lying on the table for a moment. */
+export type Bonus = {
+  id: number;
+  kind: GoodKind;
+  x: number;
+  y: number;
+  /** Seconds since it appeared: it blinks after `goodStaySeconds`, vanishes after `goodStaySeconds + goodBlinkSeconds`. */
+  age: number;
+  heal: number;
+};
+
+/** The tongue in motion: out along `dir` up to `length`, then back. */
+export type Tongue = {
+  dir: Vec2;
+  length: number;
+  /** Motion progress 0–1 (extending until `tongueExtendFraction`, then retracting). */
+  t: number;
+  /** Whether the catch at full extension has been resolved. */
+  caught: boolean;
+};
 
 export type Enemy = {
   id: number;
@@ -80,7 +115,7 @@ export type Egg = {
   duration: number;
 };
 
-export type EffectKind = "smoke" | "splat" | "ouch" | "hit";
+export type EffectKind = "smoke" | "splat" | "ouch" | "hit" | "heal";
 
 export type Effect = { id: number; kind: EffectKind; x: number; y: number; z: number; age: number; duration: number; size: number };
 
@@ -92,6 +127,11 @@ export type DefenseSummary = {
   shots: number;
   /** Bosses destroyed. */
   bosses: number;
+  /** Good foods eaten by the tongue, health they gave back, junk foods swallowed by mistake, good foods smashed by an egg. */
+  goodEaten: number;
+  healed: number;
+  junkEaten: number;
+  goodWasted: number;
 };
 
 export type DefenseStatus = "idle" | "intro" | "wave" | "over";
@@ -106,6 +146,8 @@ export type DefenseState = {
   enemies: Enemy[];
   eggs: Egg[];
   effects: Effect[];
+  bonuses: Bonus[];
+  tongue: Tongue | null;
   /** Direction the creature faces (radians about the paper's normal, 0 = the bottom edge). */
   yaw: number;
   summary: DefenseSummary;
@@ -117,6 +159,8 @@ export type DefenseState = {
   spawnTimer: number;
   introTimer: number;
   lastFireAt: number;
+  bonusTimer: number;
+  lastTongueAt: number;
 };
 
 const TAU = Math.PI * 2;
@@ -131,8 +175,10 @@ export function createDefense(rules: DefenseRules = DEFAULT_RULES.defense): Defe
     enemies: [],
     eggs: [],
     effects: [],
+    bonuses: [],
+    tongue: null,
     yaw: 0,
-    summary: { spawned: 0, destroyed: 0, reached: 0, wavesCleared: 0, shots: 0, bosses: 0 },
+    summary: { spawned: 0, destroyed: 0, reached: 0, wavesCleared: 0, shots: 0, bosses: 0, goodEaten: 0, healed: 0, junkEaten: 0, goodWasted: 0 },
     rules,
     nextId: 1,
     toSpawn: 0,
@@ -140,7 +186,36 @@ export function createDefense(rules: DefenseRules = DEFAULT_RULES.defense): Defe
     spawnTimer: 0,
     introTimer: 0,
     lastFireAt: -Infinity,
+    bonusTimer: DEFENSE.goodSpawnMinSeconds * 0.5,
+    lastTongueAt: -Infinity,
   };
+}
+
+/** Whether a good food is in its blinking last moments. */
+export function bonusBlinking(bonus: Pick<Bonus, "age">): boolean {
+  return bonus.age > DEFENSE.goodStaySeconds;
+}
+
+/** How far the tongue is out (0–1) at a motion progress. */
+export function tongueExtension(t: number): number {
+  const f = DEFENSE.tongueExtendFraction;
+  if (t <= f) return Math.max(0, t / f);
+  return Math.max(0, 1 - (t - f) / (1 - f));
+}
+
+/** Where the tongue's tip is, on the paper. */
+export function tongueTip(tongue: Tongue): Vec2 {
+  const reach = tongue.length * tongueExtension(tongue.t);
+  return { x: tongue.dir.x * reach, y: tongue.dir.y * reach };
+}
+
+/** Distance from a point to a segment. */
+export function distanceToSegment(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
+  return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
 }
 
 /** Plain foods in a wave (a boss may come on top, see `bossesInWave`). */
@@ -220,6 +295,49 @@ function beginWave(state: DefenseState, wave: number) {
 
 function addEffect(state: DefenseState, kind: EffectKind, x: number, y: number, z: number, duration: number, size = 1) {
   state.effects.push({ id: state.nextId++, kind, x, y, z, age: 0, duration, size });
+}
+
+function spawnBonus(state: DefenseState, random: () => number) {
+  const kind = GOOD_KINDS[Math.min(GOOD_KINDS.length - 1, Math.floor(random() * GOOD_KINDS.length))];
+  const angle = random() * TAU;
+  const dist = 0.9 + random() * 1.3;
+  state.bonuses.push({ id: state.nextId++, kind, x: Math.cos(angle) * dist, y: Math.sin(angle) * dist, age: 0, heal: GOOD_FOODS[kind].heal });
+}
+
+/** Everything the tongue sweeps at full extension: good foods heal, junk foods hurt (bosses are too big to swallow). */
+function catchWithTongue(state: DefenseState) {
+  const tongue = state.tongue;
+  if (!tongue || tongue.caught) return;
+  tongue.caught = true;
+  const ax = tongue.dir.x * 0.3;
+  const ay = tongue.dir.y * 0.3;
+  const bx = tongue.dir.x * tongue.length;
+  const by = tongue.dir.y * tongue.length;
+  const enemies: Enemy[] = [];
+  for (const enemy of state.enemies) {
+    const eaten = !enemy.boss && enemy.phase === "moving" && enemy.z <= DEFENSE.tongueHeight && distanceToSegment(enemy.x, enemy.y, ax, ay, bx, by) <= DEFENSE.tongueRadius + enemy.radius;
+    if (!eaten) {
+      enemies.push(enemy);
+      continue;
+    }
+    state.hp = Math.max(0, state.hp - enemyDamage(enemy));
+    state.summary.junkEaten += 1;
+    addEffect(state, "ouch", 0, 0, 0.9, 0.45);
+  }
+  state.enemies = enemies;
+  const bonuses: Bonus[] = [];
+  for (const bonus of state.bonuses) {
+    if (distanceToSegment(bonus.x, bonus.y, ax, ay, bx, by) > DEFENSE.tongueRadius + DEFENSE.goodRadius) {
+      bonuses.push(bonus);
+      continue;
+    }
+    const before = state.hp;
+    state.hp = Math.min(state.rules.hp, state.hp + bonus.heal);
+    state.summary.goodEaten += 1;
+    state.summary.healed += state.hp - before;
+    addEffect(state, "heal", bonus.x, bonus.y, 0.3, 0.7);
+  }
+  state.bonuses = bonuses;
 }
 
 function spawnEnemy(state: DefenseState, random: () => number) {
@@ -309,6 +427,10 @@ export function eggPosition(egg: Egg): { x: number; y: number; z: number } {
 
 function land(state: DefenseState, egg: Egg) {
   addEffect(state, "splat", egg.to.x, egg.to.y, egg.to.z, 0.55);
+  // A good food under an egg is smashed: nobody eats it.
+  const keptBonuses = state.bonuses.filter((b) => Math.hypot(b.x - egg.to.x, b.y - egg.to.y) > DEFENSE.blastRadius + DEFENSE.goodRadius);
+  state.summary.goodWasted += state.bonuses.length - keptBonuses.length;
+  state.bonuses = keptBonuses;
   const survivors: Enemy[] = [];
   for (const enemy of state.enemies) {
     const near = enemy.phase === "moving" && Math.hypot(enemy.x - egg.to.x, enemy.y - egg.to.y) <= DEFENSE.blastRadius + enemy.radius && enemy.z <= DEFENSE.blastHeight;
@@ -359,6 +481,22 @@ export function stepDefense(state: DefenseState, dt: number, random: () => numbe
     } else survivors.push(enemy);
   }
   state.enemies = survivors;
+  // Good foods pop on the table, then blink and vanish.
+  if (state.status === "wave") {
+    state.bonusTimer -= dt;
+    if (state.bonusTimer <= 0) {
+      if (state.bonuses.length < DEFENSE.maxGoodFoods) spawnBonus(state, random);
+      state.bonusTimer = DEFENSE.goodSpawnMinSeconds + random() * (DEFENSE.goodSpawnMaxSeconds - DEFENSE.goodSpawnMinSeconds);
+    }
+  }
+  for (const bonus of state.bonuses) bonus.age += dt;
+  state.bonuses = state.bonuses.filter((b) => b.age < DEFENSE.goodStaySeconds + DEFENSE.goodBlinkSeconds);
+  // The tongue goes out, catches at full extension, comes back.
+  if (state.tongue) {
+    state.tongue.t += dt / DEFENSE.tongueSeconds;
+    if (state.tongue.t >= DEFENSE.tongueExtendFraction) catchWithTongue(state);
+    if (state.tongue.t >= 1) state.tongue = null;
+  }
   // Eggs fly and land.
   const flying: Egg[] = [];
   for (const egg of state.eggs) {
@@ -400,6 +538,24 @@ export function fireDefense(state: DefenseState, target: Vec2): boolean {
     t: 0,
     duration: DEFENSE.eggFlightSeconds + DEFENSE.eggFlightPerSide * distance,
   });
+  return true;
+}
+
+/**
+ * Sticks the tongue out toward a point of the paper (up to `tongueMaxLength`):
+ * the creature turns, the tongue extends, eats everything on its way, and
+ * comes back. One tongue at a time, then a short reload. Returns false when
+ * it cannot.
+ */
+export function tongueDefense(state: DefenseState, target: Vec2): boolean {
+  if (state.status !== "wave" && state.status !== "intro") return false;
+  if (state.tongue || state.time - state.lastTongueAt < DEFENSE.tongueCooldownMs / 1000) return false;
+  const aim = clampAim(target);
+  const distance = Math.hypot(aim.x, aim.y);
+  const dir = distance > 0 ? { x: aim.x / distance, y: aim.y / distance } : { x: 0, y: -1 };
+  state.lastTongueAt = state.time;
+  state.yaw = yawToward(aim);
+  state.tongue = { dir, length: Math.max(DEFENSE.tongueMinLength, Math.min(DEFENSE.tongueMaxLength, distance)), t: 0, caught: false };
   return true;
 }
 

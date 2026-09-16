@@ -23,6 +23,7 @@ import {
   fireDefense,
   startDefense,
   stepDefense,
+  tongueDefense,
   waveEnemyCount,
   type DefenseState,
   type DefenseStatus,
@@ -38,7 +39,7 @@ type TexturePromise = ReturnType<StageModule["textureFromSvg"]>;
 
 type Phase = "intro" | "starting" | "scanning" | "playing" | "paused" | "submitting" | "done";
 type Problem = "unsupported" | "denied" | "error" | "nogl" | "submit" | null;
-type Hud = { status: DefenseStatus; wave: number; hp: number; score: number; seen: boolean; ever: boolean; bossHits: number | null };
+type Hud = { status: DefenseStatus; wave: number; hp: number; score: number; seen: boolean; ever: boolean; bossHits: number | null; good: number; tongue: boolean };
 
 export type DefenseResult = { score: number; perfect: boolean; effects: PlayEffects; playsLeft: number };
 
@@ -64,7 +65,7 @@ const MAX_DT = 0.05;
 const YAW_SPEED = 10;
 const TWO_PI = Math.PI * 2;
 
-const IDLE_HUD: Hud = { status: "idle", wave: 0, hp: 0, score: 0, seen: false, ever: false, bossHits: null };
+const IDLE_HUD: Hud = { status: "idle", wave: 0, hp: 0, score: 0, seen: false, ever: false, bossHits: null, good: 0, tongue: false };
 
 /**
  * "Défendre" (spec § 3.21): a tower-defense game in augmented reality. The
@@ -177,6 +178,7 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPer
       const created = new stageMod.ThreeStage(canvas, videoWidth, videoHeight);
       stage.current = created;
       scene.current = new sceneMod.DefenseScene();
+      if (preview) (window as unknown as { __defenseScene?: unknown }).__defenseScene = scene.current; // dev screens: inspectable from tests
       return created;
     } catch (err) {
       console.warn("[defense] WebGL unavailable", err);
@@ -230,6 +232,8 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPer
       seen,
       ever: lastSeen.current > 0,
       bossHits: boss ? boss.hits : null,
+      good: state?.bonuses.length ?? 0,
+      tongue: state?.tongue !== null && state?.tongue !== undefined,
     };
     const prev = hudRef.current;
     if (
@@ -239,7 +243,9 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPer
       prev.score !== next.score ||
       prev.seen !== next.seen ||
       prev.ever !== next.ever ||
-      prev.bossHits !== next.bossHits
+      prev.bossHits !== next.bossHits ||
+      prev.good !== next.good ||
+      prev.tongue !== next.tongue
     ) {
       hudRef.current = next;
       setHud(next);
@@ -293,8 +299,17 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPer
     fireDefense(state, point);
   }
 
+  function lick(event?: PointerEvent<HTMLButtonElement> | KeyboardEvent<HTMLDivElement>) {
+    event?.preventDefault();
+    const state = game.current;
+    const point = aim.current;
+    if (!state || !point || phaseRef.current !== "playing") return;
+    tongueDefense(state, point);
+  }
+
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === " " || event.key === "Enter") fire(event);
+    else if (event.key === "l" || event.key === "L") lick(event);
   }
 
   /** Ends the game (or acknowledges its end), stops the camera and records the result. */
@@ -377,6 +392,8 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPer
               data-score={hud.score}
               data-status={hud.status}
               data-boss-hits={hud.bossHits ?? undefined}
+              data-good={hud.good}
+              data-tongue={hud.tongue ? "out" : undefined}
             >
               <span className="rounded-full bg-ink-950/70 px-3 py-1 text-xs font-semibold text-cream-50 backdrop-blur">{hud.wave > 0 ? `Vague ${hud.wave}` : "Prêt"}</span>
               <div className="flex-1 rounded-full bg-ink-950/70 p-1 backdrop-blur" role="meter" aria-label="Points de vie" aria-valuemin={0} aria-valuemax={rules.hp} aria-valuenow={Math.round(hud.hp)}>
@@ -443,6 +460,18 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPer
                 </button>
                 <button
                   type="button"
+                  onPointerDown={lick}
+                  aria-label="Tirer la langue"
+                  data-defense-tongue
+                  className="absolute bottom-6 right-28 flex h-16 w-16 touch-none select-none flex-col items-center justify-center rounded-full bg-[#e88a9a] text-ink-950 shadow-lg transition-transform active:scale-95"
+                >
+                  <span aria-hidden="true" className="block h-6 w-3.5 rounded-b-full rounded-t-sm bg-[#b83d5a]" />
+                  <span aria-hidden="true" className="text-[10px] font-bold uppercase tracking-wide">
+                    Langue
+                  </span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => void finish()}
                   className="absolute bottom-4 left-4 inline-flex min-h-11 items-center rounded-full bg-ink-950/70 px-4 text-xs font-semibold text-cream-300 backdrop-blur hover:text-cream-50"
                 >
@@ -467,7 +496,8 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPer
             <Crosshair className="h-8 w-8 text-sage-300" aria-hidden="true" />
             <p className="max-w-xs text-sm leading-relaxed text-cream-100">
               Pose le marqueur de {name} sur une table. Des burgers, frites et sodas surgissent autour d&apos;elle et foncent dessus : vise avec le centre de l&apos;écran et
-              lance des œufs pour les détruire avant qu&apos;ils ne la touchent. Les vagues vont de plus en plus vite
+              lance des œufs pour les détruire avant qu&apos;ils ne la touchent. Des fruits et légumes apparaissent aussi un instant : le bouton « Langue » les attrape
+              pour regagner de la vie, mais gare à la malbouffe avalée par erreur. Les vagues vont de plus en plus vite
               {rules.bossEveryWaves > 0 ? `, et un boss géant, qui encaisse plusieurs œufs, ferme une vague sur ${rules.bossEveryWaves}` : ""}.
             </p>
             <Button onClick={() => void openCamera(true)} disabled={playsLeft <= 0 || phase === "starting"} className="w-auto px-8">
@@ -513,6 +543,8 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPer
                     Vague {summary.wavesCleared + 1} atteinte · {summary.destroyed}/{summary.spawned} aliment{summary.spawned > 1 ? "s" : ""} détruit{summary.destroyed > 1 ? "s" : ""}
                     {summary.reached > 0 ? ` · ${summary.reached} passé${summary.reached > 1 ? "s" : ""}` : ""}
                     {summary.bosses > 0 ? ` · ${summary.bosses} boss abattu${summary.bosses > 1 ? "s" : ""}` : ""} · {summary.shots} œuf{summary.shots > 1 ? "s" : ""}
+                    {summary.goodEaten > 0 ? ` · ${summary.goodEaten} bon${summary.goodEaten > 1 ? "s" : ""} aliment${summary.goodEaten > 1 ? "s" : ""} mangé${summary.goodEaten > 1 ? "s" : ""} (+${summary.healed} vie)` : ""}
+                    {summary.junkEaten > 0 ? ` · ${summary.junkEaten} malbouffe avalée${summary.junkEaten > 1 ? "s" : ""}` : ""}
                   </p>
                 ) : null}
                 <p className="text-xs text-cream-500">

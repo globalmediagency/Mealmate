@@ -1,6 +1,7 @@
 import * as THREE from "three";
-import { eggPosition, type DefenseState, type EffectKind, type JunkKind } from "@/lib/game/defense";
-import { buildFoodMesh, type FoodMesh } from "./food-mesh";
+import { DEFENSE } from "@/lib/game/config";
+import { bonusBlinking, eggPosition, tongueExtension, type DefenseState, type EffectKind } from "@/lib/game/defense";
+import { buildFoodMesh, type FoodMesh, type FoodModelKind } from "./food-mesh";
 
 const SMOKE_PUFFS = 5;
 const SHELL_BITS = 4;
@@ -12,10 +13,16 @@ const AIM_COLOR = 0xb9d3a4;
 const SMOKE_COLOR = 0x9a948c;
 const YOLK_COLOR = 0xf2c14e;
 const OUCH_COLOR = 0xe0554a;
+const HEAL_COLOR = 0x8fd18a;
+const TONGUE_COLOR = 0xe88a9a;
+const HEAL_SPARKS = 6;
+/** Good foods bob a little above the paper; the tongue tip lands just above it. */
+const BONUS_BOB = 0.04;
+const TONGUE_TIP_HEIGHT = 0.15;
 
 type EffectObject = { kind: EffectKind; group: THREE.Group; materials: THREE.Material[] };
 type HealthBar = { back: THREE.Sprite; front: THREE.Sprite };
-type EnemyObject = { kind: JunkKind; model: THREE.Group; shadow: THREE.Mesh; bar: HealthBar | null };
+type EnemyObject = { kind: FoodModelKind; model: THREE.Group; shadow: THREE.Mesh; bar: HealthBar | null };
 
 /**
  * Draws a "Défendre" game (spec § 3.21) inside the marker's frame: junk foods
@@ -26,9 +33,13 @@ type EnemyObject = { kind: JunkKind; model: THREE.Group; shadow: THREE.Mesh; bar
  */
 export class DefenseScene {
   readonly root = new THREE.Group();
-  private readonly templates = new Map<JunkKind, FoodMesh>();
+  private readonly templates = new Map<FoodModelKind, FoodMesh>();
   private readonly enemies = new Map<number, EnemyObject>();
-  private readonly freeModels = new Map<JunkKind, THREE.Group[]>();
+  private readonly bonuses = new Map<number, EnemyObject>();
+  private readonly freeModels = new Map<FoodModelKind, THREE.Group[]>();
+  private readonly tongue = new THREE.Group();
+  private readonly tongueBody: THREE.Mesh;
+  private readonly tongueTip: THREE.Mesh;
   private readonly freeShadows: THREE.Mesh[] = [];
   private readonly freeBars: HealthBar[] = [];
   private readonly shadowMaterial = new THREE.MeshBasicMaterial({ color: 0x0b1210, transparent: true, opacity: 0.28, depthWrite: false });
@@ -37,7 +48,7 @@ export class DefenseScene {
   private readonly eggs = new Map<number, THREE.Mesh>();
   private readonly freeEggs: THREE.Mesh[] = [];
   private readonly effects = new Map<number, EffectObject>();
-  private readonly freeEffects: Record<EffectKind, EffectObject[]> = { smoke: [], splat: [], ouch: [], hit: [] };
+  private readonly freeEffects: Record<EffectKind, EffectObject[]> = { smoke: [], splat: [], ouch: [], hit: [], heal: [] };
   private readonly aim = new THREE.Group();
   private readonly sphere = new THREE.SphereGeometry(1, 14, 10);
   private readonly disc = new THREE.CircleGeometry(1, 28);
@@ -54,7 +65,15 @@ export class DefenseScene {
     this.aim.position.z = 0.01;
     this.aim.visible = false;
     this.root.add(this.aim);
-    this.disposables.push(this.sphere, this.disc, this.eggMaterial, ringGeometry, ringMaterial, this.shadowMaterial, this.barBackMaterial, this.barFrontMaterial);
+    const tongueMaterial = new THREE.MeshStandardMaterial({ color: TONGUE_COLOR, roughness: 0.5 });
+    const tongueGeometry = new THREE.CylinderGeometry(0.075, 0.1, 1, 12);
+    this.tongueBody = new THREE.Mesh(tongueGeometry, tongueMaterial);
+    this.tongueTip = new THREE.Mesh(this.sphere, tongueMaterial);
+    this.tongueTip.scale.setScalar(0.11);
+    this.tongue.add(this.tongueBody, this.tongueTip);
+    this.tongue.visible = false;
+    this.root.add(this.tongue);
+    this.disposables.push(this.sphere, this.disc, this.eggMaterial, ringGeometry, ringMaterial, this.shadowMaterial, this.barBackMaterial, this.barFrontMaterial, tongueMaterial, tongueGeometry);
   }
 
   /** A billboard health bar for a boss: a dark back and a red front that shrinks from the right. */
@@ -72,7 +91,7 @@ export class DefenseScene {
   }
 
   /** One model per food kind, built once and cloned per food (geometries and materials shared). */
-  private modelFor(kind: JunkKind): THREE.Group {
+  private modelFor(kind: FoodModelKind): THREE.Group {
     const free = this.freeModels.get(kind);
     const reused = free?.pop();
     if (reused) return reused;
@@ -118,6 +137,16 @@ export class DefenseScene {
       const flash = new THREE.Mesh(this.sphere, material);
       group.add(flash);
       materials.push(material);
+    } else if (kind === "heal") {
+      for (let i = 0; i < HEAL_SPARKS; i += 1) {
+        const material = new THREE.MeshBasicMaterial({ color: HEAL_COLOR, transparent: true, opacity: 0.95, depthWrite: false });
+        const spark = new THREE.Mesh(this.sphere, material);
+        const a = (i / HEAL_SPARKS) * Math.PI * 2;
+        spark.userData = { dx: Math.cos(a) * 0.14, dy: Math.sin(a) * 0.14, dz: (i % 3) * 0.06 };
+        spark.scale.setScalar(0.035);
+        group.add(spark);
+        materials.push(material);
+      }
     } else {
       const material = new THREE.MeshBasicMaterial({ color: OUCH_COLOR, transparent: true, opacity: 0.4, depthWrite: false });
       const flash = new THREE.Mesh(this.sphere, material);
@@ -142,6 +171,12 @@ export class DefenseScene {
       const flash = object.group.children[0] as THREE.Mesh;
       flash.scale.setScalar((0.12 + 0.3 * progress) * size);
       (flash.material as THREE.MeshBasicMaterial).opacity = 0.9 * fade;
+    } else if (object.kind === "heal") {
+      for (const child of object.group.children) {
+        const d = child.userData as { dx: number; dy: number; dz: number };
+        child.position.set(d.dx * (0.5 + progress), d.dy * (0.5 + progress), d.dz + 0.5 * progress);
+        ((child as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = 0.95 * fade;
+      }
     } else if (object.kind === "splat") {
       for (const child of object.group.children) {
         const material = (child as THREE.Mesh).material as THREE.MeshBasicMaterial;
@@ -214,6 +249,54 @@ export class DefenseScene {
         entry.bar.front.visible = false;
         this.freeBars.push(entry.bar);
       }
+    }
+
+    // Good foods lying on the table, blinking before they vanish.
+    const seenBonuses = new Set<number>();
+    for (const bonus of state?.bonuses ?? []) {
+      seenBonuses.add(bonus.id);
+      let entry = this.bonuses.get(bonus.id);
+      if (!entry) {
+        const shadow = this.freeShadows.pop() ?? new THREE.Mesh(this.disc, this.shadowMaterial);
+        this.root.add(shadow);
+        const model = this.modelFor(bonus.kind);
+        model.scale.setScalar(1);
+        entry = { kind: bonus.kind, model, shadow, bar: null };
+        this.bonuses.set(bonus.id, entry);
+      }
+      const shown = !bonusBlinking(bonus) || Math.floor(bonus.age * 8) % 2 === 0;
+      entry.model.visible = shown;
+      entry.shadow.visible = shown;
+      entry.model.position.set(bonus.x, bonus.y, BONUS_BOB * (1 + Math.sin(bonus.age * 4)));
+      entry.model.rotation.z = bonus.age * 1.2;
+      entry.shadow.position.set(bonus.x, bonus.y, 0.004);
+      entry.shadow.scale.setScalar(0.16);
+    }
+    for (const [id, entry] of this.bonuses) {
+      if (seenBonuses.has(id)) continue;
+      this.bonuses.delete(id);
+      entry.model.visible = false;
+      entry.shadow.visible = false;
+      const free = this.freeModels.get(entry.kind) ?? [];
+      free.push(entry.model);
+      this.freeModels.set(entry.kind, free);
+      this.freeShadows.push(entry.shadow);
+    }
+
+    // The tongue: a stretched cylinder from the creature's mouth down to the tip on the paper.
+    const tongue = state?.tongue ?? null;
+    this.tongue.visible = tongue !== null;
+    if (tongue) {
+      const ext = tongueExtension(tongue.t);
+      const from = new THREE.Vector3(tongue.dir.x * DEFENSE.tongueBaseOffset, tongue.dir.y * DEFENSE.tongueBaseOffset, DEFENSE.tongueBaseHeight);
+      const reach = DEFENSE.tongueBaseOffset + (tongue.length - DEFENSE.tongueBaseOffset) * ext;
+      const to = new THREE.Vector3(tongue.dir.x * reach, tongue.dir.y * reach, DEFENSE.tongueBaseHeight + (TONGUE_TIP_HEIGHT - DEFENSE.tongueBaseHeight) * ext);
+      const span = to.clone().sub(from);
+      const length = Math.max(0.05, span.length());
+      this.tongueBody.position.copy(from).add(span.clone().multiplyScalar(0.5));
+      this.tongueBody.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), span.clone().normalize());
+      this.tongueBody.scale.set(1, length, 1);
+      this.tongueTip.position.copy(to);
     }
 
     const seenEggs = new Set<number>();

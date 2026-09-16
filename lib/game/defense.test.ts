@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFENSE } from "./config";
 import {
+  bonusBlinking,
   bossesInWave,
   bossHitsFor,
   clampAim,
@@ -10,6 +11,7 @@ import {
   endDefense,
   enemyDamage,
   fireDefense,
+  GOOD_KINDS,
   JUNK_FOODS,
   JUNK_KINDS,
   kindsForWave,
@@ -17,6 +19,8 @@ import {
   spawnInterval,
   startDefense,
   stepDefense,
+  tongueDefense,
+  tongueExtension,
   waveEnemyCount,
   waveSpawnCount,
   waveSpeed,
@@ -254,5 +258,82 @@ describe("bosses", () => {
     expect(shots).toBe(3);
     expect(state.summary.bosses).toBe(1);
     expect(state.score).toBeGreaterThanOrEqual(DEFENSE.pointsPerFood * 1 * 3);
+  });
+});
+
+describe("good foods and the tongue", () => {
+  const rules = { ...DEFAULT_RULES.defense, firstWaveEnemies: 1, enemiesGrowthPerWave: 0, bossEveryWaves: 0 };
+
+  it("pop on the table during a wave, blink, then vanish", () => {
+    const state = createDefense(rules);
+    startDefense(state);
+    run(state, DEFENSE.waveIntroSeconds + DEFENSE.goodSpawnMinSeconds * 0.5 + 0.1);
+    expect(state.bonuses).toHaveLength(1);
+    const bonus = state.bonuses[0];
+    expect(GOOD_KINDS).toContain(bonus.kind);
+    expect(Math.hypot(bonus.x, bonus.y)).toBeGreaterThan(0.8);
+    expect(bonusBlinking(bonus)).toBe(false);
+    run(state, DEFENSE.goodStaySeconds + 0.1);
+    expect(bonusBlinking(bonus)).toBe(true);
+    expect(state.bonuses.some((b) => b.id === bonus.id)).toBe(true);
+    run(state, DEFENSE.goodBlinkSeconds + 0.1);
+    expect(state.bonuses.some((b) => b.id === bonus.id)).toBe(false);
+  });
+
+  it("heal when caught by the tongue, whose effects add up, and hurt when it swallows junk", () => {
+    const state = createDefense({ ...rules, hp: 100 });
+    startDefense(state);
+    run(state, DEFENSE.waveIntroSeconds + 0.1);
+    state.hp = 50;
+    // Two good foods and one junk food lined up along +y, a boss out of reach and untouchable anyway.
+    state.bonuses.push({ id: 900, kind: "apple", x: 0.05, y: 0.8, age: 0, heal: 10 }, { id: 901, kind: "broccoli", x: -0.1, y: 1.4, age: 0, heal: 12 });
+    const junk = state.enemies[0];
+    junk.phase = "moving";
+    junk.angle = Math.PI / 2;
+    junk.dist = 1.9;
+    junk.z = 0;
+    const big = { ...junk, id: 902, boss: true, radius: DEFENSE.bossRadius, dist: 1.2, angle: Math.PI / 2 };
+    state.enemies.push(big);
+    for (const e of state.enemies) {
+      e.x = Math.cos(e.angle) * e.dist;
+      e.y = Math.sin(e.angle) * e.dist;
+    }
+    expect(tongueDefense(state, { x: 0, y: 2.2 })).toBe(true);
+    expect(tongueDefense(state, { x: 0, y: 2.2 })).toBe(false); // one tongue at a time
+    expect(state.yaw).toBeCloseTo(Math.PI, 3);
+    expect(tongueExtension(0)).toBe(0);
+    expect(tongueExtension(DEFENSE.tongueExtendFraction)).toBe(1);
+    expect(tongueExtension(1)).toBe(0);
+    run(state, DEFENSE.tongueSeconds * DEFENSE.tongueExtendFraction + 0.05, seeded(1), 1 / 120);
+    // Caught in one sweep: +10 +12 from the fruit and vegetable, minus the junk food's damage; the boss stays.
+    expect(state.summary.goodEaten).toBe(2);
+    expect(state.summary.junkEaten).toBe(1);
+    expect(state.hp).toBe(50 + 22 - JUNK_FOODS[junk.kind].damage);
+    expect(state.summary.healed).toBe(22);
+    expect(state.bonuses).toHaveLength(0);
+    expect(state.enemies.map((e) => e.id)).toEqual([902]);
+    expect(state.effects.filter((e) => e.kind === "heal")).toHaveLength(2);
+    run(state, DEFENSE.tongueSeconds);
+    expect(state.tongue).toBeNull();
+    // Reloading, then ready again.
+    expect(tongueDefense(state, { x: 1, y: 0 })).toBe(false);
+    run(state, DEFENSE.tongueCooldownMs / 1000);
+    expect(tongueDefense(state, { x: 1, y: 0 })).toBe(true);
+  });
+
+  it("never heals above the maximum and let an egg smash a good food", () => {
+    const state = createDefense({ ...rules, hp: 100 });
+    startDefense(state);
+    run(state, DEFENSE.waveIntroSeconds + 0.1);
+    state.hp = 95;
+    state.bonuses.push({ id: 910, kind: "apple", x: 0, y: 1, age: 0, heal: 10 }, { id: 911, kind: "tomato", x: 1.5, y: 0, age: 0, heal: 8 });
+    tongueDefense(state, { x: 0, y: 1 });
+    run(state, DEFENSE.tongueSeconds);
+    expect(state.hp).toBe(100);
+    expect(state.summary.healed).toBe(5);
+    fireDefense(state, { x: 1.5, y: 0 });
+    run(state, DEFENSE.eggFlightSeconds + DEFENSE.eggFlightPerSide * 1.5 + 0.1);
+    expect(state.bonuses).toHaveLength(0);
+    expect(state.summary.goodWasted).toBe(1);
   });
 });

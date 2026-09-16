@@ -1,5 +1,8 @@
 import * as THREE from "three";
-import type { JunkKind } from "@/lib/game/defense";
+import type { GoodKind, JunkKind } from "@/lib/game/defense";
+
+/** Every food with a 3D model: the junk foods that attack and the good foods the tongue eats. */
+export type FoodModelKind = JunkKind | GoodKind;
 
 /**
  * Junk foods in 3D for "Défendre" (spec § 3.21), built from primitives with
@@ -17,6 +20,8 @@ const CREAM = "#f7f4ec";
 const PINK = "#e07ab1";
 const CHOCO = "#4a2c1a";
 const SILVER = "#c9ccd1";
+const LEAF = "#7fb77e";
+const DARK_LEAF = "#5e8f3e";
 
 class Builder {
   readonly group = new THREE.Group();
@@ -88,7 +93,7 @@ class Builder {
   }
 }
 
-const MODELS: Record<JunkKind, (b: Builder) => void> = {
+const MODELS: Record<FoodModelKind, (b: Builder) => void> = {
   burger(b) {
     b.cylinder(0.2, 0.22, 0.07, BUN, 0, 0.035);
     b.cylinder(0.23, 0.23, 0.06, "#6b3e26", 0, 0.1);
@@ -208,10 +213,61 @@ const MODELS: Record<JunkKind, (b: Builder) => void> = {
     b.sphere(0.06, "#ffffff", -0.02, 0.32, 0, 1, 0.8, 1);
     b.sphere(0.03, RED, -0.02, 0.38, 0);
   },
+  apple(b) {
+    b.sphere(0.16, RED, 0, 0.15, 0, 1, 0.92, 1);
+    b.cylinder(0.012, 0.014, 0.09, "#6b4a2b", 0.01, 0.33);
+    b.sphere(0.05, LEAF, 0.06, 0.34, 0, 1.2, 0.35, 0.7).rotation.z = -0.5;
+  },
+  carrot(b) {
+    b.cone(0.075, 0.36, "#f08a3a", 0, 0.18).rotation.x = Math.PI;
+    for (const [dx, tilt] of [
+      [0, 0],
+      [-0.03, 0.35],
+      [0.03, -0.35],
+    ]) {
+      const leaf = b.cylinder(0.012, 0.02, 0.16, LEAF, dx, 0.43, 0);
+      leaf.rotation.z = tilt;
+    }
+  },
+  broccoli(b) {
+    b.cylinder(0.05, 0.07, 0.18, "#c9dfa4", 0, 0.09);
+    b.sphere(0.11, DARK_LEAF, 0, 0.26);
+    for (let i = 0; i < 4; i += 1) {
+      const a = (i / 4) * Math.PI * 2;
+      b.sphere(0.085, DARK_LEAF, Math.cos(a) * 0.1, 0.23, Math.sin(a) * 0.1);
+    }
+  },
+  banana(b) {
+    const arc: [number, number, number][] = [];
+    for (let i = 0; i <= 8; i += 1) {
+      const a = -0.6 + (i / 8) * 1.2;
+      arc.push([Math.sin(a) * 0.32, 0.06 + (1 - Math.cos(a)) * 0.5, 0]);
+    }
+    b.tube(arc, 0.05, YELLOW);
+    b.sphere(0.03, "#6b4a2b", arc[0][0], arc[0][1], 0);
+    b.sphere(0.03, "#6b4a2b", arc[8][0], arc[8][1], 0);
+  },
+  strawberry(b) {
+    b.sphere(0.13, RED, 0, 0.16, 0, 1, 1.2, 1);
+    for (let i = 0; i < 5; i += 1) {
+      const a = (i / 5) * Math.PI * 2;
+      b.sphere(0.012, "#f7e08a", Math.cos(a) * 0.09, 0.14 + (i % 2) * 0.06, Math.sin(a) * 0.09);
+      b.sphere(0.04, LEAF, Math.cos(a) * 0.06, 0.31, Math.sin(a) * 0.06, 1.4, 0.3, 0.8).rotation.y = -a;
+    }
+    b.cylinder(0.01, 0.012, 0.06, LEAF, 0, 0.34);
+  },
+  tomato(b) {
+    b.sphere(0.16, "#e0503a", 0, 0.14, 0, 1, 0.85, 1);
+    for (let i = 0; i < 4; i += 1) {
+      const a = (i / 4) * Math.PI * 2;
+      b.box(0.1, 0.012, 0.03, LEAF, Math.cos(a) * 0.05, 0.28, Math.sin(a) * 0.05).rotation.y = -a;
+    }
+    b.cylinder(0.012, 0.012, 0.05, DARK_LEAF, 0, 0.3);
+  },
 };
 
 /** One food, standing in the marker's frame (z up), front along +x; turn `root.rotation.z` to face the creature. */
-export function buildFoodMesh(kind: JunkKind): FoodMesh {
+export function buildFoodMesh(kind: FoodModelKind): FoodMesh {
   const b = new Builder();
   MODELS[kind](b);
   const stand = new THREE.Group();

@@ -261,6 +261,24 @@ export const DEFENSE = {
   bossScale: 2.2,
   bossSpeedFactor: 0.5,
   bossDamageFactor: 2,
+  /** Good foods (fruits and vegetables) pop on the table during waves and vanish after staying then blinking. */
+  goodSpawnMinSeconds: 6,
+  goodSpawnMaxSeconds: 10,
+  goodStaySeconds: 4,
+  goodBlinkSeconds: 1.5,
+  maxGoodFoods: 2,
+  goodRadius: 0.15,
+  /** The tongue: reach, corridor half-width, height it sweeps under, motion time, share of it spent extending, reload. */
+  tongueMaxLength: 2.3,
+  tongueRadius: 0.3,
+  tongueHeight: 0.5,
+  tongueSeconds: 0.6,
+  tongueExtendFraction: 0.4,
+  tongueCooldownMs: 900,
+  /** The tongue leaves the mouth: this far ahead of the creature's centre, this high; it always goes out at least `tongueMinLength`. */
+  tongueBaseOffset: 0.4,
+  tongueBaseHeight: 0.85,
+  tongueMinLength: 1.2,
 } as const;
 
 /** Growth stages by XP (spec § 3.8). */

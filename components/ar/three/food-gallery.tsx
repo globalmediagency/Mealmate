@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { JUNK_KINDS } from "@/lib/game/defense";
+import { GOOD_KINDS, JUNK_KINDS } from "@/lib/game/defense";
 import { FOOD_KIND_LABELS } from "@/lib/meals/food-icons";
 
-const COLS = 4;
+const COLS = 6;
 const SPACING = 0.95;
+const ALL_KINDS = [...JUNK_KINDS, ...GOOD_KINDS];
 
-/** Dev gallery: the twelve junk foods of "Défendre" in 3D, spinning on a grid (spec § 3.21). */
+/** Dev gallery: the junk foods and the good foods of "Défendre" in 3D, spinning on a grid (spec § 3.21). */
 export function FoodGallery() {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "unsupported">("loading");
@@ -25,7 +26,7 @@ export function FoodGallery() {
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(32, c.clientWidth / c.clientHeight, 0.1, 50);
         camera.up.set(0, 0, 1);
-        camera.position.set(0, -4.6, 3.4);
+        camera.position.set(0, -6.2, 4.4);
         camera.lookAt(0, -0.1, 0.15);
         scene.add(new THREE.HemisphereLight(0xfff6e8, 0x6b5a48, 2.1));
         const sun = new THREE.DirectionalLight(0xffffff, 2.4);
@@ -33,7 +34,7 @@ export function FoodGallery() {
         scene.add(sun);
         const disc = new THREE.CircleGeometry(0.34, 32);
         const discMaterial = new THREE.MeshBasicMaterial({ color: 0x1c2a22, transparent: true, opacity: 0.5 });
-        const foods = JUNK_KINDS.map((kind, i) => {
+        const foods = ALL_KINDS.map((kind, i) => {
           const food = buildFoodMesh(kind);
           const col = i % COLS;
           const row = Math.floor(i / COLS);
@@ -78,8 +79,8 @@ export function FoodGallery() {
     <div className="space-y-2">
       <canvas ref={canvas} data-food-gallery data-status={status} className="aspect-[4/3] w-full rounded-3xl border border-ink-600/80 bg-gradient-to-b from-ink-800 to-ink-900" aria-label="Les aliments de Défendre en 3D" role="img" />
       {status === "unsupported" ? <p className="text-xs text-cream-500">La 3D n&apos;est pas disponible dans ce navigateur.</p> : null}
-      <ol className="grid grid-cols-4 gap-1 text-center text-xs text-cream-500">
-        {JUNK_KINDS.map((kind) => (
+      <ol className="grid grid-cols-6 gap-1 text-center text-xs text-cream-500">
+        {ALL_KINDS.map((kind) => (
           <li key={kind}>{FOOD_KIND_LABELS[kind]}</li>
         ))}
       </ol>
