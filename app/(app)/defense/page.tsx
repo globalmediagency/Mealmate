@@ -10,7 +10,6 @@ import { isMarkerId } from "@/lib/ar/config";
 import { ensureCreatureMarker } from "@/lib/ar/service";
 import { requireViewer } from "@/lib/auth/session";
 import { getHeldCreature } from "@/lib/boarding/service";
-import { PLAY } from "@/lib/game/config";
 import { deriveState } from "@/lib/game/creature-view";
 import { stageForXp } from "@/lib/game/growth";
 import { getGameRules } from "@/lib/game/rules-service";
@@ -58,7 +57,14 @@ export default async function DefensePage({ searchParams }: { searchParams: Sear
   };
   return (
     <div className="space-y-5 animate-rise">
-      <DefenseGame target={target} rules={rules.defense} playsLeft={Math.max(0, PLAY.maxPerDay - plays)} creatureId={boarded ? creature.id : undefined} homeHref={homeHref} />
+      <DefenseGame
+        target={target}
+        rules={rules.defense}
+        playsLeft={Math.max(0, rules.play.maxPerDay - plays)}
+        maxPerDay={rules.play.maxPerDay}
+        creatureId={boarded ? creature.id : undefined}
+        homeHref={homeHref}
+      />
       <MarkerCard name={creature.name} markerId={markerId} creatureId={boarded ? undefined : creature.id} ownerName={target.ownerName} />
     </div>
   );

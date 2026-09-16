@@ -4,7 +4,6 @@ import { FoodCatchGame } from "@/components/game/food-catch-game";
 import { getOutfit, outfitToEquipped } from "@/lib/accessories/service";
 import { requireViewer } from "@/lib/auth/session";
 import { getHeldCreature } from "@/lib/boarding/service";
-import { PLAY } from "@/lib/game/config";
 import { toCreatureView } from "@/lib/game/creature-view";
 import { getGameRules } from "@/lib/game/rules-service";
 import { countPlaysToday } from "@/lib/play/service";
@@ -31,7 +30,8 @@ export default async function PlayPage({ searchParams }: { searchParams: SearchP
     <FoodCatchGame
       creature={creature}
       accessories={outfitToEquipped(outfit)}
-      playsLeft={Math.max(0, PLAY.maxPerDay - plays)}
+      playsLeft={Math.max(0, rules.play.maxPerDay - plays)}
+      maxPerDay={rules.play.maxPerDay}
       creatureId={boarded ? creature.id : undefined}
       homeHref={boarded ? `/pension/${creature.id}` : "/home"}
     />

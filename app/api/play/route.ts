@@ -2,7 +2,6 @@ import { z } from "zod";
 import { fail, handleRouteError, ok } from "@/lib/api/respond";
 import { getSession } from "@/lib/auth/session";
 import { getHeldCreature } from "@/lib/boarding/service";
-import { PLAY } from "@/lib/game/config";
 import { toCreatureView } from "@/lib/game/creature-view";
 import { computePlayScore } from "@/lib/game/play";
 import { getGameRules } from "@/lib/game/rules-service";
@@ -24,9 +23,11 @@ export async function GET(request: Request) {
     const session = await getSession();
     if (!session) return fail("unauthorized", "Connecte-toi pour continuer.", 401);
     const creatureId = new URL(request.url).searchParams.get("creature");
-    const held = await getHeldCreature(session.user.id, creatureId);
+    const rules = await getGameRules();
+    const held = await getHeldCreature(session.user.id, creatureId, new Date(), rules);
     const playsToday = await countPlaysToday(held.creature.id);
-    return ok({ playsToday, playsLeft: Math.max(0, PLAY.maxPerDay - playsToday), maxPerDay: PLAY.maxPerDay });
+    const maxPerDay = rules.play.maxPerDay;
+    return ok({ playsToday, playsLeft: Math.max(0, maxPerDay - playsToday), maxPerDay });
   } catch (error) {
     return handleRouteError(error);
   }

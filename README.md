@@ -137,7 +137,7 @@ Onglets **Créatures** et **Accessoires** : chaque espèce et chaque accessoire 
 
 ### Étape H — Jouer et accessoires (phase 5)
 
-Rien à configurer : après la migration 004, l'accueil propose **Jouer** (3 parties par jour, 20 secondes) et
+Rien à configurer : après la migration 004, l'accueil propose **Jouer** (3 parties par jour, réglable dans l'admin, 20 secondes) et
 **Habiller** (garde-robe). Chaque tranche de 5 000 pas depuis l'éclosion donne un coffre à ouvrir dans l'onglet
 **Activité**. La **Collection** (60 créatures) est dans l'onglet Plus.
 
@@ -290,7 +290,8 @@ apparaissent alors, sans connexion nécessaire :
 4. **Vie** : laisse passer quelques heures sans nourrir : la faim monte, puis la santé baisse, la
    créature devient fatiguée puis malade ; l'accueil affiche le nombre de jours restants. Un repas
    sain ou un soin la remet d'aplomb ; sinon elle meurt et rejoint le cimetière.
-5. **Jouer et accessoires** : trois parties de 20 s par jour ; un coffre d'accessoire tous les
+5. **Jouer et accessoires** : trois parties de 20 s par jour (limite réglable dans Admin → Règles de jeu,
+   partagée avec Défendre) ; un coffre d'accessoire tous les
    5 000 pas, à ouvrir dans Activité, à porter dans la garde-robe. Un accessoire déjà possédé donne
    un deuxième exemplaire, à échanger ou à offrir.
 6. **Amis** : ajoute un second compte par code ami ; soigne sa créature malade, propose un troc ou

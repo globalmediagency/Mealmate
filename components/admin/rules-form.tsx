@@ -40,6 +40,7 @@ type Draft = {
   thumbsPerCoachReward: string;
   mood: Record<MoodField, string>;
   defense: Record<DefenseField, string>;
+  maxPlaysPerDay: string;
 };
 
 const DEFENSE_FIELDS = ["hp", "baseSpeed", "speedGrowthPercent", "firstWaveEnemies", "enemiesGrowthPerWave", "fireCooldownMs", "bossEveryWaves", "bossHits"] as const;
@@ -86,6 +87,7 @@ function toDraft(rules: GameRules): Draft {
     thumbsPerCoachReward: String(rules.coaching.thumbsPerCoachReward),
     mood: Object.fromEntries(MOOD_FIELDS.map((f) => [f, String(rules.mood[f])])) as Draft["mood"],
     defense: Object.fromEntries(DEFENSE_FIELDS.map((f) => [f, String(rules.defense[f])])) as Draft["defense"],
+    maxPlaysPerDay: String(rules.play.maxPerDay),
   };
 }
 
@@ -102,6 +104,7 @@ function toPatch(draft: Draft): GameRulesPatch {
     coaching: { thumbsPerStudentReward: num(draft.thumbsPerStudentReward), thumbsPerCoachReward: num(draft.thumbsPerCoachReward) },
     mood: Object.fromEntries(MOOD_FIELDS.map((f) => [f, num(draft.mood[f])])) as GameRulesPatch["mood"],
     defense: Object.fromEntries(DEFENSE_FIELDS.map((f) => [f, num(draft.defense[f])])) as GameRulesPatch["defense"],
+    play: { maxPerDay: num(draft.maxPlaysPerDay) },
   };
 }
 
@@ -121,6 +124,7 @@ function safePreview(draft: Draft): GameRules | null {
       patch.coaching?.thumbsPerCoachReward,
       ...MOOD_FIELDS.map((f) => patch.mood?.[f]),
       ...DEFENSE_FIELDS.map((f) => patch.defense?.[f]),
+      patch.play?.maxPerDay,
     ];
     if (flat.some((v) => v === undefined || Number.isNaN(v))) return null;
     return mergeRules(patch);
@@ -328,6 +332,15 @@ export function RulesForm({ initialRules, storedPatch, updatedAt, updatedBy }: R
             </span>
           </label>
         ))}
+      </section>
+
+      <section className="grid gap-3 rounded-3xl border border-ink-600/80 bg-ink-800/90 p-4 shadow-card sm:grid-cols-2">
+        <h2 className="font-display text-xl text-cream-50 sm:col-span-2">Parties par jour</h2>
+        <label className="space-y-1 text-sm">
+          <span className="text-cream-100">Parties maximales par jour et par créature</span>
+          <input type="text" inputMode="numeric" value={draft.maxPlaysPerDay} onChange={(e) => setDraft((d) => ({ ...d, maxPlaysPerDay: e.target.value }))} className={inputClass} />
+          <span className="block text-[11px] text-cream-700">« Jouer » et « Défendre » confondus ; chaque partie donne +15 humeur et +5 XP · défaut {DEFAULT_RULES.play.maxPerDay}</span>
+        </label>
       </section>
 
       <section className="grid gap-3 rounded-3xl border border-ink-600/80 bg-ink-800/90 p-4 shadow-card sm:grid-cols-2">

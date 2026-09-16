@@ -3,7 +3,7 @@ import { assertHolder, type HolderOptions } from "@/lib/accessories/service";
 import { DomainError } from "@/lib/api/errors";
 import { getDb } from "@/lib/db";
 import { creatures, playSessions, type Creature } from "@/lib/db/schema";
-import { GAME_TIMEZONE, PLAY } from "@/lib/game/config";
+import { GAME_TIMEZONE } from "@/lib/game/config";
 import { playEffects, type PlayEffects } from "@/lib/game/play";
 import { DEFAULT_RULES, type GameRules } from "@/lib/game/rules";
 import { gameDate } from "@/lib/game/time";
@@ -29,7 +29,7 @@ export type PlayResult = { effects: PlayEffects; creature: Creature; playsToday:
 /** The two games sharing the daily limit: the food catch and the tower defense on the marker (spec § 3.21). */
 export type PlayKind = "catch" | "defense";
 
-/** Records a finished game and applies its effects (max 3 per day and per creature, both games together). */
+/** Records a finished game and applies its effects (`rules.play.maxPerDay` per day and per creature, both games together). */
 export async function recordPlay(
   userId: string,
   creature: Creature,
@@ -43,8 +43,9 @@ export async function recordPlay(
   if (creature.status !== "alive") throw new DomainError("no_creature", "Tu n'as pas de créature avec qui jouer.", 409);
   const today = gameDate(now);
   const playsToday = await countPlaysToday(creature.id, today);
-  if (playsToday >= PLAY.maxPerDay) {
-    throw new DomainError("play_limit", `${PLAY.maxPerDay} parties aujourd'hui, elle a besoin de souffler. À demain !`, 429);
+  const maxPerDay = rules.play.maxPerDay;
+  if (playsToday >= maxPerDay) {
+    throw new DomainError("play_limit", `${maxPerDay} partie${maxPerDay > 1 ? "s" : ""} aujourd'hui, elle a besoin de souffler. À demain !`, 429);
   }
   const safeScore = clamp(Math.round(score), 0, 100);
   const effects = playEffects(safeScore, creature.mood, rules);
@@ -55,5 +56,5 @@ export async function recordPlay(
     .set({ mood: clamp(creature.mood + effects.moodDelta, 0, 100), xp: creature.xp + effects.xpDelta })
     .where(eq(creatures.id, creature.id))
     .returning();
-  return { effects, creature: updated ?? creature, playsToday: playsToday + 1, playsLeft: PLAY.maxPerDay - playsToday - 1 };
+  return { effects, creature: updated ?? creature, playsToday: playsToday + 1, playsLeft: maxPerDay - playsToday - 1 };
 }

@@ -40,4 +40,12 @@ describe("defense games", () => {
     await recordPlay(userId, creature, 100, T0, {}, DEFAULT_RULES, "defense");
     await expect(recordPlay(userId, creature, 50, T0, {}, DEFAULT_RULES, "defense")).rejects.toMatchObject({ code: "play_limit" });
   });
+
+  it("follow the admin limit", async () => {
+    const creature = (await getActiveCreature(userId))!;
+    const wider = { ...DEFAULT_RULES, play: { maxPerDay: 4 } };
+    const fourth = await recordPlay(userId, creature, 50, T0, {}, wider, "defense");
+    expect(fourth.playsLeft).toBe(0);
+    await expect(recordPlay(userId, fourth.creature, 50, T0, {}, wider)).rejects.toMatchObject({ code: "play_limit", status: 429 });
+  });
 });

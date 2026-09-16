@@ -38,13 +38,15 @@ type FoodCatchGameProps = {
   creature: CreatureView;
   accessories: EquippedAccessory[];
   playsLeft: number;
+  /** Daily limit shared with "Défendre" (admin rule). */
+  maxPerDay?: number;
   /** A creature boarded with the user (default: the user's own creature). */
   creatureId?: string;
   /** Where "back" leads (the boarded creature's page, or home). */
   homeHref?: string;
 };
 
-export function FoodCatchGame({ creature, accessories, playsLeft: initialPlaysLeft, creatureId, homeHref = "/home" }: FoodCatchGameProps) {
+export function FoodCatchGame({ creature, accessories, playsLeft: initialPlaysLeft, maxPerDay = PLAY.maxPerDay, creatureId, homeHref = "/home" }: FoodCatchGameProps) {
   const router = useRouter();
   const species = creature.species ? getSpecies(creature.species.id) : undefined;
   const [phase, setPhase] = useState<Phase>("intro");
@@ -320,7 +322,7 @@ export function FoodCatchGame({ creature, accessories, playsLeft: initialPlaysLe
       </div>
 
       <p className="text-center text-xs text-cream-700">
-        Maximum {PLAY.maxPerDay} parties par jour. <Link href={homeHref} className="underline">{homeHref === "/home" ? "Retour à l'accueil" : "Retour à la pension"}</Link>
+        Maximum {maxPerDay} partie{maxPerDay > 1 ? "s" : ""} par jour, jeu et défense confondus. <Link href={homeHref} className="underline">{homeHref === "/home" ? "Retour à l'accueil" : "Retour à la pension"}</Link>
       </p>
     </div>
   );

@@ -47,6 +47,8 @@ export type DefenseGameProps = {
   target: ArTarget;
   rules: DefenseRules;
   playsLeft: number;
+  /** Daily limit shared by both games (admin rule). */
+  maxPerDay?: number;
   /** A creature boarded with the user (default: the user's own creature). */
   creatureId?: string;
   homeHref?: string;
@@ -71,7 +73,7 @@ const IDLE_HUD: Hud = { status: "idle", wave: 0, hp: 0, score: 0, seen: false, e
  * and throws eggs. The pure game lives in `lib/game/defense.ts`, the 3D in
  * `DefenseScene`; this component runs the camera, the loop and the HUD.
  */
-export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, creatureId, homeHref = "/home", preview = false }: DefenseGameProps) {
+export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPerDay = PLAY.maxPerDay, creatureId, homeHref = "/home", preview = false }: DefenseGameProps) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("intro");
   const [problem, setProblem] = useState<Problem>(null);
@@ -541,7 +543,7 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, creatu
       <AccessorySprites ref={sprites} items={[{ speciesId: target.creature.speciesId, accessories: target.creature.accessories }]} />
 
       <p className="text-center text-xs text-cream-700">
-        Maximum {PLAY.maxPerDay} parties par jour, jeu et défense confondus. Les points de vie perdus ici ne touchent pas la vraie créature.{" "}
+        Maximum {maxPerDay} partie{maxPerDay > 1 ? "s" : ""} par jour, jeu et défense confondus. Les points de vie perdus ici ne touchent pas la vraie créature.{" "}
         <Link href={homeHref} className="underline">
           {homeHref === "/home" ? "Retour à l'accueil" : "Retour à la pension"}
         </Link>

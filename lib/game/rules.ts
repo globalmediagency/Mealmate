@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BOARDING, COACHING, DEFENSE, FEEDING, HUNGER_DAMAGE_THRESHOLD, MOOD, TICK, TIER_CONFIG, TIERS, type Tier, type TierConfig } from "./config";
+import { BOARDING, COACHING, DEFENSE, FEEDING, HUNGER_DAMAGE_THRESHOLD, MOOD, PLAY, TICK, TIER_CONFIG, TIERS, type Tier, type TierConfig } from "./config";
 
 /** Per-tier demands that the admin can tune (spec § 3.1). */
 export type TierRules = Pick<
@@ -55,6 +55,8 @@ export type GameRules = {
   coaching: { thumbsPerStudentReward: number; thumbsPerCoachReward: number };
   mood: MoodRules;
   defense: DefenseRules;
+  /** Both games together: the food catch and "Défendre". */
+  play: { maxPerDay: number };
 };
 
 const pickTier = (config: TierConfig): TierRules => ({
@@ -90,6 +92,7 @@ export const DEFAULT_RULES: GameRules = {
     bossEveryWaves: DEFENSE.bossEveryWaves,
     bossHits: DEFENSE.bossHits,
   },
+  play: { maxPerDay: PLAY.maxPerDay },
 };
 
 const tierRulesSchema = z
@@ -140,6 +143,7 @@ export const gameRulesPatchSchema = z
         bossHits: z.coerce.number().int().min(1).max(50),
       })
       .partial(),
+    play: z.object({ maxPerDay: z.coerce.number().int().min(1).max(50) }).partial(),
   })
   .partial();
 
@@ -160,6 +164,7 @@ export function mergeRules(patch: GameRulesPatch | null | undefined, base: GameR
     coaching: { ...base.coaching, ...(patch.coaching ?? {}) },
     mood: { ...base.mood, ...(patch.mood ?? {}) },
     defense: { ...base.defense, ...(patch.defense ?? {}) },
+    play: { ...base.play, ...(patch.play ?? {}) },
   };
 }
 
