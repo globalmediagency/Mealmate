@@ -42,7 +42,7 @@ type Draft = {
   defense: Record<DefenseField, string>;
 };
 
-const DEFENSE_FIELDS = ["hp", "baseSpeed", "speedGrowthPercent", "firstWaveEnemies", "enemiesGrowthPerWave", "fireCooldownMs"] as const;
+const DEFENSE_FIELDS = ["hp", "baseSpeed", "speedGrowthPercent", "firstWaveEnemies", "enemiesGrowthPerWave", "fireCooldownMs", "bossEveryWaves", "bossHits"] as const;
 type DefenseField = (typeof DEFENSE_FIELDS)[number];
 
 const DEFENSE_LABELS: Record<DefenseField, { label: string; help: string; integer: boolean }> = {
@@ -52,6 +52,8 @@ const DEFENSE_LABELS: Record<DefenseField, { label: string; help: string; intege
   firstWaveEnemies: { label: "Aliments à la vague 1", help: "Nombre d'aliments de la première vague.", integer: true },
   enemiesGrowthPerWave: { label: "Aliments en plus par vague", help: "Chaque vague en envoie autant de plus que la précédente.", integer: true },
   fireCooldownMs: { label: "Rechargement entre deux œufs (ms)", help: "0 = tir libre.", integer: true },
+  bossEveryWaves: { label: "Un boss toutes les N vagues", help: "Un aliment géant, deux fois plus lent et plus dangereux, ferme ces vagues. 0 = jamais.", integer: true },
+  bossHits: { label: "Œufs pour abattre le premier boss", help: "Chaque boss suivant demande un œuf de plus ; sa barre de vie s'affiche au-dessus de lui.", integer: true },
 };
 
 const MOOD_FIELDS = ["happyMin", "xpBonusPercent", "lowMax", "xpMalusPercent", "gloomyMax", "healthLossPerHourWhenGloomy", "chestStepsBonusPercent"] as const;

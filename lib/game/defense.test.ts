@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { DEFENSE } from "./config";
 import {
+  bossesInWave,
+  bossHitsFor,
   clampAim,
   computeDefenseScore,
   createDefense,
   eggPosition,
   endDefense,
+  enemyDamage,
   fireDefense,
   JUNK_FOODS,
   JUNK_KINDS,
@@ -15,6 +18,7 @@ import {
   startDefense,
   stepDefense,
   waveEnemyCount,
+  waveSpawnCount,
   waveSpeed,
   yawToward,
   type DefenseState,
@@ -44,7 +48,7 @@ describe("waves", () => {
     expect(spawnInterval(20)).toBe(DEFENSE.minSpawnInterval);
     expect(kindsForWave(1)).toEqual(["burger", "pizza", "hotdog"]);
     expect(kindsForWave(5)).toEqual([...JUNK_KINDS]);
-    expect(maxSpawnedThrough(3)).toBe(5 + 7 + 9);
+    expect(maxSpawnedThrough(2)).toBe(5 + 7);
     expect(maxSpawnedThrough(0)).toBe(0);
     expect(waveEnemyCount(2, { ...DEFAULT_RULES.defense, firstWaveEnemies: 3, enemiesGrowthPerWave: 0 })).toBe(3);
   });
@@ -175,5 +179,56 @@ describe("aim and score", () => {
     expect(computeDefenseScore({ spawned: 500, destroyed: 500, wavesCleared: 0 })).toEqual({ score: 100, perfect: false });
     expect(computeDefenseScore({ spawned: 5, destroyed: 50, wavesCleared: 0 }).score).toBe(100);
     expect(computeDefenseScore({ spawned: 5, destroyed: -3, wavesCleared: -2 }).score).toBe(0);
+  });
+});
+
+describe("bosses", () => {
+  const rules = { ...DEFAULT_RULES.defense, firstWaveEnemies: 1, enemiesGrowthPerWave: 0, bossEveryWaves: 1, bossHits: 3, fireCooldownMs: 0 };
+
+  it("close the boss waves, coming last, bigger, slower and tougher", () => {
+    expect(bossesInWave(3)).toBe(1);
+    expect(bossesInWave(4)).toBe(0);
+    expect(bossesInWave(3, { ...DEFAULT_RULES.defense, bossEveryWaves: 0 })).toBe(0);
+    expect(bossHitsFor(3)).toBe(3);
+    expect(bossHitsFor(6)).toBe(4);
+    expect(bossHitsFor(9)).toBe(5);
+    expect(waveSpawnCount(3)).toBe(waveEnemyCount(3) + 1);
+    expect(maxSpawnedThrough(3)).toBe(5 + 7 + 9 + 1);
+    const state = createDefense(rules);
+    startDefense(state);
+    expect(state.toSpawn).toBe(2);
+    run(state, DEFENSE.waveIntroSeconds + spawnInterval(1) + 0.1);
+    expect(state.enemies).toHaveLength(2);
+    const [plain, boss] = state.enemies;
+    expect(plain.boss).toBe(false);
+    expect(boss.boss).toBe(true);
+    expect(boss.maxHits).toBe(3);
+    expect(boss.scale).toBe(DEFENSE.bossScale);
+    expect(boss.speed).toBeLessThan(plain.speed);
+    expect(enemyDamage(boss)).toBe(JUNK_FOODS[boss.kind].damage * DEFENSE.bossDamageFactor);
+    // Its smoke is as big as it is.
+    expect(state.effects.filter((e) => e.kind === "smoke").some((e) => e.size === DEFENSE.bossScale)).toBe(true);
+    run(state, DEFENSE.smokeSeconds + 0.2);
+    expect(boss.phase).toBe("moving");
+  });
+
+  it("need several eggs, show a hit each time, and pay more when destroyed", () => {
+    const state = createDefense(rules);
+    startDefense(state);
+    run(state, DEFENSE.waveIntroSeconds + spawnInterval(1) + DEFENSE.smokeSeconds + 0.3);
+    const boss = state.enemies.find((e) => e.boss)!;
+    let shots = 0;
+    while (state.enemies.some((e) => e.id === boss.id) && shots < 50) {
+      fireDefense(state, { x: boss.x, y: boss.y });
+      shots += 1;
+      run(state, DEFENSE.eggFlightSeconds + DEFENSE.eggFlightPerSide * 3 + 0.05);
+      if (state.enemies.some((e) => e.id === boss.id)) {
+        expect(boss.hits).toBe(3 - shots);
+        expect(state.effects.some((e) => e.kind === "hit")).toBe(true);
+      }
+    }
+    expect(shots).toBe(3);
+    expect(state.summary.bosses).toBe(1);
+    expect(state.score).toBeGreaterThanOrEqual(DEFENSE.pointsPerFood * 1 * 3);
   });
 });

@@ -306,8 +306,9 @@ apparaissent alors, sans connexion nécessaire :
     téléphone.
 11. **Défendre** : depuis l'écran Créature (ou la carte de « Voir en vrai »), lance le jeu : la malbouffe
     surgit autour de ta créature posée sur son marqueur et fonce dessus ; vise avec le centre de l'écran
-    et tire des œufs avec le bouton en bas à droite. Les vagues accélèrent ; la partie s'arrête à zéro
-    point de vie (dans le jeu seulement). Trois parties par jour, jeu et défense confondus.
+    et tire des œufs avec le bouton en bas à droite. Les vagues accélèrent, une vague sur trois se
+    termine par un boss géant à plusieurs œufs (barre de vie au-dessus de lui) ; la partie s'arrête à
+    zéro point de vie (dans le jeu seulement). Trois parties par jour, jeu et défense confondus.
 
 ## 5. Limites connues
 

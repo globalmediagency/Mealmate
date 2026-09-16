@@ -39,6 +39,10 @@ export type DefenseRules = {
   firstWaveEnemies: number;
   enemiesGrowthPerWave: number;
   fireCooldownMs: number;
+  /** A boss closes every wave whose number is a multiple of this (0 = never). */
+  bossEveryWaves: number;
+  /** Eggs needed for the first boss; one more at each following boss. */
+  bossHits: number;
 };
 
 export type GameRules = {
@@ -83,6 +87,8 @@ export const DEFAULT_RULES: GameRules = {
     firstWaveEnemies: DEFENSE.firstWaveEnemies,
     enemiesGrowthPerWave: DEFENSE.enemiesGrowthPerWave,
     fireCooldownMs: DEFENSE.fireCooldownMs,
+    bossEveryWaves: DEFENSE.bossEveryWaves,
+    bossHits: DEFENSE.bossHits,
   },
 };
 
@@ -130,6 +136,8 @@ export const gameRulesPatchSchema = z
         firstWaveEnemies: z.coerce.number().int().min(1).max(50),
         enemiesGrowthPerWave: z.coerce.number().int().min(0).max(20),
         fireCooldownMs: z.coerce.number().int().min(0).max(5000),
+        bossEveryWaves: z.coerce.number().int().min(0).max(50),
+        bossHits: z.coerce.number().int().min(1).max(50),
       })
       .partial(),
   })

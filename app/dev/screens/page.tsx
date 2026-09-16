@@ -55,7 +55,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "turnaround", "creature-3d", "defense", "food-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "turnaround", "creature-3d", "defense", "defense-boss", "food-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -178,6 +178,22 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
         </Card>
       );
       break;
+    case "defense-boss":
+      // Boss tuning check: a boss closes every wave after two plain foods, and the creature cannot die.
+      content = (
+        <div className="space-y-4">
+          <DefenseGame
+            target={{ markerId: 17, mine: true, ownerName: null, creature: { name: "Miso", speciesId: "facile-panda-roux", stage: "adulte", state: "healthy", accessories: [] } }}
+            rules={{ ...DEFAULT_RULES.defense, bossEveryWaves: 1, firstWaveEnemies: 2, enemiesGrowthPerWave: 0, hp: 1000 }}
+            playsLeft={3}
+            preview
+          />
+          <div className="flex justify-center">
+            <div id="dev-marker-17" className="w-40 bg-white p-1" dangerouslySetInnerHTML={{ __html: markerSvg(17) }} />
+          </div>
+        </div>
+      );
+      break;
     case "food-3d":
       content = <FoodGallery />;
       break;
@@ -186,7 +202,7 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
         <div className="space-y-4">
           <DefenseGame
             target={{ markerId: 17, mine: true, ownerName: null, creature: { name: "Miso", speciesId: "facile-panda-roux", stage: "adulte", state: "healthy", accessories: [{ slot: "head", id: "beret" }] } }}
-            rules={DEFAULT_RULES.defense}
+            rules={{ ...DEFAULT_RULES.defense, bossEveryWaves: 2 }}
             playsLeft={3}
             preview
           />

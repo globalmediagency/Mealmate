@@ -61,6 +61,14 @@ export type Enemy = {
   /** Cartesian position, refreshed by the step. */
   x: number;
   y: number;
+  /** A boss: huge, slow, needs `maxHits` eggs (spec § 3.21). */
+  boss: boolean;
+  scale: number;
+  /** Eggs still needed. */
+  hits: number;
+  maxHits: number;
+  /** Collision radius added to the blast and reach radii. */
+  radius: number;
 };
 
 export type Egg = {
@@ -72,9 +80,9 @@ export type Egg = {
   duration: number;
 };
 
-export type EffectKind = "smoke" | "splat" | "ouch";
+export type EffectKind = "smoke" | "splat" | "ouch" | "hit";
 
-export type Effect = { id: number; kind: EffectKind; x: number; y: number; z: number; age: number; duration: number };
+export type Effect = { id: number; kind: EffectKind; x: number; y: number; z: number; age: number; duration: number; size: number };
 
 export type DefenseSummary = {
   spawned: number;
@@ -82,6 +90,8 @@ export type DefenseSummary = {
   reached: number;
   wavesCleared: number;
   shots: number;
+  /** Bosses destroyed. */
+  bosses: number;
 };
 
 export type DefenseStatus = "idle" | "intro" | "wave" | "over";
@@ -102,6 +112,8 @@ export type DefenseState = {
   rules: DefenseRules;
   nextId: number;
   toSpawn: number;
+  /** Bosses still to spawn in this wave (they come last). */
+  bossToSpawn: number;
   spawnTimer: number;
   introTimer: number;
   lastFireAt: number;
@@ -120,19 +132,36 @@ export function createDefense(rules: DefenseRules = DEFAULT_RULES.defense): Defe
     eggs: [],
     effects: [],
     yaw: 0,
-    summary: { spawned: 0, destroyed: 0, reached: 0, wavesCleared: 0, shots: 0 },
+    summary: { spawned: 0, destroyed: 0, reached: 0, wavesCleared: 0, shots: 0, bosses: 0 },
     rules,
     nextId: 1,
     toSpawn: 0,
+    bossToSpawn: 0,
     spawnTimer: 0,
     introTimer: 0,
     lastFireAt: -Infinity,
   };
 }
 
-/** Foods in a wave. */
+/** Plain foods in a wave (a boss may come on top, see `bossesInWave`). */
 export function waveEnemyCount(wave: number, rules: DefenseRules = DEFAULT_RULES.defense): number {
   return Math.max(1, Math.round(rules.firstWaveEnemies + rules.enemiesGrowthPerWave * (wave - 1)));
+}
+
+/** Bosses closing a wave: one on every multiple of `bossEveryWaves`. */
+export function bossesInWave(wave: number, rules: DefenseRules = DEFAULT_RULES.defense): number {
+  return rules.bossEveryWaves > 0 && wave > 0 && wave % rules.bossEveryWaves === 0 ? 1 : 0;
+}
+
+/** Eggs needed by the boss of a wave: the base, plus one per boss already met. */
+export function bossHitsFor(wave: number, rules: DefenseRules = DEFAULT_RULES.defense): number {
+  if (rules.bossEveryWaves <= 0) return rules.bossHits;
+  return Math.max(1, Math.round(rules.bossHits) + Math.max(0, Math.floor(wave / rules.bossEveryWaves) - 1));
+}
+
+/** Everything a wave spawns, bosses included. */
+export function waveSpawnCount(wave: number, rules: DefenseRules = DEFAULT_RULES.defense): number {
+  return waveEnemyCount(wave, rules) + bossesInWave(wave, rules);
 }
 
 /** Speed of a plain food in a wave (sides per second). */
@@ -153,7 +182,7 @@ export function kindsForWave(wave: number): JunkKind[] {
 /** Most foods a game can have spawned once `wave` has started (server-side plausibility bound). */
 export function maxSpawnedThrough(wave: number, rules: DefenseRules = DEFAULT_RULES.defense): number {
   let total = 0;
-  for (let w = 1; w <= Math.max(0, Math.floor(wave)); w += 1) total += waveEnemyCount(w, rules);
+  for (let w = 1; w <= Math.max(0, Math.floor(wave)); w += 1) total += waveSpawnCount(w, rules);
   return total;
 }
 
@@ -184,12 +213,13 @@ function beginWave(state: DefenseState, wave: number) {
   state.wave = wave;
   state.status = "intro";
   state.introTimer = DEFENSE.waveIntroSeconds;
-  state.toSpawn = waveEnemyCount(wave, state.rules);
+  state.bossToSpawn = bossesInWave(wave, state.rules);
+  state.toSpawn = waveEnemyCount(wave, state.rules) + state.bossToSpawn;
   state.spawnTimer = 0;
 }
 
-function addEffect(state: DefenseState, kind: EffectKind, x: number, y: number, z: number, duration: number) {
-  state.effects.push({ id: state.nextId++, kind, x, y, z, age: 0, duration });
+function addEffect(state: DefenseState, kind: EffectKind, x: number, y: number, z: number, duration: number, size = 1) {
+  state.effects.push({ id: state.nextId++, kind, x, y, z, age: 0, duration, size });
 }
 
 function spawnEnemy(state: DefenseState, random: () => number) {
@@ -197,6 +227,9 @@ function spawnEnemy(state: DefenseState, random: () => number) {
   const kind = kinds[Math.min(kinds.length - 1, Math.floor(random() * kinds.length))];
   const food = JUNK_FOODS[kind];
   const angle = random() * TAU;
+  // Bosses come last in their wave.
+  const boss = state.bossToSpawn > 0 && state.toSpawn <= state.bossToSpawn;
+  const hits = boss ? bossHitsFor(state.wave, state.rules) : 1;
   const enemy: Enemy = {
     id: state.nextId++,
     kind,
@@ -206,17 +239,28 @@ function spawnEnemy(state: DefenseState, random: () => number) {
     lateral: 0,
     z: 0,
     age: -DEFENSE.smokeSeconds,
-    speed: waveSpeed(state.wave, state.rules) * food.speed * (0.9 + 0.2 * random()),
+    speed: waveSpeed(state.wave, state.rules) * food.speed * (0.9 + 0.2 * random()) * (boss ? DEFENSE.bossSpeedFactor : 1),
     seed: random(),
     phase: "spawning",
     x: 0,
     y: 0,
+    boss,
+    scale: boss ? DEFENSE.bossScale : 1,
+    hits,
+    maxHits: hits,
+    radius: boss ? DEFENSE.bossRadius : DEFENSE.foodRadius,
   };
   place(enemy);
   state.enemies.push(enemy);
   state.summary.spawned += 1;
   state.toSpawn -= 1;
-  addEffect(state, "smoke", enemy.x, enemy.y, 0.25, DEFENSE.smokeSeconds);
+  if (boss) state.bossToSpawn -= 1;
+  addEffect(state, "smoke", enemy.x, enemy.y, 0.25 * enemy.scale, DEFENSE.smokeSeconds, enemy.scale);
+}
+
+/** Health points a food takes from the creature. */
+export function enemyDamage(enemy: Pick<Enemy, "kind" | "boss">): number {
+  return JUNK_FOODS[enemy.kind].damage * (enemy.boss ? DEFENSE.bossDamageFactor : 1);
 }
 
 function place(enemy: Enemy) {
@@ -267,11 +311,21 @@ function land(state: DefenseState, egg: Egg) {
   addEffect(state, "splat", egg.to.x, egg.to.y, egg.to.z, 0.55);
   const survivors: Enemy[] = [];
   for (const enemy of state.enemies) {
-    const near = enemy.phase === "moving" && Math.hypot(enemy.x - egg.to.x, enemy.y - egg.to.y) <= DEFENSE.blastRadius && enemy.z <= DEFENSE.blastHeight;
-    if (near) {
-      state.summary.destroyed += 1;
-      state.score += DEFENSE.pointsPerFood * state.wave;
-    } else survivors.push(enemy);
+    const near = enemy.phase === "moving" && Math.hypot(enemy.x - egg.to.x, enemy.y - egg.to.y) <= DEFENSE.blastRadius + enemy.radius && enemy.z <= DEFENSE.blastHeight;
+    if (!near) {
+      survivors.push(enemy);
+      continue;
+    }
+    enemy.hits -= 1;
+    if (enemy.hits > 0) {
+      // A boss shrugs it off: it needs more eggs.
+      addEffect(state, "hit", enemy.x, enemy.y, enemy.z + 0.45 * enemy.scale, 0.35, enemy.scale);
+      survivors.push(enemy);
+      continue;
+    }
+    state.summary.destroyed += 1;
+    if (enemy.boss) state.summary.bosses += 1;
+    state.score += DEFENSE.pointsPerFood * state.wave * enemy.maxHits;
   }
   state.enemies = survivors;
 }
@@ -298,10 +352,10 @@ export function stepDefense(state: DefenseState, dt: number, random: () => numbe
   const survivors: Enemy[] = [];
   for (const enemy of state.enemies) {
     moveEnemy(enemy, dt);
-    if (enemy.phase === "moving" && enemy.dist <= DEFENSE.reachRadius) {
-      state.hp = Math.max(0, state.hp - JUNK_FOODS[enemy.kind].damage);
+    if (enemy.phase === "moving" && enemy.dist <= DEFENSE.reachRadius + enemy.radius) {
+      state.hp = Math.max(0, state.hp - enemyDamage(enemy));
       state.summary.reached += 1;
-      addEffect(state, "ouch", 0, 0, 0.9, 0.45);
+      addEffect(state, "ouch", 0, 0, 0.9, 0.45, enemy.scale);
     } else survivors.push(enemy);
   }
   state.enemies = survivors;

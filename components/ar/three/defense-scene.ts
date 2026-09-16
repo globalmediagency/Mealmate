@@ -4,12 +4,18 @@ import { buildFoodMesh, type FoodMesh } from "./food-mesh";
 
 const SMOKE_PUFFS = 5;
 const SHELL_BITS = 4;
+/** Boss health bar (marker sides): width, height and how high above the model it floats. */
+const BAR_WIDTH = 0.9;
+const BAR_HEIGHT = 0.09;
+const BAR_LIFT = 0.25;
 const AIM_COLOR = 0xb9d3a4;
 const SMOKE_COLOR = 0x9a948c;
 const YOLK_COLOR = 0xf2c14e;
 const OUCH_COLOR = 0xe0554a;
 
 type EffectObject = { kind: EffectKind; group: THREE.Group; materials: THREE.Material[] };
+type HealthBar = { back: THREE.Sprite; front: THREE.Sprite };
+type EnemyObject = { kind: JunkKind; model: THREE.Group; shadow: THREE.Mesh; bar: HealthBar | null };
 
 /**
  * Draws a "Défendre" game (spec § 3.21) inside the marker's frame: junk foods
@@ -21,14 +27,17 @@ type EffectObject = { kind: EffectKind; group: THREE.Group; materials: THREE.Mat
 export class DefenseScene {
   readonly root = new THREE.Group();
   private readonly templates = new Map<JunkKind, FoodMesh>();
-  private readonly enemies = new Map<number, { kind: JunkKind; model: THREE.Group; shadow: THREE.Mesh }>();
+  private readonly enemies = new Map<number, EnemyObject>();
   private readonly freeModels = new Map<JunkKind, THREE.Group[]>();
   private readonly freeShadows: THREE.Mesh[] = [];
+  private readonly freeBars: HealthBar[] = [];
   private readonly shadowMaterial = new THREE.MeshBasicMaterial({ color: 0x0b1210, transparent: true, opacity: 0.28, depthWrite: false });
+  private readonly barBackMaterial = new THREE.SpriteMaterial({ color: 0x0b1210, transparent: true, opacity: 0.75, depthTest: false });
+  private readonly barFrontMaterial = new THREE.SpriteMaterial({ color: 0xe0554a, depthTest: false });
   private readonly eggs = new Map<number, THREE.Mesh>();
   private readonly freeEggs: THREE.Mesh[] = [];
   private readonly effects = new Map<number, EffectObject>();
-  private readonly freeEffects: Record<EffectKind, EffectObject[]> = { smoke: [], splat: [], ouch: [] };
+  private readonly freeEffects: Record<EffectKind, EffectObject[]> = { smoke: [], splat: [], ouch: [], hit: [] };
   private readonly aim = new THREE.Group();
   private readonly sphere = new THREE.SphereGeometry(1, 14, 10);
   private readonly disc = new THREE.CircleGeometry(1, 28);
@@ -45,7 +54,21 @@ export class DefenseScene {
     this.aim.position.z = 0.01;
     this.aim.visible = false;
     this.root.add(this.aim);
-    this.disposables.push(this.sphere, this.disc, this.eggMaterial, ringGeometry, ringMaterial, this.shadowMaterial);
+    this.disposables.push(this.sphere, this.disc, this.eggMaterial, ringGeometry, ringMaterial, this.shadowMaterial, this.barBackMaterial, this.barFrontMaterial);
+  }
+
+  /** A billboard health bar for a boss: a dark back and a red front that shrinks from the right. */
+  private barFor(): HealthBar {
+    const reused = this.freeBars.pop();
+    if (reused) return reused;
+    const back = new THREE.Sprite(this.barBackMaterial);
+    back.scale.set(BAR_WIDTH + 0.04, BAR_HEIGHT + 0.04, 1);
+    back.renderOrder = 10;
+    const front = new THREE.Sprite(this.barFrontMaterial);
+    front.scale.set(BAR_WIDTH, BAR_HEIGHT, 1);
+    front.renderOrder = 11;
+    this.root.add(back, front);
+    return { back, front };
   }
 
   /** One model per food kind, built once and cloned per food (geometries and materials shared). */
@@ -90,6 +113,11 @@ export class DefenseScene {
         group.add(bit);
         materials.push(material);
       }
+    } else if (kind === "hit") {
+      const material = new THREE.MeshBasicMaterial({ color: 0xfff3c4, transparent: true, opacity: 0.9, depthWrite: false });
+      const flash = new THREE.Mesh(this.sphere, material);
+      group.add(flash);
+      materials.push(material);
     } else {
       const material = new THREE.MeshBasicMaterial({ color: OUCH_COLOR, transparent: true, opacity: 0.4, depthWrite: false });
       const flash = new THREE.Mesh(this.sphere, material);
@@ -101,15 +129,19 @@ export class DefenseScene {
     return { kind, group, materials };
   }
 
-  private animateEffect(object: EffectObject, progress: number) {
+  private animateEffect(object: EffectObject, progress: number, size: number) {
     const fade = 1 - progress;
     if (object.kind === "smoke") {
       for (const child of object.group.children) {
         const d = child.userData as { dx: number; dy: number; dz: number; size: number };
-        child.position.set(d.dx * (1 + progress), d.dy * (1 + progress), d.dz + 0.25 * progress);
-        child.scale.setScalar((0.12 + 0.3 * progress) * d.size);
+        child.position.set(d.dx * (1 + progress) * size, d.dy * (1 + progress) * size, (d.dz + 0.25 * progress) * size);
+        child.scale.setScalar((0.12 + 0.3 * progress) * d.size * size);
         ((child as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = 0.7 * fade;
       }
+    } else if (object.kind === "hit") {
+      const flash = object.group.children[0] as THREE.Mesh;
+      flash.scale.setScalar((0.12 + 0.3 * progress) * size);
+      (flash.material as THREE.MeshBasicMaterial).opacity = 0.9 * fade;
     } else if (object.kind === "splat") {
       for (const child of object.group.children) {
         const material = (child as THREE.Mesh).material as THREE.MeshBasicMaterial;
@@ -126,7 +158,7 @@ export class DefenseScene {
     } else {
       const flash = object.group.children[0] as THREE.Mesh;
       flash.scale.setScalar(0.75 + 0.3 * progress);
-      (flash.material as THREE.MeshBasicMaterial).opacity = 0.4 * fade;
+      (flash.material as THREE.MeshBasicMaterial).opacity = Math.min(0.7, 0.4 * size) * fade;
     }
   }
 
@@ -143,7 +175,9 @@ export class DefenseScene {
         const shadow = this.freeShadows.pop() ?? new THREE.Mesh(this.disc, this.shadowMaterial);
         shadow.position.z = 0.004;
         this.root.add(shadow);
-        entry = { kind: enemy.kind, model: this.modelFor(enemy.kind), shadow };
+        const model = this.modelFor(enemy.kind);
+        model.scale.setScalar(enemy.scale);
+        entry = { kind: enemy.kind, model, shadow, bar: enemy.boss ? this.barFor() : null };
         this.enemies.set(enemy.id, entry);
       }
       const moving = enemy.phase === "moving";
@@ -153,7 +187,18 @@ export class DefenseScene {
       // Faces the creature, with a little wobble as it comes.
       entry.model.rotation.z = enemy.angle + Math.PI + 0.12 * Math.sin(enemy.age * 5 + enemy.seed * 6);
       entry.shadow.position.set(enemy.x, enemy.y, 0.004);
-      entry.shadow.scale.setScalar(0.2 / (1 + enemy.z * 1.5));
+      entry.shadow.scale.setScalar((0.2 * enemy.scale) / (1 + enemy.z * 1.5));
+      if (entry.bar) {
+        const ratio = Math.max(0, Math.min(1, enemy.hits / enemy.maxHits));
+        const top = enemy.z + 0.55 * enemy.scale + BAR_LIFT;
+        entry.bar.back.visible = moving;
+        entry.bar.front.visible = moving && ratio > 0;
+        entry.bar.back.position.set(enemy.x, enemy.y, top);
+        entry.bar.front.position.set(enemy.x, enemy.y, top);
+        // Both sprites share the same anchor point: the front keeps its left edge on the back's by moving its centre as it shrinks.
+        entry.bar.front.scale.x = BAR_WIDTH * ratio;
+        if (ratio > 0) entry.bar.front.center.set(1 / (2 * ratio), 0.5);
+      }
     }
     for (const [id, entry] of this.enemies) {
       if (seenEnemies.has(id)) continue;
@@ -164,6 +209,11 @@ export class DefenseScene {
       free.push(entry.model);
       this.freeModels.set(entry.kind, free);
       this.freeShadows.push(entry.shadow);
+      if (entry.bar) {
+        entry.bar.back.visible = false;
+        entry.bar.front.visible = false;
+        this.freeBars.push(entry.bar);
+      }
     }
 
     const seenEggs = new Set<number>();
@@ -198,7 +248,7 @@ export class DefenseScene {
         object.group.position.set(effect.x, effect.y, effect.z);
         this.effects.set(effect.id, object);
       }
-      this.animateEffect(object, Math.min(1, effect.age / effect.duration));
+      this.animateEffect(object, Math.min(1, effect.age / effect.duration), effect.size);
     }
     for (const [id, object] of this.effects) {
       if (seenEffects.has(id)) continue;

@@ -230,6 +230,10 @@ export const DEFENSE = {
   firstWaveEnemies: 5,
   enemiesGrowthPerWave: 2,
   fireCooldownMs: 350,
+  /** A boss (a huge food needing several eggs) closes every wave whose number is a multiple of this; 0 = never. */
+  bossEveryWaves: 3,
+  /** Eggs needed to destroy the first boss (one more at each following boss). */
+  bossHits: 3,
   /** Where foods appear, from the creature. */
   arenaRadius: 2.8,
   /** How far the aim point can go beyond the arena. */
@@ -251,6 +255,12 @@ export const DEFENSE = {
   /** Waves to clear for a perfect game (with every food destroyed). */
   perfectWaves: 3,
   pointsPerFood: 10,
+  /** Collision radius of a plain food and of a boss (added to the blast and reach radii). */
+  foodRadius: 0.1,
+  bossRadius: 0.4,
+  bossScale: 2.2,
+  bossSpeedFactor: 0.5,
+  bossDamageFactor: 2,
 } as const;
 
 /** Growth stages by XP (spec § 3.8). */
