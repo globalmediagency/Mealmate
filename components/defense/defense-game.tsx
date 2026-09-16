@@ -428,7 +428,7 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPer
                     <p className="font-display text-4xl font-semibold text-cream-50">Vague {hud.wave}</p>
                     <p className="text-sm text-cream-200">
                       {waveSize} aliment{waveSize > 1 ? "s" : ""} en approche
-                      {waveBosses > 0 ? "… et un boss géant à la fin !" : ""}
+                      {waveBosses > 0 ? "… dont un boss géant, à n'importe quel moment !" : ""}
                     </p>
                   </div>
                 ) : null}

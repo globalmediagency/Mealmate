@@ -112,7 +112,7 @@ export type DefenseState = {
   rules: DefenseRules;
   nextId: number;
   toSpawn: number;
-  /** Bosses still to spawn in this wave (they come last). */
+  /** Bosses still to spawn in this wave (each takes a random slot among the wave's spawns). */
   bossToSpawn: number;
   spawnTimer: number;
   introTimer: number;
@@ -148,7 +148,7 @@ export function waveEnemyCount(wave: number, rules: DefenseRules = DEFAULT_RULES
   return Math.max(1, Math.round(rules.firstWaveEnemies + rules.enemiesGrowthPerWave * (wave - 1)));
 }
 
-/** Bosses closing a wave: one on every multiple of `bossEveryWaves`. */
+/** Bosses of a wave: one on every multiple of `bossEveryWaves`, at a random moment of the wave. */
 export function bossesInWave(wave: number, rules: DefenseRules = DEFAULT_RULES.defense): number {
   return rules.bossEveryWaves > 0 && wave > 0 && wave % rules.bossEveryWaves === 0 ? 1 : 0;
 }
@@ -227,8 +227,8 @@ function spawnEnemy(state: DefenseState, random: () => number) {
   const kind = kinds[Math.min(kinds.length - 1, Math.floor(random() * kinds.length))];
   const food = JUNK_FOODS[kind];
   const angle = random() * TAU;
-  // Bosses come last in their wave.
-  const boss = state.bossToSpawn > 0 && state.toSpawn <= state.bossToSpawn;
+  // A boss takes a uniformly random slot among the wave's remaining spawns (the last one at the latest).
+  const boss = state.bossToSpawn > 0 && (state.toSpawn <= state.bossToSpawn || random() < state.bossToSpawn / state.toSpawn);
   const hits = boss ? bossHitsFor(state.wave, state.rules) : 1;
   const enemy: Enemy = {
     id: state.nextId++,

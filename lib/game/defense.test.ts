@@ -161,6 +161,30 @@ describe("a game", () => {
   });
 });
 
+describe("boss timing", () => {
+  it("lands on every slot of the wave over many games, never twice in one wave", () => {
+    const rules = { ...DEFAULT_RULES.defense, firstWaveEnemies: 4, enemiesGrowthPerWave: 0, bossEveryWaves: 1, hp: 100000 };
+    const slots = new Set<number>();
+    for (let seed = 1; seed <= 60; seed += 1) {
+      const state = createDefense(rules);
+      startDefense(state);
+      const order: boolean[] = [];
+      let known = 0;
+      const random = seeded(seed);
+      for (let t = 0; t < DEFENSE.waveIntroSeconds + spawnInterval(1) * 5 + 0.2 && order.length < 5; t += 1 / 60) {
+        stepDefense(state, 1 / 60, random);
+        if (state.summary.spawned > known) {
+          order.push(state.enemies[state.enemies.length - 1].boss);
+          known = state.summary.spawned;
+        }
+      }
+      expect(order.filter(Boolean)).toHaveLength(1);
+      slots.add(order.indexOf(true));
+    }
+    expect([...slots].sort()).toEqual([0, 1, 2, 3, 4]);
+  });
+});
+
 describe("aim and score", () => {
   it("clamps far aims to the reachable radius and faces the aim", () => {
     expect(clampAim({ x: 10, y: 0 })).toEqual({ x: DEFENSE.aimMaxRadius, y: 0 });
@@ -185,7 +209,7 @@ describe("aim and score", () => {
 describe("bosses", () => {
   const rules = { ...DEFAULT_RULES.defense, firstWaveEnemies: 1, enemiesGrowthPerWave: 0, bossEveryWaves: 1, bossHits: 3, fireCooldownMs: 0 };
 
-  it("close the boss waves, coming last, bigger, slower and tougher", () => {
+  it("show up once in a boss wave, at a random moment, bigger, slower and tougher", () => {
     expect(bossesInWave(3)).toBe(1);
     expect(bossesInWave(4)).toBe(0);
     expect(bossesInWave(3, { ...DEFAULT_RULES.defense, bossEveryWaves: 0 })).toBe(0);
@@ -199,9 +223,9 @@ describe("bosses", () => {
     expect(state.toSpawn).toBe(2);
     run(state, DEFENSE.waveIntroSeconds + spawnInterval(1) + 0.1);
     expect(state.enemies).toHaveLength(2);
-    const [plain, boss] = state.enemies;
-    expect(plain.boss).toBe(false);
-    expect(boss.boss).toBe(true);
+    expect(state.enemies.filter((e) => e.boss)).toHaveLength(1);
+    const plain = state.enemies.find((e) => !e.boss)!;
+    const boss = state.enemies.find((e) => e.boss)!;
     expect(boss.maxHits).toBe(3);
     expect(boss.scale).toBe(DEFENSE.bossScale);
     expect(boss.speed).toBeLessThan(plain.speed);
