@@ -333,7 +333,8 @@ apparaissent alors, sans connexion nécessaire :
     zéro point de vie (dans le jeu seulement). Trois parties par jour, jeu et défense confondus.
 12. **Arène** (migration `015`) : depuis l'écran Créature (« Arène »), invite un ou plusieurs amis dont la créature est
     vivante ; chacun reçoit l'invitation en quelques secondes, quelle que soit la page où il se trouve (carte en bas
-    de l'écran, pastille de l'onglet Amis ; notification système en option depuis la page Arène), la rejoint, pose le marqueur de sa
+    de l'écran, pastille de l'onglet Amis ; notification système en option depuis la page Arène), la rejoint
+    (si deux amis s'invitent en même temps, tout le monde se retrouve dans la première salle ouverte), pose le marqueur de sa
     créature sur la même table et lance sa caméra ; l'hôte lance la bataille (3 minutes). Vise une créature adverse avec
     le centre de l'écran pour lui lancer un œuf (15 points de vie), attrape avec la langue les fruits et légumes qui
     apparaissent pour regagner de la vie ; déplacer sa feuille pendant qu'un œuf vole permet d'esquiver. Classement et

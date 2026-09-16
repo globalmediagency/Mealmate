@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createEgg, getActiveCreature, hatchEgg, nameCreature } from "@/lib/creatures/service";
 import { getDb } from "@/lib/db";
@@ -113,6 +113,43 @@ describe("lobby", () => {
     expect((await snapshot(bob, match.id, at(1), RULES)).match.status).toBe("cancelled");
     expect(await countArenaInvites(bob, at(1))).toBe(0);
     expect(await listArenaInvites(bob, at(1))).toEqual([]);
+  });
+
+  it("unites two friends who invite each other: the second joins the first lobby, whose creator stays host", async () => {
+    const { match: first } = await createMatch(alice, [bob], T0, RULES);
+    const { match: second, players } = await createMatch(bob, [alice], at(1), RULES);
+    expect(second.id).toBe(first.id);
+    expect(second.hostId).toBe(alice);
+    expect(players.map((p) => [p.userId, p.status])).toEqual([
+      [alice, "ready"],
+      [bob, "ready"],
+    ]);
+    expect(await countArenaInvites(bob, at(1))).toBe(0);
+    const [row] = await getDb().select().from(arenaMatches).where(eq(arenaMatches.hostId, bob));
+    expect(row).toBeUndefined();
+    await cancelMatch(alice, first.id, at(2), RULES);
+  });
+
+  it("merges two lobbies that invited each other after the fact, keeping the older one and its host", async () => {
+    await befriend(bob, dave);
+    const { match: older } = await createMatch(alice, [bob], at(10), RULES);
+    const { match: newer } = await createMatch(bob, [dave], at(11), RULES);
+    expect(newer.id).not.toBe(older.id);
+    // The race the merge guards against: Alice ends up invited into Bob's lobby too.
+    const [aliceRow] = await getDb()
+      .select()
+      .from(arenaPlayers)
+      .where(and(eq(arenaPlayers.matchId, older.id), eq(arenaPlayers.userId, alice)));
+    await getDb().insert(arenaPlayers).values({ matchId: newer.id, userId: alice, creatureId: aliceRow.creatureId, marker: aliceRow.marker, status: "invited", hp: 30, createdAt: at(11) });
+    const bobView = await snapshot(bob, newer.id, at(12), RULES);
+    expect(bobView.match.status).toBe("cancelled");
+    expect(bobView.match.mergedInto).toBe(older.id);
+    const aliceView = await snapshot(alice, older.id, at(13), RULES);
+    expect(aliceView.match.hostId).toBe(alice);
+    expect(Object.fromEntries(aliceView.players.map((p) => [p.userId, p.status]))).toEqual({ [alice]: "ready", [bob]: "ready", [dave]: "invited" });
+    expect(await listArenaInvites(dave, at(13))).toMatchObject([{ matchId: older.id, hostName: "Alice" }]);
+    expect(await listArenaInvites(alice, at(13))).toEqual([]);
+    await cancelMatch(alice, older.id, at(14), RULES);
   });
 
   it("forgets a lobby nobody started", async () => {

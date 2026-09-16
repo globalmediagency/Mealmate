@@ -57,6 +57,8 @@ export type ArenaMatchView = {
   /** Sync transport wanted by the admin; the phones fall back to polling until WebRTC exists. */
   webrtc: boolean;
   createdAt: string;
+  /** For a cancelled lobby united with another one: where its players went. */
+  mergedInto: string | null;
 };
 
 export type ArenaReward = { score: number; perfect: boolean; effects: PlayEffects; playsLeft: number } | { skipped: string };
@@ -116,7 +118,7 @@ async function logEvent(matchId: string, actorId: string | null, kind: string, p
   await getDb().insert(arenaEvents).values({ matchId, actorId, kind, payload, createdAt: now });
 }
 
-function toMatchView(match: ArenaMatch, userId: string, now: Date, rules: GameRules): ArenaMatchView {
+function toMatchView(match: ArenaMatch, userId: string, now: Date, rules: GameRules, mergedInto: string | null = null): ArenaMatchView {
   return {
     id: match.id,
     status: match.status,
@@ -131,6 +133,7 @@ function toMatchView(match: ArenaMatch, userId: string, now: Date, rules: GameRu
     secondsLeft: match.status === "playing" ? arenaSecondsLeft(match.endsAt?.getTime() ?? null, now.getTime()) : 0,
     webrtc: rules.arena.webrtc,
     createdAt: match.createdAt.toISOString(),
+    mergedInto,
   };
 }
 
@@ -214,6 +217,26 @@ export async function createMatch(hostId: string, friendIds: string[], now: Date
     markers.set(p.marker, p.creature.name ?? "une créature");
   }
 
+  // One of the guests already opened a lobby and invited the host: join it instead of opening a second one (the older lobby keeps its host).
+  const reciprocal = await lobbiesInvitingHostedBy(hostId, ids, now);
+  if (reciprocal.length > 0) {
+    const target = reciprocal[0];
+    const [joined] = await db
+      .update(arenaPlayers)
+      .set({ status: "ready", hp: target.maxHp })
+      .where(and(eq(arenaPlayers.matchId, target.id), eq(arenaPlayers.userId, hostId), eq(arenaPlayers.status, "invited")))
+      .returning({ id: arenaPlayers.id });
+    if (joined) {
+      await carryGuests(
+        target,
+        invited.map((p) => ({ userId: p.userId, creatureId: p.creature.id, marker: p.marker, status: "invited" as const })),
+        now,
+      );
+      await logEvent(target.id, hostId, "join", { merged: true, invited: ids.filter((id) => id !== target.hostId) }, now);
+      return { match: await loadMatch(target.id), players: await loadPlayers(target.id, target.hostId) };
+    }
+  }
+
   const [match] = await db
     .insert(arenaMatches)
     .values({ hostId, status: "lobby", maxHp: rules.arena.hp, eggDamage: rules.arena.eggDamage, durationSeconds: rules.arena.durationSeconds, createdAt: now })
@@ -252,6 +275,104 @@ async function loadFor(userId: string, matchId: string): Promise<{ match: ArenaM
 }
 
 const participants = (players: ArenaPlayer[]) => players.filter((p) => p.status === "ready" || p.status === "left");
+
+/** Open lobbies hosted by one of `hostIds` in which `userId` is invited, oldest first. */
+async function lobbiesInvitingHostedBy(userId: string, hostIds: string[], now: Date): Promise<ArenaMatch[]> {
+  if (hostIds.length === 0) return [];
+  const limit = new Date(now.getTime() - ARENA.lobbyTtlMinutes * MINUTE_MS);
+  const rows = await getDb()
+    .select({ match: arenaMatches })
+    .from(arenaMatches)
+    .innerJoin(arenaPlayers, and(eq(arenaPlayers.matchId, arenaMatches.id), eq(arenaPlayers.userId, userId), eq(arenaPlayers.status, "invited")))
+    .where(and(eq(arenaMatches.status, "lobby"), gt(arenaMatches.createdAt, limit), inArray(arenaMatches.hostId, hostIds)));
+  return rows.map((r) => r.match).sort(olderFirst);
+}
+
+const olderFirst = (a: ArenaMatch, b: ArenaMatch) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id);
+
+type Guest = { userId: string; creatureId: string; marker: number; status: "ready" | "invited" };
+
+/**
+ * Brings guests into a lobby: newcomers are added with their status (within
+ * `ARENA.maxPlayers`, skipped on a marker clash), an invited player who was
+ * ready elsewhere becomes ready. Returns the ids of those now ready.
+ */
+async function carryGuests(into: ArenaMatch, guests: Guest[], now: Date): Promise<string[]> {
+  const db = getDb();
+  const current = await loadPlayers(into.id, into.hostId);
+  const open = (p: { status: string }) => p.status === "ready" || p.status === "invited";
+  const markers = new Set(current.filter(open).map((p) => p.marker));
+  let count = current.filter(open).length;
+  const joined: string[] = [];
+  for (const guest of guests) {
+    if (guest.userId === into.hostId) continue;
+    const existing = current.find((p) => p.userId === guest.userId);
+    if (existing) {
+      if (guest.status === "ready" && existing.status === "invited") {
+        const [up] = await db
+          .update(arenaPlayers)
+          .set({ status: "ready", hp: into.maxHp })
+          .where(and(eq(arenaPlayers.id, existing.id), eq(arenaPlayers.status, "invited")))
+          .returning({ id: arenaPlayers.id });
+        if (up) joined.push(guest.userId);
+      }
+      continue;
+    }
+    if (count >= ARENA.maxPlayers || markers.has(guest.marker)) continue;
+    await db
+      .insert(arenaPlayers)
+      .values({ matchId: into.id, userId: guest.userId, creatureId: guest.creatureId, marker: guest.marker, status: guest.status, hp: into.maxHp, createdAt: now })
+      .onConflictDoNothing();
+    count += 1;
+    markers.add(guest.marker);
+    if (guest.status === "ready") joined.push(guest.userId);
+  }
+  return joined;
+}
+
+/**
+ * Unites lobby `from` with lobby `into` (the older one): `from` is closed
+ * with a pointer to `into`, its host joins `into` as ready (they were
+ * invited there) and its guests come along. Concurrent readers agree
+ * through the conditional close.
+ */
+async function mergeLobbies(into: ArenaMatch, from: ArenaMatch, now: Date): Promise<boolean> {
+  const db = getDb();
+  const [target] = await db.select().from(arenaMatches).where(eq(arenaMatches.id, into.id)).limit(1);
+  if (!target || target.status !== "lobby") return false;
+  const [closed] = await db
+    .update(arenaMatches)
+    .set({ status: "cancelled", finishedAt: now })
+    .where(and(eq(arenaMatches.id, from.id), eq(arenaMatches.status, "lobby")))
+    .returning({ id: arenaMatches.id });
+  if (!closed) return false;
+  const fromPlayers = await loadPlayers(from.id, from.hostId);
+  const guests: Guest[] = fromPlayers
+    .filter((p) => (p.status === "ready" || p.status === "invited") && p.userId !== into.hostId)
+    .map((p) => ({ userId: p.userId, creatureId: p.creatureId, marker: p.marker, status: p.userId === from.hostId ? "ready" : (p.status as "ready" | "invited") }));
+  const joined = await carryGuests(target, guests, now);
+  await logEvent(from.id, null, "merged", { into: into.id }, now);
+  await logEvent(into.id, null, "merge", { from: from.id, host: from.hostId, joined }, now);
+  return true;
+}
+
+/** Open lobbies hosted by a guest of `match` in which `match`'s host is invited: two friends invited each other. */
+async function reciprocalLobbies(match: ArenaMatch, players: ArenaPlayer[], now: Date): Promise<ArenaMatch[]> {
+  const guestHosts = players.filter((p) => p.userId !== match.hostId && (p.status === "invited" || p.status === "ready")).map((p) => p.userId);
+  const lobbies = await lobbiesInvitingHostedBy(match.hostId, guestHosts, now);
+  return lobbies.filter((m) => m.id !== match.id);
+}
+
+/** Unites `match` with the lobbies of friends who invited its host back: the oldest lobby keeps its host. */
+async function mergeReciprocal(match: ArenaMatch, players: ArenaPlayer[], now: Date): Promise<{ match: ArenaMatch; players: ArenaPlayer[] }> {
+  if (match.status !== "lobby") return { match, players };
+  const others = await reciprocalLobbies(match, players, now);
+  if (others.length === 0) return { match, players };
+  const older = others.find((o) => olderFirst(o, match) < 0);
+  if (older) await mergeLobbies(older, match, now);
+  else for (const newer of others) await mergeLobbies(match, newer, now);
+  return { match: await loadMatch(match.id), players: await loadPlayers(match.id, match.hostId) };
+}
 
 /** The caller must be a ready player of a match still open (lobby or battle), e.g. to receive relay credentials. */
 export async function assertArenaPlayer(userId: string, matchId: string): Promise<void> {
@@ -364,6 +485,7 @@ async function settle(match: ArenaMatch, players: ArenaPlayer[], now: Date, rand
     await expireStaleLobbies(now);
     return { match: await loadMatch(match.id), players };
   }
+  if (match.status === "lobby") return mergeReciprocal(match, players, now);
   if (match.status !== "playing") return { match, players };
   await tickBonuses(match, players, now, random);
   const finished = await finishIfOver(match, players, now);
@@ -453,8 +575,19 @@ export async function snapshot(userId: string, matchId: string, now: Date, rules
     const [last] = await db.select({ id: arenaEvents.id }).from(arenaEvents).where(eq(arenaEvents.matchId, matchId)).orderBy(desc(arenaEvents.id)).limit(1);
     cursor = last?.id ?? 0;
   } else if (events.length > 0) cursor = events[events.length - 1].id;
+  let mergedInto: string | null = null;
+  if (settled.match.status === "cancelled") {
+    const [merged] = await db
+      .select({ payload: arenaEvents.payload })
+      .from(arenaEvents)
+      .where(and(eq(arenaEvents.matchId, matchId), eq(arenaEvents.kind, "merged")))
+      .orderBy(desc(arenaEvents.id))
+      .limit(1);
+    const into = (merged?.payload as { into?: unknown } | undefined)?.into;
+    if (typeof into === "string") mergedInto = into;
+  }
   return {
-    match: toMatchView(settled.match, userId, now, rules),
+    match: toMatchView(settled.match, userId, now, rules, mergedInto),
     players: views,
     bonuses: bonuses.map(toBonusView),
     events: events.map(toEventView),
@@ -504,6 +637,9 @@ export type ArenaInviteNotice = {
 export async function listArenaInvites(userId: string, now: Date = new Date()): Promise<ArenaInviteNotice[]> {
   const db = getDb();
   const limit = new Date(now.getTime() - ARENA.lobbyTtlMinutes * MINUTE_MS);
+  // Two friends who invited each other: unite their lobbies (the older keeps its host) before answering.
+  const hosted = await db.select().from(arenaMatches).where(and(eq(arenaMatches.hostId, userId), eq(arenaMatches.status, "lobby"), gt(arenaMatches.createdAt, limit)));
+  for (const lobby of hosted) await mergeReciprocal(lobby, await loadPlayers(lobby.id, lobby.hostId), now);
   const rows = await db
     .select({ match: arenaMatches })
     .from(arenaPlayers)

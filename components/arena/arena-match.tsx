@@ -81,6 +81,12 @@ export function ArenaMatch({ initial, webrtc, preview = false, previewRtc = fals
     }
   }, [snapshot.match.status, preview, router]);
 
+  // Two friends invited each other: this lobby was united with the older one, follow the players there.
+  const mergedInto = snapshot.match.status === "cancelled" ? snapshot.match.mergedInto : null;
+  useEffect(() => {
+    if (mergedInto && !preview) router.replace(`/arena/${mergedInto}`);
+  }, [mergedInto, preview, router]);
+
   async function act(action: LobbyAction) {
     setBusy(action);
     setError(null);
@@ -221,7 +227,15 @@ export function ArenaMatch({ initial, webrtc, preview = false, previewRtc = fals
         </Card>
       ) : null}
 
-      {match.status === "cancelled" ? (
+      {match.status === "cancelled" && match.mergedInto ? (
+        <Card>
+          <CardTitle>Salons réunis</CardTitle>
+          <CardText className="mt-1">Vous vous êtes invités mutuellement : tout le monde se retrouve dans la première salle ouverte.</CardText>
+          <Link href={`/arena/${match.mergedInto}`} className="mt-3 inline-block text-sm font-semibold text-sage-300 underline">
+            Rejoindre la salle
+          </Link>
+        </Card>
+      ) : match.status === "cancelled" ? (
         <Card>
           <CardTitle>Partie annulée</CardTitle>
           <CardText className="mt-1">L&apos;hôte a fermé la partie, ou personne ne l&apos;a lancée à temps.</CardText>

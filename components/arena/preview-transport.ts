@@ -62,7 +62,7 @@ export function previewArenaSnapshot(side: PreviewSide = "me", webrtc = false): 
   const now = new Date().toISOString();
   const players = basePlayers(side);
   return {
-    match: { id: MATCH_ID, status: "lobby", hostId: players[0].userId, isHost: true, maxHp: MAX_HP, eggDamage: EGG_DAMAGE, durationSeconds: DURATION, startedAt: null, endsAt: null, finishedAt: null, secondsLeft: 0, webrtc, createdAt: now },
+    match: { id: MATCH_ID, status: "lobby", hostId: players[0].userId, isHost: true, maxHp: MAX_HP, eggDamage: EGG_DAMAGE, durationSeconds: DURATION, startedAt: null, endsAt: null, finishedAt: null, secondsLeft: 0, webrtc, createdAt: now, mergedInto: null },
     players,
     bonuses: [],
     events: [],
@@ -250,6 +250,7 @@ export class PreviewTransport implements ArenaTransport {
         secondsLeft: this.status === "playing" && this.endsAt ? Math.max(0, Math.ceil((this.endsAt - now) / 1000)) : 0,
         webrtc: this.snapshot.match.webrtc,
         createdAt: this.snapshot.match.createdAt,
+        mergedInto: null,
       },
       players,
       bonuses:
