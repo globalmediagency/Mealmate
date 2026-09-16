@@ -17,6 +17,8 @@ import {
   trades,
   user,
   userAccessories,
+  arenaMatches,
+  arenaPlayers,
 } from "@/lib/db/schema";
 import { isConfigError } from "@/lib/env";
 import type { ObjectStorage } from "@/lib/storage/r2";
@@ -143,6 +145,8 @@ export async function countUserFootprint(userId: string): Promise<Record<string,
     trades: await count(db.select().from(trades).where(or(eq(trades.proposerId, userId), eq(trades.receiverId, userId)))),
     boardings: await count(db.select().from(boardings).where(or(eq(boardings.ownerId, userId), eq(boardings.hostId, userId)))),
     coachings: await count(db.select().from(coachings).where(or(eq(coachings.studentId, userId), eq(coachings.coachId, userId)))),
+    arenaMatches: await count(db.select().from(arenaMatches).where(eq(arenaMatches.hostId, userId))),
+    arenaPlayers: await count(db.select().from(arenaPlayers).where(eq(arenaPlayers.userId, userId))),
     accounts: await count(db.select().from(account).where(and(eq(account.userId, userId)))),
   };
 }

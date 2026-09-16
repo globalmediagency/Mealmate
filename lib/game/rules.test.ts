@@ -13,6 +13,7 @@ describe("rules", () => {
     expect(DEFAULT_RULES.feeding.mealRetentionDays).toBe(30);
     expect(DEFAULT_RULES.mood).toEqual({ happyMin: 70, xpBonusPercent: 25, lowMax: 30, xpMalusPercent: 25, gloomyMax: 20, healthLossPerHourWhenGloomy: 0.5, chestStepsBonusPercent: 10 });
     expect(DEFAULT_RULES.play).toEqual({ maxPerDay: 3 });
+    expect(DEFAULT_RULES.arena).toEqual({ hp: 100, eggDamage: 15, durationSeconds: 180, webrtc: false });
     expect(DEFAULT_RULES.defense).toEqual({ hp: 100, baseSpeed: 0.32, speedGrowthPercent: 12, firstWaveEnemies: 5, enemiesGrowthPerWave: 2, fireCooldownMs: 350, bossEveryWaves: 3, bossHits: 3 });
   });
 
@@ -25,6 +26,8 @@ describe("rules", () => {
     expect(mergeRules({ defense: { bossEveryWaves: 0 } }).defense.bossEveryWaves).toBe(0);
     expect(mergeRules({ play: { maxPerDay: 5 } }).play.maxPerDay).toBe(5);
     expect(gameRulesPatchSchema.safeParse({ play: { maxPerDay: 0 } }).success).toBe(false);
+    expect(mergeRules({ arena: { webrtc: true, durationSeconds: 60 } }).arena).toEqual({ hp: 100, eggDamage: 15, durationSeconds: 60, webrtc: true });
+    expect(gameRulesPatchSchema.safeParse({ arena: { durationSeconds: 5 } }).success).toBe(false);
   });
 
   it("tunes the mood rules", () => {

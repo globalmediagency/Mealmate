@@ -19,6 +19,8 @@ import { Creature } from "@/components/creatures/creature";
 import { ArViewer } from "@/components/ar/ar-viewer";
 import { Creature3dView } from "@/components/ar/three/creature-3d-view";
 import { FoodGallery } from "@/components/ar/three/food-gallery";
+import { ArenaMatch } from "@/components/arena/arena-match";
+import { previewArenaSnapshot } from "@/components/arena/preview-transport";
 import { DefenseGame } from "@/components/defense/defense-game";
 import { Species3dButton } from "@/components/admin/species-3d-dialog";
 import { markerSvg } from "@/lib/ar/marker";
@@ -55,7 +57,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "turnaround", "creature-3d", "defense", "defense-boss", "food-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "turnaround", "creature-3d", "defense", "defense-boss", "arena", "food-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -196,6 +198,18 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
       break;
     case "food-3d":
       content = <FoodGallery />;
+      break;
+    case "arena":
+      // Two creatures on the table: the viewer's (marker 17) and Léa's (marker 42), with an in-memory referee.
+      content = (
+        <div className="space-y-4">
+          <ArenaMatch initial={previewArenaSnapshot()} webrtc={false} preview />
+          <div className="flex justify-center gap-4">
+            <div id="dev-marker-17" className="w-40 bg-white p-1" dangerouslySetInnerHTML={{ __html: markerSvg(17) }} />
+            <div id="dev-marker-42" className="w-40 bg-white p-1" dangerouslySetInnerHTML={{ __html: markerSvg(42) }} />
+          </div>
+        </div>
+      );
       break;
     case "defense":
       content = (

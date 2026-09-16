@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BOARDING, COACHING, DEFENSE, FEEDING, HUNGER_DAMAGE_THRESHOLD, MOOD, PLAY, TICK, TIER_CONFIG, TIERS, type Tier, type TierConfig } from "./config";
+import { ARENA, BOARDING, COACHING, DEFENSE, FEEDING, HUNGER_DAMAGE_THRESHOLD, MOOD, PLAY, TICK, TIER_CONFIG, TIERS, type Tier, type TierConfig } from "./config";
 
 /** Per-tier demands that the admin can tune (spec § 3.1). */
 export type TierRules = Pick<
@@ -55,8 +55,18 @@ export type GameRules = {
   coaching: { thumbsPerStudentReward: number; thumbsPerCoachReward: number };
   mood: MoodRules;
   defense: DefenseRules;
-  /** Both games together: the food catch and "Défendre". */
+  /** Every game together: the food catch, "Défendre" and the arena. */
   play: { maxPerDay: number };
+  /** "Arène" (spec § 3.22): battle settings and the sync transport toggle. */
+  arena: ArenaRules;
+};
+
+export type ArenaRules = {
+  hp: number;
+  eggDamage: number;
+  durationSeconds: number;
+  /** WebRTC between phones instead of short polling (kept for later; the client falls back to polling until it exists). */
+  webrtc: boolean;
 };
 
 const pickTier = (config: TierConfig): TierRules => ({
@@ -93,6 +103,7 @@ export const DEFAULT_RULES: GameRules = {
     bossHits: DEFENSE.bossHits,
   },
   play: { maxPerDay: PLAY.maxPerDay },
+  arena: { hp: ARENA.hp, eggDamage: ARENA.eggDamage, durationSeconds: ARENA.durationSeconds, webrtc: ARENA.webrtc },
 };
 
 const tierRulesSchema = z
@@ -144,6 +155,14 @@ export const gameRulesPatchSchema = z
       })
       .partial(),
     play: z.object({ maxPerDay: z.coerce.number().int().min(1).max(50) }).partial(),
+    arena: z
+      .object({
+        hp: z.coerce.number().int().min(10).max(1000),
+        eggDamage: z.coerce.number().int().min(1).max(500),
+        durationSeconds: z.coerce.number().int().min(30).max(1800),
+        webrtc: z.boolean(),
+      })
+      .partial(),
   })
   .partial();
 
@@ -165,6 +184,7 @@ export function mergeRules(patch: GameRulesPatch | null | undefined, base: GameR
     mood: { ...base.mood, ...(patch.mood ?? {}) },
     defense: { ...base.defense, ...(patch.defense ?? {}) },
     play: { ...base.play, ...(patch.play ?? {}) },
+    arena: { ...base.arena, ...(patch.arena ?? {}) },
   };
 }
 

@@ -100,6 +100,7 @@ export default async function MorePage() {
           {[
             { href: "/ar", label: "Voir ma créature en vrai (caméra)" },
             { href: "/defense", label: "Défendre ma créature (jeu en réalité augmentée)" },
+            { href: "/arena", label: "Arène : bataille entre amis (réalité augmentée)" },
             { href: "/shop", label: "Boutique et armoire à pharmacie" },
             { href: "/coach", label: "Coaching" },
             { href: "/collection", label: "Collection" },

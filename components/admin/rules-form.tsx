@@ -4,7 +4,7 @@ import { RotateCcw, Save } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { TIER_CONFIG, TIERS, type Tier } from "@/lib/game/config";
+import { ARENA, TIER_CONFIG, TIERS, type Tier } from "@/lib/game/config";
 import {
   DEFAULT_RULES,
   TIER_RULE_LABELS,
@@ -41,6 +41,17 @@ type Draft = {
   mood: Record<MoodField, string>;
   defense: Record<DefenseField, string>;
   maxPlaysPerDay: string;
+  arena: Record<ArenaField, string>;
+  arenaWebrtc: boolean;
+};
+
+const ARENA_FIELDS = ["hp", "eggDamage", "durationSeconds"] as const;
+type ArenaField = (typeof ARENA_FIELDS)[number];
+
+const ARENA_LABELS: Record<ArenaField, { label: string; help: string }> = {
+  hp: { label: "Points de vie de chaque créature", help: "Dans l'arène seulement : rien ne touche la vraie créature." },
+  eggDamage: { label: "Dégâts d'un œuf", help: "Points de vie retirés à la créature touchée." },
+  durationSeconds: { label: "Durée d'une partie (secondes)", help: "La partie s'arrête à la fin du temps ou quand une seule créature tient encore debout." },
 };
 
 const DEFENSE_FIELDS = ["hp", "baseSpeed", "speedGrowthPercent", "firstWaveEnemies", "enemiesGrowthPerWave", "fireCooldownMs", "bossEveryWaves", "bossHits"] as const;
@@ -88,6 +99,8 @@ function toDraft(rules: GameRules): Draft {
     mood: Object.fromEntries(MOOD_FIELDS.map((f) => [f, String(rules.mood[f])])) as Draft["mood"],
     defense: Object.fromEntries(DEFENSE_FIELDS.map((f) => [f, String(rules.defense[f])])) as Draft["defense"],
     maxPlaysPerDay: String(rules.play.maxPerDay),
+    arena: Object.fromEntries(ARENA_FIELDS.map((f) => [f, String(rules.arena[f])])) as Draft["arena"],
+    arenaWebrtc: rules.arena.webrtc,
   };
 }
 
@@ -105,6 +118,7 @@ function toPatch(draft: Draft): GameRulesPatch {
     mood: Object.fromEntries(MOOD_FIELDS.map((f) => [f, num(draft.mood[f])])) as GameRulesPatch["mood"],
     defense: Object.fromEntries(DEFENSE_FIELDS.map((f) => [f, num(draft.defense[f])])) as GameRulesPatch["defense"],
     play: { maxPerDay: num(draft.maxPlaysPerDay) },
+    arena: { ...(Object.fromEntries(ARENA_FIELDS.map((f) => [f, num(draft.arena[f])])) as Record<ArenaField, number>), webrtc: draft.arenaWebrtc },
   };
 }
 
@@ -125,6 +139,7 @@ function safePreview(draft: Draft): GameRules | null {
       ...MOOD_FIELDS.map((f) => patch.mood?.[f]),
       ...DEFENSE_FIELDS.map((f) => patch.defense?.[f]),
       patch.play?.maxPerDay,
+      ...ARENA_FIELDS.map((f) => patch.arena?.[f]),
     ];
     if (flat.some((v) => v === undefined || Number.isNaN(v))) return null;
     return mergeRules(patch);
@@ -339,7 +354,7 @@ export function RulesForm({ initialRules, storedPatch, updatedAt, updatedBy }: R
         <label className="space-y-1 text-sm">
           <span className="text-cream-100">Parties maximales par jour et par créature</span>
           <input type="text" inputMode="numeric" value={draft.maxPlaysPerDay} onChange={(e) => setDraft((d) => ({ ...d, maxPlaysPerDay: e.target.value }))} className={inputClass} />
-          <span className="block text-[11px] text-cream-700">« Jouer » et « Défendre » confondus ; chaque partie donne +15 humeur et +5 XP · défaut {DEFAULT_RULES.play.maxPerDay}</span>
+          <span className="block text-[11px] text-cream-700">« Jouer », « Défendre » et « Arène » confondus ; chaque partie donne +15 humeur et +5 XP · défaut {DEFAULT_RULES.play.maxPerDay}</span>
         </label>
       </section>
 
@@ -364,6 +379,44 @@ export function RulesForm({ initialRules, storedPatch, updatedAt, updatedBy }: R
             </span>
           </label>
         ))}
+      </section>
+
+      <section className="grid gap-3 rounded-3xl border border-ink-600/80 bg-ink-800/90 p-4 shadow-card sm:grid-cols-2">
+        <h2 className="font-display text-xl text-cream-50 sm:col-span-2">Arène (bataille entre amis)</h2>
+        <p className="-mt-2 text-xs text-cream-500 sm:col-span-2">
+          Chaque joueur voit les créatures sur leurs marqueurs à travers son téléphone, lance des œufs sur celles des autres et attrape avec la langue les bons aliments qui
+          apparaissent sur la table. Les parties en cours gardent les réglages du moment où elles ont été créées.
+        </p>
+        {ARENA_FIELDS.map((field) => (
+          <label key={field} className="space-y-1 text-sm">
+            <span className="text-cream-100">{ARENA_LABELS[field].label}</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={draft.arena[field]}
+              onChange={(e) => setDraft((d) => ({ ...d, arena: { ...d.arena, [field]: e.target.value } }))}
+              className={inputClass}
+            />
+            <span className="block text-[11px] text-cream-700">
+              {ARENA_LABELS[field].help} · défaut {DEFAULT_RULES.arena[field]}
+            </span>
+          </label>
+        ))}
+        <label className="flex min-h-11 items-start gap-3 text-sm sm:col-span-2">
+          <input
+            type="checkbox"
+            checked={draft.arenaWebrtc}
+            onChange={(e) => setDraft((d) => ({ ...d, arenaWebrtc: e.target.checked }))}
+            className="mt-1 h-5 w-5 accent-sage-400"
+          />
+          <span>
+            <span className="text-cream-100">Synchroniser les téléphones en WebRTC (expérimental, à venir)</span>
+            <span className="block text-[11px] text-cream-700">
+              Décoché : les téléphones interrogent le serveur toutes les {ARENA.pollMs} ms (sondage court). Coché : ils essaieront une liaison directe WebRTC dès qu&apos;elle existera ; en
+              attendant, ils reviennent au sondage.
+            </span>
+          </span>
+        </label>
       </section>
 
       <section className="rounded-3xl border border-sage-700/50 bg-sage-800/20 p-4">

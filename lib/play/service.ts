@@ -26,8 +26,8 @@ export async function countPlaysToday(creatureId: string, today = gameDate()): P
 
 export type PlayResult = { effects: PlayEffects; creature: Creature; playsToday: number; playsLeft: number };
 
-/** The two games sharing the daily limit: the food catch and the tower defense on the marker (spec § 3.21). */
-export type PlayKind = "catch" | "defense";
+/** The games sharing the daily limit: the food catch, the tower defense on the marker (spec § 3.21) and the arena (§ 3.22). */
+export type PlayKind = "catch" | "defense" | "arena";
 
 /** Records a finished game and applies its effects (`rules.play.maxPerDay` per day and per creature, both games together). */
 export async function recordPlay(

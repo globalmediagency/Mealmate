@@ -281,6 +281,39 @@ export const DEFENSE = {
   tongueMinLength: 1.2,
 } as const;
 
+/**
+ * "Arène": the augmented-reality battle between friends (spec § 3.22). The
+ * first four values are the admin-tunable defaults (`rules.arena`).
+ */
+export const ARENA = {
+  hp: 100,
+  eggDamage: 15,
+  durationSeconds: 180,
+  /** Sync the phones through WebRTC instead of short polling (not available yet: polling stays). */
+  webrtc: false,
+  maxPlayers: 4,
+  /** A landing egg hits a creature within this distance of its centre (marker sides). */
+  hitRadius: 0.55,
+  /** Aim farther than this from every creature: the egg still flies toward the nearest one, and misses. */
+  aimMaxRadius: 2.2,
+  shotCooldownMs: 350,
+  /** Server-side tolerance on the shot cadence. */
+  shotMinIntervalMs: 250,
+  /** Good foods pop on the table around a random creature at this pace and stay this long. */
+  bonusEverySeconds: 9,
+  firstBonusSeconds: 5,
+  bonusStaySeconds: 4.5,
+  bonusBlinkSeconds: 1.5,
+  maxBonuses: 3,
+  bonusMinDistance: 0.8,
+  bonusMaxDistance: 1.6,
+  /** A lobby nobody started is cancelled after this. */
+  lobbyTtlMinutes: 30,
+  /** How often the phones ask the server for news, in polling mode. */
+  pollMs: 500,
+  lobbyPollMs: 2000,
+} as const;
+
 /** Growth stages by XP (spec § 3.8). */
 export const STAGES = [
   { id: "bebe", label: "Bébé", minXp: 0 },

@@ -17,10 +17,14 @@ type Slot = {
   /** Turns the creature about the paper's normal (0 = facing the bottom edge). */
   turn: THREE.Group;
   mesh: CreatureMesh;
+  /** Top of the creature above the paper, in marker sides. */
+  top: number;
   /** Last raw pose kept, so the next frame picks the POSIT solution closest to it. */
   pose: Pose3d | null;
   fresh: boolean;
 };
+
+const bounds = new THREE.Box3();
 
 const matrix = new THREE.Matrix4();
 const nextQuaternion = new THREE.Quaternion();
@@ -96,7 +100,35 @@ export class ThreeStage {
     turn.add(holder);
     group.add(turn);
     this.scene.add(group);
-    this.slots.set(id, { group, turn, mesh, pose: null, fresh: true });
+    bounds.setFromObject(mesh.root);
+    const top = Number.isFinite(bounds.max.y) ? bounds.max.y : 1;
+    this.slots.set(id, { group, turn, mesh, top, pose: null, fresh: true });
+  }
+
+  /** Height of a creature's top above its paper, in marker sides. */
+  topOf(id: number): number | null {
+    return this.slots.get(id)?.top ?? null;
+  }
+
+  /** Whether a marker's creature is currently shown (seen recently). */
+  isVisible(id: number): boolean {
+    return this.slots.get(id)?.group.visible ?? false;
+  }
+
+  /** A point of a marker's frame in the camera's frame (null for an unknown marker). */
+  worldPoint(id: number, x: number, y: number, z: number, out = new THREE.Vector3()): THREE.Vector3 | null {
+    const slot = this.slots.get(id);
+    if (!slot) return null;
+    slot.group.updateMatrixWorld(true);
+    return slot.group.localToWorld(out.set(x, y, z));
+  }
+
+  /** A point of the camera's frame expressed in a marker's frame (null for an unknown marker). */
+  localPoint(id: number, world: THREE.Vector3, out = new THREE.Vector3()): THREE.Vector3 | null {
+    const slot = this.slots.get(id);
+    if (!slot) return null;
+    slot.group.updateMatrixWorld(true);
+    return slot.group.worldToLocal(out.copy(world));
   }
 
   isTracked(id: number): boolean {

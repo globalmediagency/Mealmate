@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Crosshair, Footprints, Gamepad2, Gift, Heart, HeartPulse, ScanLine, Shield, Shirt, Smile, Utensils } from "lucide-react";
+import { Camera, Crosshair, Footprints, Gamepad2, Gift, Heart, HeartPulse, ScanLine, Shield, Shirt, Smile, Swords, Utensils } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Creature, type EquippedAccessory, type Reaction } from "@/components/creatures/creature";
@@ -28,7 +28,7 @@ type CreatureHomeProps = {
   gifts?: GiftView[];
 };
 
-type Action = { id: string; label: string; icon: typeof Camera; href: string; highlight?: boolean; wide?: boolean };
+type Action = { id: string; label: string; icon: typeof Camera; href: string; highlight?: boolean };
 
 const DAY_MS = 86_400_000;
 
@@ -61,7 +61,11 @@ export function CreatureHome({ creature, line, accessories = [], chestsAvailable
     { id: "walk", label: "Marcher", icon: Footprints, href: "/activity" },
     { id: "dress", label: "Habiller", icon: Shirt, href: "/wardrobe" },
     { id: "heal", label: doses > 0 ? `Soigner (${doses})` : "Soigner", icon: HeartPulse, href: "/shop", highlight: creature.state === "sick" || (creature.state === "tired" && doses > 0) },
-    { id: "ar", label: "Voir en vrai", icon: ScanLine, href: "/ar", wide: true },
+  ];
+  /** The augmented-reality doors, on their own row. */
+  const arActions: Action[] = [
+    { id: "ar", label: "Voir en vrai", icon: ScanLine, href: "/ar" },
+    { id: "arena", label: "Arène", icon: Swords, href: "/arena" },
   ];
   const protectedDays = creature.protectedUntil ? Math.ceil((new Date(creature.protectedUntil).getTime() - Date.now()) / DAY_MS) : 0;
 
@@ -135,13 +139,23 @@ export function CreatureHome({ creature, line, accessories = [], chestsAvailable
         </p>
       </section>
 
-      <nav aria-label="Actions" className="grid grid-cols-3 gap-2">
-        {actions.map(({ id, label, icon: Icon, href, highlight, wide }) => (
-          <Link key={id} href={href} className={cn(buttonClasses(highlight ? "brass" : "secondary", "md"), "min-h-14 flex-col gap-1 text-xs", wide && "col-span-3 flex-row")}>
-            <Icon className="h-5 w-5" aria-hidden="true" />
-            {label}
-          </Link>
-        ))}
+      <nav aria-label="Actions" className="space-y-2">
+        <div className="grid grid-cols-3 gap-2">
+          {actions.map(({ id, label, icon: Icon, href, highlight }) => (
+            <Link key={id} href={href} className={cn(buttonClasses(highlight ? "brass" : "secondary", "md"), "min-h-14 flex-col gap-1 text-xs")}>
+              <Icon className="h-5 w-5" aria-hidden="true" />
+              {label}
+            </Link>
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {arActions.map(({ id, label, icon: Icon, href }) => (
+            <Link key={id} href={href} className={cn(buttonClasses("secondary", "md"), "min-h-12 flex-row gap-2 text-xs")}>
+              <Icon className="h-5 w-5" aria-hidden="true" />
+              {label}
+            </Link>
+          ))}
+        </div>
       </nav>
     </div>
   );

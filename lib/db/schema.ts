@@ -6,6 +6,7 @@
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  bigserial,
   boolean,
   check,
   date,
@@ -250,7 +251,7 @@ export const playSessions = pgTable(
       table.creatureId,
       table.createdAt,
     ),
-    check("play_sessions_kind_check", sql`${table.kind} in ('catch', 'defense')`),
+    check("play_sessions_kind_check", sql`${table.kind} in ('catch', 'defense', 'arena')`),
   ],
 );
 
@@ -533,3 +534,118 @@ export type Boarding = typeof boardings.$inferSelect;
 export type Coaching = typeof coachings.$inferSelect;
 export type MealReview = typeof mealReviews.$inferSelect;
 export type StravaConnection = typeof stravaConnections.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Arène: augmented-reality battle between friends (spec § 3.22, migration 015)
+// ---------------------------------------------------------------------------
+
+/** One match: a lobby the host fills with friends, then a timed battle. */
+export const arenaMatches = pgTable(
+  "arena_matches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    hostId: text("host_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    status: text("status", { enum: ["lobby", "playing", "finished", "cancelled"] })
+      .notNull()
+      .default("lobby"),
+    /** Rules frozen when the match is created. */
+    maxHp: integer("max_hp").notNull().default(100),
+    eggDamage: integer("egg_damage").notNull().default(15),
+    durationSeconds: integer("duration_seconds").notNull().default(180),
+    startedAt: timestamptz("started_at"),
+    endsAt: timestamptz("ends_at"),
+    finishedAt: timestamptz("finished_at"),
+    /** When the next good food pops (lazy: applied on the next read). */
+    nextBonusAt: timestamptz("next_bonus_at"),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("arena_matches_host_status_idx").on(table.hostId, table.status),
+    check("arena_matches_status_check", sql`${table.status} IN ('lobby', 'playing', 'finished', 'cancelled')`),
+  ],
+);
+
+/** A player of a match with their creature, marker and battle counters. */
+export const arenaPlayers = pgTable(
+  "arena_players",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    matchId: uuid("match_id")
+      .notNull()
+      .references(() => arenaMatches.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    creatureId: uuid("creature_id")
+      .notNull()
+      .references(() => creatures.id, { onDelete: "cascade" }),
+    marker: integer("marker").notNull(),
+    status: text("status", { enum: ["invited", "ready", "declined", "left"] })
+      .notNull()
+      .default("invited"),
+    hp: integer("hp").notNull().default(100),
+    hitsDealt: integer("hits_dealt").notNull().default(0),
+    hitsTaken: integer("hits_taken").notNull().default(0),
+    shots: integer("shots").notNull().default(0),
+    goodEaten: integer("good_eaten").notNull().default(0),
+    healed: integer("healed").notNull().default(0),
+    rank: integer("rank"),
+    eliminatedAt: timestamptz("eliminated_at"),
+    lastShotAt: timestamptz("last_shot_at"),
+    rewardedAt: timestamptz("rewarded_at"),
+    /** The reward recorded at the end ({ score, perfect, effects }), or the reason it was skipped. */
+    reward: jsonb("reward"),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("arena_players_match_user_idx").on(table.matchId, table.userId),
+    index("arena_players_user_idx").on(table.userId),
+    check("arena_players_status_check", sql`${table.status} IN ('invited', 'ready', 'declined', 'left')`),
+  ],
+);
+
+/** A good food lying on the table, placed in one player's marker frame. */
+export const arenaBonuses = pgTable(
+  "arena_bonuses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    matchId: uuid("match_id")
+      .notNull()
+      .references(() => arenaMatches.id, { onDelete: "cascade" }),
+    anchorUserId: text("anchor_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    x: doublePrecision("x").notNull(),
+    y: doublePrecision("y").notNull(),
+    heal: integer("heal").notNull(),
+    expiresAt: timestamptz("expires_at").notNull(),
+    eatenBy: text("eaten_by").references(() => user.id, { onDelete: "set null" }),
+    eatenAt: timestamptz("eaten_at"),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+  },
+  (table) => [index("arena_bonuses_match_expires_idx").on(table.matchId, table.expiresAt)],
+);
+
+/** What happened in a match, in order: the phones replay the eggs and tongues of the others from here. */
+export const arenaEvents = pgTable(
+  "arena_events",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    matchId: uuid("match_id")
+      .notNull()
+      .references(() => arenaMatches.id, { onDelete: "cascade" }),
+    actorId: text("actor_id").references(() => user.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    payload: jsonb("payload").notNull().default({}),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+  },
+  (table) => [index("arena_events_match_id_idx").on(table.matchId, table.id)],
+);
+
+export type ArenaMatch = typeof arenaMatches.$inferSelect;
+export type ArenaPlayer = typeof arenaPlayers.$inferSelect;
+export type ArenaBonus = typeof arenaBonuses.$inferSelect;
+export type ArenaEvent = typeof arenaEvents.$inferSelect;

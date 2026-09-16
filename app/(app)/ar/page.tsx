@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Crosshair } from "lucide-react";
+import { Crosshair, Swords } from "lucide-react";
 import Link from "next/link";
 import { ArViewer } from "@/components/ar/ar-viewer";
 import { MarkerCard } from "@/components/ar/marker-card";
@@ -52,6 +52,22 @@ export default async function ArPage() {
           >
             <Crosshair className="h-5 w-5" aria-hidden="true" />
             Jouer à Défendre
+          </Link>
+        </Card>
+      ) : null}
+
+      {own ? (
+        <Card className="border-sage-500/40">
+          <CardTitle>Arène : bataille entre amis</CardTitle>
+          <CardText className="mt-1">
+            Chacun pose son marqueur sur la même table et vise les créatures des autres avec son téléphone : œufs, langue et bons aliments, tous ensemble en direct.
+          </CardText>
+          <Link
+            href="/arena"
+            className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-sage-500 px-4 text-sm font-semibold text-ink-950 hover:bg-sage-400"
+          >
+            <Swords className="h-5 w-5" aria-hidden="true" />
+            Entrer dans l&apos;arène
           </Link>
         </Card>
       ) : null}

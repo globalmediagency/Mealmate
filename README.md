@@ -102,6 +102,7 @@ Si tu avais déjà exécuté `db/init.sql` avant une phase, colle ses migrations
 - effets de l'humeur : [`db/migrations/012_creatures_chest_bonus_steps.sql`](./db/migrations/012_creatures_chest_bonus_steps.sql)
 - voir en vrai (un marqueur par créature) : [`db/migrations/013_creatures_ar_marker.sql`](./db/migrations/013_creatures_ar_marker.sql)
 - défendre (type de partie enregistré) : [`db/migrations/014_play_sessions_kind.sql`](./db/migrations/014_play_sessions_kind.sql)
+- arène (bataille entre amis) : [`db/migrations/015_arena.sql`](./db/migrations/015_arena.sql)
 
 Si une migration manque, l'application l'indique elle-même : au lieu de planter, elle affiche « La base de données doit être mise à jour » avec le SQL exact à copier dans Neon → SQL Editor (bouton « Copier le SQL »). Recharge la page une fois le SQL exécuté.
 
@@ -312,6 +313,13 @@ apparaissent alors, sans connexion nécessaire :
     son chemin). Les vagues accélèrent, une vague sur trois
     cache un boss géant à plusieurs œufs, qui surgit à n'importe quel moment (barre de vie au-dessus de lui) ; la partie s'arrête à
     zéro point de vie (dans le jeu seulement). Trois parties par jour, jeu et défense confondus.
+12. **Arène** (migration `015`) : depuis l'écran Créature (« Arène »), invite un ou plusieurs amis dont la créature est
+    vivante ; chacun reçoit l'invitation (pastille de l'onglet Amis, page Arène), la rejoint, pose le marqueur de sa
+    créature sur la même table et lance sa caméra ; l'hôte lance la bataille (3 minutes). Vise une créature adverse avec
+    le centre de l'écran pour lui lancer un œuf (15 points de vie), attrape avec la langue les fruits et légumes qui
+    apparaissent pour regagner de la vie ; déplacer sa feuille pendant qu'un œuf vole permet d'esquiver. Classement et
+    récompense à la fin (même limite quotidienne que Jouer et Défendre). Les téléphones se synchronisent par le serveur
+    toutes les demi-secondes ; la case « WebRTC » de l'admin est réservée à une liaison directe à venir.
 
 ## 5. Limites connues
 
@@ -329,6 +337,10 @@ apparaissent alors, sans connexion nécessaire :
   quitte. Sans WebGL, le dessin tourne par pas de 45° (huit vues).
 - **Défendre** : le marqueur doit rester dans l'image pendant qu'on vise (le jeu se met en pause quand
   il est perdu) et le jeu demande WebGL (Chrome ou Safari récents).
+- **Arène** : synchronisation par le serveur toutes les 500 ms (l'œuf d'un ami apparaît avec ce léger délai) ; les
+  touches sont jugées par le téléphone du tireur ; deux créatures d'une même partie ne peuvent pas partager un numéro
+  de marqueur (l'application refuse d'ouvrir la partie et le dit) ; la liaison directe WebRTC n'est pas encore
+  disponible, la case de l'admin ne change rien pour l'instant.
 - **Gemini** : quota gratuit limité ; en cas d'erreur, le repas n'est pas compté et un message
   l'explique.
 

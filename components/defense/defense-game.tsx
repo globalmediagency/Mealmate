@@ -211,7 +211,7 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPer
     s.update(detections, seen ? new Set([id]) : new Set());
     const point = seen ? s.aimOnMarker(id) : null;
     aim.current = point ? clampAim(point) : null;
-    const dt = lastFrame.current > 0 ? Math.min(MAX_DT, (frame.now - lastFrame.current) / 1000) : 0;
+    const dt = lastFrame.current > 0 ? Math.max(0, Math.min(MAX_DT, (frame.now - lastFrame.current) / 1000)) : 0;
     lastFrame.current = frame.now;
     const state = game.current;
     if (state && seen && phaseRef.current === "playing") stepDefense(state, dt);
