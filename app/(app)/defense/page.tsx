@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ArTarget } from "@/components/ar/types";
+import { MarkerCard } from "@/components/ar/marker-card";
 import { DefenseGame } from "@/components/defense/defense-game";
 import { Card, CardText, CardTitle } from "@/components/ui/card";
 import { getOutfit, outfitToEquipped } from "@/lib/accessories/service";
@@ -55,5 +56,10 @@ export default async function DefensePage({ searchParams }: { searchParams: Sear
     ownerName: boarded ? (held.owner?.username ?? null) : null,
     creature: { name: creature.name, speciesId: creature.speciesId, stage: stageForXp(creature.xp).id, state: deriveState(creature), accessories: outfitToEquipped(outfit) },
   };
-  return <DefenseGame target={target} rules={rules.defense} playsLeft={Math.max(0, PLAY.maxPerDay - plays)} creatureId={boarded ? creature.id : undefined} homeHref={homeHref} />;
+  return (
+    <div className="space-y-5 animate-rise">
+      <DefenseGame target={target} rules={rules.defense} playsLeft={Math.max(0, PLAY.maxPerDay - plays)} creatureId={boarded ? creature.id : undefined} homeHref={homeHref} />
+      <MarkerCard name={creature.name} markerId={markerId} creatureId={boarded ? undefined : creature.id} ownerName={target.ownerName} />
+    </div>
+  );
 }

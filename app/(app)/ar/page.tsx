@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import { Crosshair, FileDown, Printer } from "lucide-react";
+import { Crosshair } from "lucide-react";
 import Link from "next/link";
 import { ArViewer } from "@/components/ar/ar-viewer";
+import { MarkerCard } from "@/components/ar/marker-card";
 import { Card, CardText, CardTitle } from "@/components/ui/card";
-import { AR_MARKER } from "@/lib/ar/config";
-import { markerSvg } from "@/lib/ar/marker";
 import { listArTargets } from "@/lib/ar/service";
 import { requireViewer } from "@/lib/auth/session";
 import { getGameRules } from "@/lib/game/rules-service";
@@ -57,34 +56,7 @@ export default async function ArPage() {
         </Card>
       ) : null}
 
-      {own ? (
-        <Card>
-          <CardTitle>Le marqueur de {own.creature.name}</CardTitle>
-          <CardText className="mt-1">
-            Un carré noir de {AR_MARKER.printSizeMm / 10} cm avec son nom dessous, à imprimer une seule fois sur du papier blanc. Garde la marge blanche et pose-le bien à plat.
-          </CardText>
-          <div className="mt-4 flex items-center gap-4">
-            <figure className="w-28 shrink-0 rounded-xl bg-white p-1 pb-0.5 text-center">
-              <div aria-hidden="true" dangerouslySetInnerHTML={{ __html: markerSvg(own.markerId) }} />
-              <figcaption className="truncate font-display text-xs font-semibold text-ink-950">{own.creature.name}</figcaption>
-            </figure>
-            <div className="flex flex-1 flex-col gap-2">
-              <a
-                href={`/api/ar/marker?creature=${own.creatureId}`}
-                target="_blank"
-                rel="noopener"
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brass-400 px-4 text-sm font-semibold text-ink-950 hover:bg-brass-300"
-              >
-                <FileDown className="h-5 w-5" aria-hidden="true" />
-                Télécharger le PDF
-              </a>
-              <p className="flex items-center gap-1 text-xs text-cream-700">
-                <Printer className="h-3.5 w-3.5" aria-hidden="true" /> Une page A4, en noir, sans mise à l&apos;échelle · marqueur n° {own.markerId}
-              </p>
-            </div>
-          </div>
-        </Card>
-      ) : null}
+      {own ? <MarkerCard name={own.creature.name ?? "ta créature"} markerId={own.markerId} creatureId={own.creatureId} /> : null}
 
       <Card>
         <CardTitle>Créatures reconnues sur ton écran</CardTitle>
