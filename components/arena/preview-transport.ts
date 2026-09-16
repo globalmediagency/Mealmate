@@ -2,7 +2,7 @@ import type { ArenaEventView, ArenaPlayerView, ArenaSnapshot, ShotInput, ShotOut
 import { arenaScore, placeArenaBonus, rankArenaPlayers } from "@/lib/game/arena";
 import { ARENA } from "@/lib/game/config";
 import { playEffects } from "@/lib/game/play";
-import type { ArenaErrorListener, ArenaListener, ArenaTransport, LobbyAction } from "./transport";
+import { NO_LINK, type ArenaErrorListener, type ArenaListener, type ArenaTransport, type LinkState, type LobbyAction } from "./transport";
 
 /** The two players of the preview: the viewer (marker 17) and Léa (marker 42). */
 export const PREVIEW_ME = "preview-me";
@@ -14,52 +14,55 @@ const DURATION = 90;
 
 type Player = ArenaPlayerView & { outAt: number | null };
 
-function basePlayers(): Player[] {
+/** Which of the two the viewer plays: the viewer's own creature (marker 17) or Léa (marker 42), for the two-tab WebRTC dev screen. */
+export type PreviewSide = "me" | "lea";
+
+/** The two players, the viewer's row first. */
+function basePlayers(side: PreviewSide = "me"): Player[] {
   const common = { hitsDealt: 0, hitsTaken: 0, shots: 0, goodEaten: 0, healed: 0, rank: null, eliminatedAt: null, outAt: null, hp: MAX_HP };
-  return [
-    {
-      ...common,
-      userId: PREVIEW_ME,
-      username: "Toi",
-      creatureId: "c-preview-me",
-      creatureName: "Miso",
-      markerId: 17,
-      creature: { name: "Miso", speciesId: "facile-panda-roux", stage: "adulte", state: "healthy", accessories: [{ slot: "head", id: "beret" }] },
-      status: "ready",
-      mine: true,
-      isHost: true,
+  const miso: Player = {
+    ...common,
+    userId: PREVIEW_ME,
+    username: side === "me" ? "Toi" : "Sam",
+    creatureId: "c-preview-me",
+    creatureName: "Miso",
+    markerId: 17,
+    creature: { name: "Miso", speciesId: "facile-panda-roux", stage: "adulte", state: "healthy", accessories: [{ slot: "head", id: "beret" }] },
+    status: "ready",
+    mine: side === "me",
+    isHost: side === "me",
+  };
+  const lea: Player = {
+    ...common,
+    userId: PREVIEW_OTHER,
+    username: side === "lea" ? "Toi" : "Léa",
+    creatureId: "c-preview-lea",
+    creatureName: "Pipo",
+    markerId: 42,
+    creature: {
+      name: "Pipo",
+      speciesId: "facile-cochon-dinde",
+      stage: "adulte",
+      state: "healthy",
+      accessories: [
+        { slot: "head", id: "nightcap" },
+        { slot: "neck", id: "bow_tie" },
+        { slot: "body", id: "butterfly_wings" },
+      ],
     },
-    {
-      ...common,
-      userId: PREVIEW_OTHER,
-      username: "Léa",
-      creatureId: "c-preview-lea",
-      creatureName: "Pipo",
-      markerId: 42,
-      creature: {
-        name: "Pipo",
-        speciesId: "facile-cochon-dinde",
-        stage: "adulte",
-        state: "healthy",
-        accessories: [
-          { slot: "head", id: "nightcap" },
-          { slot: "neck", id: "bow_tie" },
-          { slot: "body", id: "butterfly_wings" },
-        ],
-      },
-      status: "ready",
-      mine: false,
-      isHost: false,
-    },
-  ];
+    status: "ready",
+    mine: side === "lea",
+    isHost: side === "lea",
+  };
+  return side === "me" ? [miso, lea] : [lea, miso];
 }
 
 /** The lobby the dev screen starts from (server-renderable data). */
-export function previewArenaSnapshot(): ArenaSnapshot {
+export function previewArenaSnapshot(side: PreviewSide = "me", webrtc = false): ArenaSnapshot {
   const now = new Date().toISOString();
-  const players = basePlayers();
+  const players = basePlayers(side);
   return {
-    match: { id: MATCH_ID, status: "lobby", hostId: PREVIEW_ME, isHost: true, maxHp: MAX_HP, eggDamage: EGG_DAMAGE, durationSeconds: DURATION, startedAt: null, endsAt: null, finishedAt: null, secondsLeft: 0, webrtc: false, createdAt: now },
+    match: { id: MATCH_ID, status: "lobby", hostId: players[0].userId, isHost: true, maxHp: MAX_HP, eggDamage: EGG_DAMAGE, durationSeconds: DURATION, startedAt: null, endsAt: null, finishedAt: null, secondsLeft: 0, webrtc, createdAt: now },
     players,
     bonuses: [],
     events: [],
@@ -97,12 +100,31 @@ export class PreviewTransport implements ArenaTransport {
   constructor(initial: ArenaSnapshot = previewArenaSnapshot(), random: () => number = Math.random) {
     this.snapshot = initial;
     this.status = initial.match.status;
-    this.players = basePlayers();
+    this.players = basePlayers(initial.me?.userId === PREVIEW_OTHER ? "lea" : "me");
     this.random = random;
+  }
+
+  /** The viewer's row, then the other's. */
+  private get me(): Player {
+    return this.players[0];
+  }
+
+  private get other(): Player {
+    return this.players[1];
   }
 
   serverNow(): number {
     return Date.now();
+  }
+
+  linkState(): LinkState {
+    return NO_LINK;
+  }
+
+  broadcast(): void {}
+
+  subscribePeers(): () => void {
+    return () => {};
   }
 
   subscribe(listener: ArenaListener, onError?: ArenaErrorListener): () => void {
@@ -148,11 +170,11 @@ export class PreviewTransport implements ArenaTransport {
     this.log(null, "finish", { reason });
   }
 
-  private damage(target: Player, by: Player, x: number, y: number): number {
+  private damage(target: Player, by: Player, x: number, y: number, nonce?: string): number {
     target.hp = Math.max(0, target.hp - EGG_DAMAGE);
     target.hitsTaken += 1;
     by.hitsDealt += 1;
-    this.log(by.userId, "egg", { target: target.userId, x, y, hit: true, hp: target.hp });
+    this.log(by.userId, "egg", { target: target.userId, x, y, hit: true, hp: target.hp, ...(nonce ? { nonce } : {}) });
     if (target.hp <= 0) {
       target.eliminatedAt = new Date().toISOString();
       target.outAt = Date.now();
@@ -178,8 +200,8 @@ export class PreviewTransport implements ArenaTransport {
             if (placement) this.bonuses.push({ id: `bonus-${this.nextEventId}-${Math.floor(this.random() * 1e6)}`, ...placement, expiresAt: new Date(now + ARENA.bonusStaySeconds * 1000).toISOString(), eaten: false });
           }
         }
-        const other = this.players[1];
-        const me = this.players[0];
+        const other = this.other;
+        const me = this.me;
         if (now >= this.nextOtherShotAt && other.hp > 0 && me.hp > 0) {
           this.nextOtherShotAt = now + 2000 + this.random() * 1500;
           other.shots += 1;
@@ -217,7 +239,7 @@ export class PreviewTransport implements ArenaTransport {
       match: {
         id: MATCH_ID,
         status: this.status,
-        hostId: PREVIEW_ME,
+        hostId: this.me.userId,
         isHost: true,
         maxHp: MAX_HP,
         eggDamage: EGG_DAMAGE,
@@ -226,7 +248,7 @@ export class PreviewTransport implements ArenaTransport {
         endsAt: this.endsAt ? new Date(this.endsAt).toISOString() : null,
         finishedAt: this.finishedAt ? new Date(this.finishedAt).toISOString() : null,
         secondsLeft: this.status === "playing" && this.endsAt ? Math.max(0, Math.ceil((this.endsAt - now) / 1000)) : 0,
-        webrtc: false,
+        webrtc: this.snapshot.match.webrtc,
         createdAt: this.snapshot.match.createdAt,
       },
       players,
@@ -264,13 +286,13 @@ export class PreviewTransport implements ArenaTransport {
       this.endsAt = now + DURATION * 1000;
       this.nextBonusAt = now + ARENA.firstBonusSeconds * 1000;
       this.nextOtherShotAt = now + 2500;
-      this.log(PREVIEW_ME, "start", { endsAt: new Date(this.endsAt).toISOString() });
+      this.log(this.me.userId, "start", { endsAt: new Date(this.endsAt).toISOString() });
     } else if (action === "cancel" && this.status === "lobby") {
       this.status = "cancelled";
       this.finishedAt = now;
-      this.log(PREVIEW_ME, "cancel");
+      this.log(this.me.userId, "cancel");
     } else if (action === "leave") {
-      const me = this.players[0];
+      const me = this.me;
       if (this.status === "lobby") {
         this.status = "cancelled";
         this.finishedAt = now;
@@ -278,7 +300,7 @@ export class PreviewTransport implements ArenaTransport {
         me.status = "left";
         me.outAt = now;
         me.eliminatedAt = new Date(now).toISOString();
-        this.log(PREVIEW_ME, "leave");
+        this.log(me.userId, "leave");
         this.finish("last_standing");
       }
     }
@@ -290,20 +312,20 @@ export class PreviewTransport implements ArenaTransport {
     const now = Date.now();
     if (now - this.lastShotAt < ARENA.shotMinIntervalMs) return { accepted: false, hit: false, targetHp: null, eliminated: false };
     this.lastShotAt = now;
-    const me = this.players[0];
+    const me = this.me;
     me.shots += 1;
     const target = input.targetUserId ? this.players.find((p) => p.userId === input.targetUserId && !p.mine) : undefined;
     if (!input.hit || !target || target.hp <= 0) {
-      this.log(PREVIEW_ME, "egg", { target: target?.userId ?? null, x: input.x, y: input.y, hit: false });
+      this.log(me.userId, "egg", { target: target?.userId ?? null, x: input.x, y: input.y, hit: false, ...(input.nonce ? { nonce: input.nonce } : {}) });
       return { accepted: true, hit: false, targetHp: target?.hp ?? null, eliminated: false };
     }
-    const hp = this.damage(target, me, input.x, input.y);
+    const hp = this.damage(target, me, input.x, input.y, input.nonce);
     return { accepted: true, hit: true, targetHp: hp, eliminated: hp <= 0 };
   }
 
   async lick(input: TongueInput): Promise<TongueOutcome | null> {
     if (this.status !== "playing") return null;
-    const me = this.players[0];
+    const me = this.me;
     const now = Date.now();
     const eaten: TongueOutcome["eaten"] = [];
     for (const id of input.bonusIds.slice(0, 3)) {
@@ -317,7 +339,7 @@ export class PreviewTransport implements ArenaTransport {
     me.hp += healed;
     me.goodEaten += eaten.length;
     me.healed += healed;
-    this.log(PREVIEW_ME, "tongue", { angle: input.angle, length: input.length, bonusIds: eaten.map((b) => b.id), healed, hp: me.hp });
+    this.log(me.userId, "tongue", { angle: input.angle, length: input.length, bonusIds: eaten.map((b) => b.id), healed, hp: me.hp, ...(input.nonce ? { nonce: input.nonce } : {}) });
     return { eaten, healed, hp: me.hp };
   }
 }

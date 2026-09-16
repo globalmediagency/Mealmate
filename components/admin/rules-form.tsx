@@ -410,10 +410,11 @@ export function RulesForm({ initialRules, storedPatch, updatedAt, updatedBy }: R
             className="mt-1 h-5 w-5 accent-sage-400"
           />
           <span>
-            <span className="text-cream-100">Synchroniser les téléphones en WebRTC (expérimental, à venir)</span>
+            <span className="text-cream-100">Synchroniser les téléphones en WebRTC (liaison directe)</span>
             <span className="block text-[11px] text-cream-700">
-              Décoché : les téléphones interrogent le serveur toutes les {ARENA.pollMs} ms (sondage court). Coché : ils essaieront une liaison directe WebRTC dès qu&apos;elle existera ; en
-              attendant, ils reviennent au sondage.
+              Décoché : les téléphones interrogent le serveur toutes les {ARENA.pollMs} ms (sondage court). Coché : ils ouvrent en plus une liaison directe entre eux (WebRTC, serveurs
+              STUN publics) qui transmet les œufs et les langues sans attendre, et n&apos;interrogent le serveur, qui reste l&apos;arbitre, que toutes les {ARENA.rtc.pollMs} ms. Deux
+              téléphones qui ne parviennent pas à se joindre restent sur le sondage. S&apos;applique aux parties créées après l&apos;enregistrement.
             </span>
           </span>
         </label>

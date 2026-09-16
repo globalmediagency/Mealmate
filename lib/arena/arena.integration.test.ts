@@ -17,6 +17,8 @@ import {
   eatBonuses,
   leaveMatch,
   listMatchesFor,
+  listSignals,
+  postSignal,
   recordShot,
   respondToInvite,
   snapshot,
@@ -143,13 +145,32 @@ describe("battle", () => {
     expect(gone.bonuses).toHaveLength(0);
   });
 
+  it("relays WebRTC signals to their addressee only, outside the snapshots", async () => {
+    const t = 5 + ARENA.firstBonusSeconds + 1.5;
+    const before = await snapshot(bob, matchId, at(t), RULES, { since: 0 });
+    await postSignal(alice, matchId, bob, { type: "hello", session: "s-alice" }, at(t + 0.1));
+    await postSignal(bob, matchId, alice, { type: "offer", session: "s-bob", sdp: "v=0" }, at(t + 0.2));
+    await expect(postSignal(alice, matchId, alice, { type: "hello", session: "x" }, at(t))).rejects.toMatchObject({ code: "not_found" });
+    await expect(postSignal(alice, matchId, dave, { type: "hello", session: "x" }, at(t))).rejects.toMatchObject({ code: "not_found" });
+    await expect(listSignals(dave, matchId, 0)).rejects.toMatchObject({ code: "not_found" });
+    const forBob = await listSignals(bob, matchId, 0);
+    expect(forBob.signals.map((s) => [s.from, s.payload])).toEqual([[alice, { type: "hello", session: "s-alice" }]]);
+    const forAlice = await listSignals(alice, matchId, 0);
+    expect(forAlice.signals.map((s) => s.payload)).toEqual([{ type: "offer", session: "s-bob", sdp: "v=0" }]);
+    expect(forAlice.cursor).toBeGreaterThan(0);
+    expect((await listSignals(alice, matchId, forAlice.cursor)).signals).toEqual([]);
+    // Signals never reach the game events.
+    const after = await snapshot(bob, matchId, at(t + 0.3), RULES, { since: before.cursor });
+    expect(after.events.filter((e) => e.kind === "signal")).toEqual([]);
+  });
+
   it("counts eggs with a cadence, damages the target and replays the shots as events", async () => {
     const t = 5 + ARENA.firstBonusSeconds + ARENA.bonusEverySeconds - 1;
     const miss = await recordShot(alice, matchId, { targetUserId: bob, x: 0.9, y: 0.4, hit: false }, at(t));
     expect(miss).toMatchObject({ accepted: true, hit: false, targetHp: 30 });
     const tooFast = await recordShot(alice, matchId, { targetUserId: bob, x: 0.1, y: 0, hit: true }, at(t + 0.1));
     expect(tooFast.accepted).toBe(false);
-    const hit = await recordShot(alice, matchId, { targetUserId: bob, x: 0.1, y: 0, hit: true }, at(t + 0.5));
+    const hit = await recordShot(alice, matchId, { targetUserId: bob, x: 0.1, y: 0, hit: true, nonce: "egg-1" }, at(t + 0.5));
     expect(hit).toMatchObject({ accepted: true, hit: true, targetHp: 20, eliminated: false });
     // Shooting yourself never counts as a hit.
     const self = await recordShot(alice, matchId, { targetUserId: alice, x: 0, y: 0, hit: true }, at(t + 1));
@@ -164,7 +185,8 @@ describe("battle", () => {
     expect(aliceRow.hitsDealt).toBe(1);
     const eggs = view.events.filter((e) => e.kind === "egg");
     expect(eggs.map((e) => e.payload.hit)).toEqual([false, true, false]);
-    expect(eggs[1].payload).toMatchObject({ target: bob, hp: 20 });
+    expect(eggs[1].payload).toMatchObject({ target: bob, hp: 20, nonce: "egg-1" });
+    expect(eggs[0].payload).not.toHaveProperty("nonce");
     // Only the news after the cursor comes back next time.
     const next = await snapshot(bob, matchId, at(t + 1.6), RULES, { since: view.cursor });
     expect(next.events).toEqual([]);
@@ -176,7 +198,7 @@ describe("battle", () => {
     const view = await snapshot(bob, matchId, at(t), RULES, { since: 0 });
     expect(view.bonuses).toHaveLength(1);
     const bonus = view.bonuses[0];
-    const eaten = await eatBonuses(bob, matchId, { bonusIds: [bonus.id, "00000000-0000-0000-0000-000000000000"], angle: 0.3, length: 1.5 }, at(t + 0.2));
+    const eaten = await eatBonuses(bob, matchId, { bonusIds: [bonus.id, "00000000-0000-0000-0000-000000000000"], angle: 0.3, length: 1.5, nonce: "lick-1" }, at(t + 0.2));
     expect(eaten.eaten.map((b) => b.id)).toEqual([bonus.id]);
     expect(eaten.healed).toBe(Math.min(bonus.heal, 10));
     expect(eaten.hp).toBe(20 + eaten.healed);
@@ -189,7 +211,7 @@ describe("battle", () => {
     expect(after.bonuses).toEqual([]);
     const tongue = after.events.find((e) => e.kind === "tongue");
     expect(tongue?.actorId).toBe(bob);
-    expect(tongue?.payload).toMatchObject({ angle: 0.3, length: 1.5, bonusIds: [bonus.id] });
+    expect(tongue?.payload).toMatchObject({ angle: 0.3, length: 1.5, bonusIds: [bonus.id], nonce: "lick-1" });
   });
 
   it("ends when a single creature stands, ranks everybody and rewards each player once", async () => {

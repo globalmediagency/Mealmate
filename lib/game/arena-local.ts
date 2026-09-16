@@ -25,7 +25,16 @@ export type LocalEgg = {
   targetMarker: number | null;
   targetUserId: string | null;
   landed: boolean;
+  /** Shared id of the shot across the phones and the server (direct link), to draw each egg once. */
+  nonce?: string;
+  /** Verdict of a remote egg when already known (server event or peer "hit" message); null while in doubt. */
+  hit: boolean | null;
+  /** How long a landed remote egg has waited for its verdict (seconds). */
+  held: number;
 };
+
+/** A remote egg whose verdict has not arrived yet sits on its landing point this long before being judged locally. */
+export const VERDICT_GRACE_SECONDS = 0.25;
 
 export type LocalTongue = {
   id: number;
@@ -38,6 +47,8 @@ export type LocalTongue = {
   own: boolean;
   /** Whether the catch at full extension has been resolved. */
   caught: boolean;
+  /** Shared id of the lick across the phones and the server (direct link). */
+  nonce?: string;
 };
 
 export type LocalEffect = { id: number; marker: number; kind: EffectKind; x: number; y: number; z: number; age: number; duration: number; size: number };
@@ -80,11 +91,11 @@ export function eggFlightSeconds(distance: number): number {
   return DEFENSE.eggFlightSeconds + DEFENSE.eggFlightPerSide * distance;
 }
 
-export type LocalEggInput = Pick<LocalEgg, "marker" | "from" | "to" | "own" | "targetMarker" | "targetUserId">;
+export type LocalEggInput = Pick<LocalEgg, "marker" | "from" | "to" | "own" | "targetMarker" | "targetUserId"> & Partial<Pick<LocalEgg, "nonce" | "hit">>;
 
 export function addLocalEgg(state: ArenaLocalState, input: LocalEggInput): LocalEgg {
   const distance = Math.hypot(input.to.x - input.from.x, input.to.y - input.from.y, input.to.z - input.from.z);
-  const egg: LocalEgg = { id: state.nextId++, ...input, t: 0, duration: eggFlightSeconds(distance), landed: false };
+  const egg: LocalEgg = { hit: null, ...input, id: state.nextId++, t: 0, duration: eggFlightSeconds(distance), landed: false, held: 0 };
   state.eggs.push(egg);
   return egg;
 }
@@ -131,6 +142,11 @@ export function stepArenaLocal(state: ArenaLocalState, dt: number): LocalStep {
   for (const egg of state.eggs) {
     egg.t = Math.min(1, egg.t + dt / egg.duration);
     if (egg.t >= 1 && !egg.landed) {
+      // The other phone's verdict usually arrives before the landing; give it a moment when it has not.
+      if (!egg.own && egg.hit === null && egg.held < VERDICT_GRACE_SECONDS) {
+        egg.held += dt;
+        continue;
+      }
       egg.landed = true;
       landed.push(egg);
     }

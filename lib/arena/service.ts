@@ -5,7 +5,7 @@
  * an egg lands, what the tongue sweeps) because only their camera knows
  * where the markers are. Everything time-based is applied lazily on read.
  */
-import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
 import type { ArCreature } from "@/components/ar/types";
 import { getOutfit, outfitToEquipped } from "@/lib/accessories/service";
 import { DomainError } from "@/lib/api/errors";
@@ -38,6 +38,9 @@ import { gameDate } from "@/lib/game/time";
 const MINUTE_MS = 60_000;
 const MAX_EVENTS = 200;
 const MAX_BONUSES_PER_TONGUE = 3;
+/** Event kind carrying the WebRTC signalling between two phones (never part of a snapshot). */
+export const SIGNAL_KIND = "signal";
+const MAX_SIGNALS = 100;
 
 export type ArenaMatchView = {
   id: string;
@@ -434,7 +437,7 @@ export async function snapshot(userId: string, matchId: string, now: Date, rules
       : db
           .select()
           .from(arenaEvents)
-          .where(and(eq(arenaEvents.matchId, matchId), gt(arenaEvents.id, options.since ?? 0)))
+          .where(and(eq(arenaEvents.matchId, matchId), ne(arenaEvents.kind, SIGNAL_KIND), gt(arenaEvents.id, options.since ?? 0)))
           .orderBy(asc(arenaEvents.id))
           .limit(MAX_EVENTS),
   ]);
@@ -586,6 +589,8 @@ export type ShotInput = {
   y: number;
   /** Judged by the shooter's phone: the egg touched the creature. */
   hit: boolean;
+  /** Id of the shot chosen by the phone, echoed in the event so a phone that already saw it over the direct link skips it. */
+  nonce?: string;
 };
 
 export type ShotOutcome = { accepted: boolean; hit: boolean; targetHp: number | null; eliminated: boolean };
@@ -609,7 +614,7 @@ export async function recordShot(userId: string, matchId: string, shot: ShotInpu
   const target = shot.targetUserId ? players.find((p) => p.userId === shot.targetUserId && p.userId !== userId) : undefined;
   const canHit = shot.hit && target !== undefined && target.status === "ready" && target.hp > 0 && !target.eliminatedAt;
   if (!canHit) {
-    await logEvent(matchId, userId, "egg", { target: target?.userId ?? null, x: shot.x, y: shot.y, hit: false }, now);
+    await logEvent(matchId, userId, "egg", { target: target?.userId ?? null, x: shot.x, y: shot.y, hit: false, ...withNonce(shot.nonce) }, now);
     return { accepted: true, hit: false, targetHp: target?.hp ?? null, eliminated: false };
   }
   const damage = match.eggDamage;
@@ -623,12 +628,12 @@ export async function recordShot(userId: string, matchId: string, shot: ShotInpu
     .where(and(eq(arenaPlayers.id, target.id), eq(arenaPlayers.status, "ready"), gt(arenaPlayers.hp, 0)))
     .returning({ hp: arenaPlayers.hp });
   if (!struck) {
-    await logEvent(matchId, userId, "egg", { target: target.userId, x: shot.x, y: shot.y, hit: false }, now);
+    await logEvent(matchId, userId, "egg", { target: target.userId, x: shot.x, y: shot.y, hit: false, ...withNonce(shot.nonce) }, now);
     return { accepted: true, hit: false, targetHp: 0, eliminated: false };
   }
   await db.update(arenaPlayers).set({ hitsDealt: sql`${arenaPlayers.hitsDealt} + 1` }).where(eq(arenaPlayers.id, me.id));
   const eliminated = struck.hp <= 0;
-  await logEvent(matchId, userId, "egg", { target: target.userId, x: shot.x, y: shot.y, hit: true, hp: struck.hp }, now);
+  await logEvent(matchId, userId, "egg", { target: target.userId, x: shot.x, y: shot.y, hit: true, hp: struck.hp, ...withNonce(shot.nonce) }, now);
   if (eliminated) {
     await logEvent(matchId, target.userId, "eliminated", { by: userId }, now);
     await finishIfOver(match, await loadPlayers(matchId, match.hostId), now);
@@ -642,6 +647,8 @@ export type TongueInput = {
   /** Direction (radians, in the player's marker frame) and length, replayed on the other phones. */
   angle: number;
   length: number;
+  /** Id of the lick chosen by the phone (see `ShotInput.nonce`). */
+  nonce?: string;
 };
 
 export type TongueOutcome = { eaten: Array<{ id: string; kind: string; heal: number }>; healed: number; hp: number };
@@ -677,6 +684,43 @@ export async function eatBonuses(userId: string, matchId: string, tongue: Tongue
       healed = updated.healed - me.healed;
     }
   }
-  await logEvent(matchId, userId, "tongue", { angle: tongue.angle, length: tongue.length, bonusIds: eaten.map((b) => b.id), healed, hp }, now);
+  await logEvent(matchId, userId, "tongue", { angle: tongue.angle, length: tongue.length, bonusIds: eaten.map((b) => b.id), healed, hp, ...withNonce(tongue.nonce) }, now);
   return { eaten, healed, hp };
+}
+
+const withNonce = (nonce: string | undefined): { nonce?: string } => (nonce ? { nonce } : {});
+
+export type ArenaSignalView = { id: number; from: string; payload: Record<string, unknown> };
+
+/**
+ * WebRTC signalling between two phones of a match (spec § 3.22): offers,
+ * answers and hellos travel through the event log as `signal` events
+ * addressed to one player. Only lobby and battle accept them.
+ */
+export async function postSignal(userId: string, matchId: string, to: string, payload: Record<string, unknown>, now: Date): Promise<void> {
+  const { match, players } = await loadFor(userId, matchId);
+  if (match.status !== "lobby" && match.status !== "playing") throw new DomainError("arena_closed", "La partie est terminée.", 409);
+  const target = players.find((p) => p.userId === to && p.status === "ready");
+  if (!target || to === userId) throw new DomainError("not_found", "Ce joueur n'est pas dans la partie.", 404);
+  await logEvent(matchId, userId, SIGNAL_KIND, { ...payload, to }, now);
+}
+
+/** The signals addressed to the caller after `since`, with the cursor to ask from next time. */
+export async function listSignals(userId: string, matchId: string, since: number): Promise<{ signals: ArenaSignalView[]; cursor: number }> {
+  await loadFor(userId, matchId);
+  const rows = await getDb()
+    .select()
+    .from(arenaEvents)
+    .where(and(eq(arenaEvents.matchId, matchId), eq(arenaEvents.kind, SIGNAL_KIND), gt(arenaEvents.id, since)))
+    .orderBy(asc(arenaEvents.id))
+    .limit(MAX_SIGNALS);
+  const signals: ArenaSignalView[] = [];
+  for (const row of rows) {
+    const payload = (row.payload ?? {}) as Record<string, unknown>;
+    if (payload.to !== userId || !row.actorId) continue;
+    const { to: _to, ...rest } = payload;
+    void _to;
+    signals.push({ id: row.id, from: row.actorId, payload: rest });
+  }
+  return { signals, cursor: rows.length > 0 ? rows[rows.length - 1].id : since };
 }

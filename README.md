@@ -319,7 +319,9 @@ apparaissent alors, sans connexion nécessaire :
     le centre de l'écran pour lui lancer un œuf (15 points de vie), attrape avec la langue les fruits et légumes qui
     apparaissent pour regagner de la vie ; déplacer sa feuille pendant qu'un œuf vole permet d'esquiver. Classement et
     récompense à la fin (même limite quotidienne que Jouer et Défendre). Les téléphones se synchronisent par le serveur
-    toutes les demi-secondes ; la case « WebRTC » de l'admin est réservée à une liaison directe à venir.
+    toutes les demi-secondes ; avec la case « WebRTC » de **Admin › Règles de jeu › Arène**, ils ouvrent en plus une
+    liaison directe entre eux (les œufs et les langues des autres apparaissent aussitôt, une pastille « Direct 1/1 »
+    le confirme, le serveur reste l'arbitre) et reviennent au sondage seul s'ils ne parviennent pas à se joindre.
 
 ## 5. Limites connues
 
@@ -339,8 +341,9 @@ apparaissent alors, sans connexion nécessaire :
   il est perdu) et le jeu demande WebGL (Chrome ou Safari récents).
 - **Arène** : synchronisation par le serveur toutes les 500 ms (l'œuf d'un ami apparaît avec ce léger délai) ; les
   touches sont jugées par le téléphone du tireur ; deux créatures d'une même partie ne peuvent pas partager un numéro
-  de marqueur (l'application refuse d'ouvrir la partie et le dit) ; la liaison directe WebRTC n'est pas encore
-  disponible, la case de l'admin ne change rien pour l'instant.
+  de marqueur (l'application refuse d'ouvrir la partie et le dit) ; la liaison directe WebRTC passe par des serveurs
+  STUN publics sans relais (TURN) : deux téléphones sur des réseaux mobiles différents peuvent ne pas se joindre et
+  restent alors sur le sondage (pastille « Direct 0/1 »), sans rien perdre du jeu.
 - **Gemini** : quota gratuit limité ; en cas d'erreur, le repas n'est pas compté et un message
   l'explique.
 

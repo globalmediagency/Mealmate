@@ -1,20 +1,33 @@
-import type { ArenaPlayerView, ArenaSnapshot, ShotInput, ShotOutcome, TongueInput, TongueOutcome } from "@/lib/arena/service";
+import type { ArenaEventView, ArenaPlayerView, ArenaSnapshot, ShotInput, ShotOutcome, TongueInput, TongueOutcome } from "@/lib/arena/service";
+import type { PeerMessage } from "@/lib/arena/rtc-protocol";
 import { ARENA } from "@/lib/game/config";
 
 export type LobbyAction = "join" | "decline" | "start" | "leave" | "cancel";
 export type ArenaListener = (snapshot: ArenaSnapshot) => void;
 export type ArenaErrorListener = (message: string) => void;
+/** A message from another phone over the direct link, shaped like a server event (`id` 0, `payload` = the message). */
+export type PeerListener = (event: ArenaEventView) => void;
+
+export type LinkState = {
+  /** `polling`: the server relays everything; `webrtc`: the phones also talk to each other. */
+  mode: "polling" | "webrtc";
+  /** Peers linked directly, out of the other players of the match (0/0 in polling mode). */
+  connected: number;
+  total: number;
+};
 
 /**
- * How a phone stays in sync with a match (spec § 3.22). Today: short polling
- * of the server, the referee. Later: a WebRTC link between the phones, chosen
- * by the admin (`rules.arena.webrtc`); until it exists the phones fall back
- * to polling whatever the setting says. Every implementation hands complete
- * snapshots to its listeners (players carry their creatures) and only the
- * events that are new.
+ * How a phone stays in sync with a match (spec § 3.22). The server is always
+ * the referee, polled for the truth (health, bonuses, end). When the admin
+ * enables it (`rules.arena.webrtc`), `RtcTransport` adds a direct WebRTC link
+ * between the phones that carries the eggs and tongues without waiting for
+ * the next poll, and slows the polling down; without it, or when the link
+ * cannot be opened, plain `PollingTransport` does everything. Every
+ * implementation hands complete snapshots to its listeners (players carry
+ * their creatures) and only the events that are new.
  */
 export interface ArenaTransport {
-  readonly kind: "polling" | "preview";
+  readonly kind: "polling" | "preview" | "webrtc";
   /** Latest complete snapshot. */
   readonly snapshot: ArenaSnapshot | null;
   /** The server's clock now (ms), from the last snapshot. */
@@ -28,7 +41,15 @@ export interface ArenaTransport {
   act(action: LobbyAction): Promise<ArenaSnapshot>;
   shoot(input: ShotInput): Promise<ShotOutcome | null>;
   lick(input: TongueInput): Promise<TongueOutcome | null>;
+  /** The direct link, when there is one. */
+  linkState(): LinkState;
+  /** Tells the other phones right away (no-op without a direct link). */
+  broadcast(message: PeerMessage): void;
+  /** Messages of the other phones over the direct link (never called without one). */
+  subscribePeers(listener: PeerListener): () => void;
 }
+
+export const NO_LINK: LinkState = { mode: "polling", connected: 0, total: 0 };
 
 /** A snapshot with every player carrying their creature: incremental ones borrow it from the previous complete one. */
 export function completeSnapshot(incoming: ArenaSnapshot, previous: ArenaSnapshot | null): ArenaSnapshot {
@@ -76,17 +97,31 @@ export class PollingTransport implements ArenaTransport {
   private readonly listeners = new Set<ArenaListener>();
   private readonly errorListeners = new Set<ArenaErrorListener>();
 
+  private readonly playingPollMs: number;
+
   constructor(
     private readonly matchId: string,
     initial: ArenaSnapshot | null = null,
+    options: { playingPollMs?: number } = {},
   ) {
     this.snapshot = initial;
     this.cursor = initial?.cursor ?? null;
+    this.playingPollMs = options.playingPollMs ?? ARENA.pollMs;
     if (initial) this.offset = Date.parse(initial.now) - Date.now();
   }
 
   serverNow(): number {
     return Date.now() + this.offset;
+  }
+
+  linkState(): LinkState {
+    return NO_LINK;
+  }
+
+  broadcast(): void {}
+
+  subscribePeers(): () => void {
+    return () => {};
   }
 
   subscribe(listener: ArenaListener, onError?: ArenaErrorListener): () => void {
@@ -111,7 +146,7 @@ export class PollingTransport implements ArenaTransport {
   private delay(): number | null {
     const status = this.snapshot?.match.status;
     if (status === "finished" || status === "cancelled") return null;
-    const base = status === "playing" ? ARENA.pollMs : ARENA.lobbyPollMs;
+    const base = status === "playing" ? this.playingPollMs : ARENA.lobbyPollMs;
     return Math.min(5000, base * 2 ** Math.min(4, this.failures));
   }
 
@@ -199,11 +234,99 @@ export class PollingTransport implements ArenaTransport {
 }
 
 /**
- * The transport for a match. `webrtc` is the admin's wish (`rules.arena.webrtc`):
- * the direct link between phones is not built yet, so polling is used either
- * way and the wish is only logged.
+ * The transport for a match: plain polling, or, when the admin enabled it
+ * (`rules.arena.webrtc`) and the browser can do WebRTC, the direct link on
+ * top of a slower polling. The link is loaded on demand.
  */
-export function createArenaTransport(matchId: string, initial: ArenaSnapshot | null, options: { webrtc?: boolean } = {}): ArenaTransport {
-  if (options.webrtc) console.info("[arena] WebRTC sync requested by the admin: not available yet, using short polling.");
+export function createArenaTransport(matchId: string, initial: ArenaSnapshot | null, options: { webrtc?: boolean; userId?: string } = {}): ArenaTransport {
+  if (options.webrtc && options.userId && typeof RTCPeerConnection !== "undefined") {
+    return new LazyRtcTransport(matchId, initial, options.userId);
+  }
+  if (options.webrtc) console.info("[arena] WebRTC sync enabled by the admin but unavailable here: using short polling.");
   return new PollingTransport(matchId, initial);
+}
+
+/** The WebRTC transport, with its module loaded only when a match starts in that mode. */
+class LazyRtcTransport implements ArenaTransport {
+  readonly kind = "webrtc" as const;
+  private inner: ArenaTransport;
+  private link: ArenaTransport | null = null;
+  private started = false;
+  private readonly peerListeners = new Set<PeerListener>();
+  private readonly unsubscribers: Array<() => void> = [];
+
+  constructor(
+    private readonly matchId: string,
+    initial: ArenaSnapshot | null,
+    private readonly userId: string,
+  ) {
+    this.inner = new PollingTransport(matchId, initial, { playingPollMs: ARENA.rtc.pollMs });
+  }
+
+  get snapshot(): ArenaSnapshot | null {
+    return (this.link ?? this.inner).snapshot;
+  }
+
+  serverNow(): number {
+    return this.inner.serverNow();
+  }
+
+  subscribe(listener: ArenaListener, onError?: ArenaErrorListener): () => void {
+    return this.inner.subscribe(listener, onError);
+  }
+
+  start(): void {
+    if (this.started) return;
+    this.started = true;
+    this.inner.start();
+    void import("./rtc-transport").then(({ RtcTransport, HttpSignaling }) => {
+      if (!this.started) return;
+      const link = new RtcTransport(this.inner, this.userId, new HttpSignaling(this.matchId), this.inner.snapshot?.cursor ?? 0);
+      this.link = link;
+      for (const listener of this.peerListeners) this.unsubscribers.push(link.subscribePeers(listener));
+      link.start();
+    });
+  }
+
+  stop(): void {
+    this.started = false;
+    for (const off of this.unsubscribers) off();
+    this.unsubscribers.length = 0;
+    this.link?.stop();
+    this.link = null;
+    this.inner.stop();
+  }
+
+  refresh(): Promise<ArenaSnapshot | null> {
+    return this.inner.refresh();
+  }
+
+  act(action: LobbyAction): Promise<ArenaSnapshot> {
+    return (this.link ?? this.inner).act(action);
+  }
+
+  shoot(input: ShotInput): Promise<ShotOutcome | null> {
+    return this.inner.shoot(input);
+  }
+
+  lick(input: TongueInput): Promise<TongueOutcome | null> {
+    return this.inner.lick(input);
+  }
+
+  linkState(): LinkState {
+    return this.link?.linkState() ?? { mode: "webrtc", connected: 0, total: 0 };
+  }
+
+  broadcast(message: PeerMessage): void {
+    this.link?.broadcast(message);
+  }
+
+  subscribePeers(listener: PeerListener): () => void {
+    this.peerListeners.add(listener);
+    const off = this.link?.subscribePeers(listener);
+    return () => {
+      this.peerListeners.delete(listener);
+      off?.();
+    };
+  }
 }

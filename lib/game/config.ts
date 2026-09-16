@@ -312,6 +312,20 @@ export const ARENA = {
   /** How often the phones ask the server for news, in polling mode. */
   pollMs: 500,
   lobbyPollMs: 2000,
+  /** Direct link between the phones (WebRTC data channels), when the admin enables it: the referee is still polled, more slowly. */
+  rtc: {
+    /** Referee poll while the direct link carries the eggs and tongues. */
+    pollMs: 1000,
+    /** Public STUN servers (no TURN: phones that cannot reach each other keep the polling). */
+    iceServers: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"],
+    /** Wait for the ICE candidates this long before sending an offer or an answer (no trickle). */
+    gatherTimeoutMs: 2500,
+    /** Signal polling: fast while a peer is missing, slow once everybody is linked. */
+    signalPollMs: 1000,
+    signalIdlePollMs: 5000,
+    /** A peer still not linked after this is left to the polling. */
+    connectTimeoutMs: 20_000,
+  },
 } as const;
 
 /** Growth stages by XP (spec § 3.8). */

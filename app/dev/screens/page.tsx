@@ -57,7 +57,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "turnaround", "creature-3d", "defense", "defense-boss", "arena", "food-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "turnaround", "creature-3d", "defense", "defense-boss", "arena", "arena-rtc", "food-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -97,9 +97,9 @@ function mockCreature(overrides: Partial<CreatureView>): CreatureView {
   };
 }
 
-export default async function DevScreensPage({ searchParams }: { searchParams: Promise<{ screen?: string }> }) {
+export default async function DevScreensPage({ searchParams }: { searchParams: Promise<{ screen?: string; as?: string }> }) {
   if (!isDevGalleryEnabled()) notFound();
-  const { screen: raw } = await searchParams;
+  const { screen: raw, as: side } = await searchParams;
   const screen: Screen = SCREENS.includes(raw as Screen) ? (raw as Screen) : "home";
 
   let content: React.ReactNode;
@@ -198,6 +198,22 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
       break;
     case "food-3d":
       content = <FoodGallery />;
+      break;
+    case "arena-rtc":
+      // The same table seen from two tabs (`?as=me` and `?as=lea`) linked for real over WebRTC; each tab keeps its own in-memory referee.
+      content = (
+        <div className="space-y-4">
+          <p className="text-xs text-cream-500">
+            Ouvre cet écran dans deux onglets : <code>?screen=arena-rtc&amp;as=me</code> et <code>?screen=arena-rtc&amp;as=lea</code>. Les deux se relient en WebRTC (signaux par
+            BroadcastChannel) ; chaque onglet garde son propre arbitre, seuls les œufs et les langues traversent la liaison.
+          </p>
+          <ArenaMatch initial={previewArenaSnapshot(side === "lea" ? "lea" : "me", true)} webrtc preview previewRtc />
+          <div className="flex justify-center gap-4">
+            <div id="dev-marker-17" className="w-40 bg-white p-1" dangerouslySetInnerHTML={{ __html: markerSvg(17) }} />
+            <div id="dev-marker-42" className="w-40 bg-white p-1" dangerouslySetInnerHTML={{ __html: markerSvg(42) }} />
+          </div>
+        </div>
+      );
       break;
     case "arena":
       // Two creatures on the table: the viewer's (marker 17) and Léa's (marker 42), with an in-memory referee.

@@ -21,12 +21,14 @@ const actionSchema = z.discriminatedUnion("action", [
     x: coordinate.default(0),
     y: coordinate.default(0),
     hit: z.boolean().default(false),
+    nonce: z.string().max(64).optional(),
   }),
   z.object({
     action: z.literal("eat"),
     bonusIds: z.array(z.string().uuid()).max(10).default([]),
     angle: z.coerce.number().finite().default(0),
     length: z.coerce.number().finite().min(0).max(10).default(0),
+    nonce: z.string().max(64).optional(),
   }),
 ]);
 
@@ -57,9 +59,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       case "cancel":
         return ok(await cancelMatch(userId, matchId, now, rules));
       case "shoot":
-        return ok(await recordShot(userId, matchId, { targetUserId: body.targetUserId, x: body.x, y: body.y, hit: body.hit }, now));
+        return ok(await recordShot(userId, matchId, { targetUserId: body.targetUserId, x: body.x, y: body.y, hit: body.hit, nonce: body.nonce }, now));
       case "eat":
-        return ok(await eatBonuses(userId, matchId, { bonusIds: body.bonusIds, angle: body.angle, length: body.length }, now));
+        return ok(await eatBonuses(userId, matchId, { bonusIds: body.bonusIds, angle: body.angle, length: body.length, nonce: body.nonce }, now));
     }
   } catch (error) {
     return handleRouteError(error);

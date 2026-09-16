@@ -65,7 +65,7 @@ export type ArenaRules = {
   hp: number;
   eggDamage: number;
   durationSeconds: number;
-  /** WebRTC between phones instead of short polling (kept for later; the client falls back to polling until it exists). */
+  /** A direct WebRTC link between the phones on top of a slower polling (the phones fall back to polling when the link cannot open). */
   webrtc: boolean;
 };
 

@@ -11,6 +11,7 @@ import type { ArenaPlayerView, ArenaSnapshot } from "@/lib/arena/service";
 import { cn } from "@/lib/utils/cn";
 import { ArenaGame } from "./arena-game";
 import { PreviewTransport } from "./preview-transport";
+import { ChannelSignaling, RtcTransport } from "./rtc-transport";
 import { ArenaRequestError, createArenaTransport, type ArenaTransport, type LobbyAction } from "./transport";
 
 export type ArenaMatchProps = {
@@ -19,6 +20,8 @@ export type ArenaMatchProps = {
   webrtc: boolean;
   /** Dev screens: an in-memory referee instead of the server. */
   preview?: boolean;
+  /** Dev screens: a real WebRTC link between two tabs of the page (signals over a `BroadcastChannel`), each with its own referee. */
+  previewRtc?: boolean;
 };
 
 const STATUS_LABEL: Record<ArenaPlayerView["status"], string> = { ready: "Prêt", invited: "Invité", declined: "A décliné", left: "Parti" };
@@ -40,10 +43,15 @@ function rankLabel(rank: number | null): string {
  * host's start, the battle itself (`ArenaGame`) and the ranking with the
  * reader's reward. One transport per match, shared with the game.
  */
-export function ArenaMatch({ initial, webrtc, preview = false }: ArenaMatchProps) {
+export function ArenaMatch({ initial, webrtc, preview = false, previewRtc = false }: ArenaMatchProps) {
   const router = useRouter();
   const transportRef = useRef<ArenaTransport | null>(null);
-  transportRef.current ??= preview ? new PreviewTransport(initial) : createArenaTransport(initial.match.id, initial, { webrtc });
+  if (!transportRef.current) {
+    const userId = initial.me?.userId;
+    if (preview && previewRtc && userId) transportRef.current = new RtcTransport(new PreviewTransport(initial), userId, new ChannelSignaling(initial.match.id, userId));
+    else if (preview) transportRef.current = new PreviewTransport(initial);
+    else transportRef.current = createArenaTransport(initial.match.id, initial, { webrtc, userId });
+  }
   const transport = transportRef.current;
   const [snapshot, setSnapshot] = useState(initial);
   const [error, setError] = useState<string | null>(null);

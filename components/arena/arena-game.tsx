@@ -12,6 +12,7 @@ import type { ArCreature } from "@/components/ar/types";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { ArenaEventView, ArenaPlayerView, ArenaSnapshot } from "@/lib/arena/service";
+import { NonceMemory, randomNonce } from "@/lib/arena/rtc-protocol";
 import { getSpecies } from "@/lib/creatures";
 import { arenaAimTarget, arenaSecondsLeft, type AimCandidate } from "@/lib/game/arena";
 import { addLocalEffect, addLocalEgg, addLocalTongue, createArenaLocal, lickLocal, shootLocal, stepArenaLocal, sweptByTongue, type ArenaLocalState, type Vec3 } from "@/lib/game/arena-local";
@@ -19,7 +20,7 @@ import { ARENA } from "@/lib/game/config";
 import { clampAim, yawToward, type Vec2 } from "@/lib/game/defense";
 import type { FoodModelKind } from "@/components/ar/three/food-mesh";
 import { cn } from "@/lib/utils/cn";
-import type { ArenaTransport } from "./transport";
+import { NO_LINK, type ArenaTransport, type LinkState } from "./transport";
 
 type StageModule = typeof import("@/components/ar/three/stage");
 type SceneModule = typeof import("@/components/ar/three/arena-scene");
@@ -40,6 +41,8 @@ type Hud = {
   ever: boolean;
   target: string | null;
   others: OtherHud[];
+  /** The direct link between the phones, when the admin enabled it. */
+  link: LinkState;
 };
 
 export type ArenaGameProps = {
@@ -61,7 +64,7 @@ const TWO_PI = Math.PI * 2;
 /** An egg thrown by a phone whose own creature is out of view starts from the phone itself. */
 const CAMERA_HAND = new THREE.Vector3(0, -0.12, -0.05);
 
-const IDLE_HUD: Hud = { status: "lobby", secondsLeft: 0, hp: 0, maxHp: 0, standing: true, seen: 0, mineSeen: false, ever: false, target: null, others: [] };
+const IDLE_HUD: Hud = { status: "lobby", secondsLeft: 0, hp: 0, maxHp: 0, standing: true, seen: 0, mineSeen: false, ever: false, target: null, others: [], link: NO_LINK };
 
 const participants = (snapshot: ArenaSnapshot): ArenaPlayerView[] => snapshot.players.filter((p) => p.status === "ready" || p.status === "left");
 const isStanding = (p: ArenaPlayerView) => p.status === "ready" && p.hp > 0 && !p.eliminatedAt;
@@ -83,6 +86,8 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
   const latest = useRef<ArenaSnapshot>(initial);
   const pendingEvents = useRef<ArenaEventView[]>([]);
   const eatenLocally = useRef(new Set<string>());
+  /** Eggs and tongues already drawn, whichever path (direct link or server event) brought them first. */
+  const nonces = useRef(new NonceMemory());
   const video = useRef<HTMLVideoElement>(null);
   const glCanvas = useRef<HTMLCanvasElement>(null);
   const sprites = useRef<HTMLDivElement>(null);
@@ -108,10 +113,15 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
   // Every snapshot lands in a ref (the loop reads it); its new events wait for the next frame.
   useEffect(() => {
     latest.current = transport.snapshot ?? initial;
-    return transport.subscribe((snapshot) => {
+    const offSnapshots = transport.subscribe((snapshot) => {
       latest.current = snapshot;
       if (snapshot.events.length > 0) pendingEvents.current.push(...snapshot.events);
     });
+    const offPeers = transport.subscribePeers((event) => pendingEvents.current.push(event));
+    return () => {
+      offSnapshots();
+      offPeers();
+    };
   }, [transport, initial]);
 
   /** Releases the camera and the 3D scene (the local animation is dropped, the referee keeps going). */
@@ -224,7 +234,19 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
     yaws.current.set(marker, entry);
   }
 
-  /** Replays what the others did since the last frame: their eggs fly toward their target, their tongues come out. */
+  /** The health bar of a player drops (or rises) at once; the referee confirms at the next poll. */
+  function optimisticHp(player: ArenaPlayerView | undefined, delta: number) {
+    if (!player) return;
+    player.hp = Math.max(0, Math.min(latest.current.match.maxHp, player.hp + delta));
+  }
+
+  /**
+   * Replays what the others did since the last frame: their eggs fly toward
+   * their target, their tongues come out. Server events and direct-link
+   * messages describe the same shots (same `nonce`): the first one to arrive
+   * draws it, the other is skipped. A direct-link "hit" brings the verdict
+   * of an egg still in flight; "eat" removes the good foods a tongue took.
+   */
   function replayEvents(s: ThreeStage) {
     const snapshot = latest.current;
     const me = snapshot.me?.userId;
@@ -236,12 +258,16 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
       const actor = byUser.get(event.actorId);
       if (!actor) continue;
       const payload = event.payload as Record<string, unknown>;
+      const nonce = typeof payload.nonce === "string" ? payload.nonce : undefined;
       if (event.kind === "egg") {
+        if (!nonces.current.add(nonce)) continue;
         const targetId = typeof payload.target === "string" ? payload.target : null;
         const target = targetId ? byUser.get(targetId) : undefined;
         const marker = target?.markerId ?? actor.markerId;
         const x = typeof payload.x === "number" ? payload.x : 0;
         const y = typeof payload.y === "number" ? payload.y : 0;
+        // Server events carry the verdict; a direct-link egg learns it from the "hit" that follows.
+        const hit = typeof payload.hit === "boolean" ? payload.hit : null;
         if (!s.isTracked(marker)) continue;
         let from: Vec3 = { x, y, z: 1.6 };
         if (s.isTracked(actor.markerId)) {
@@ -254,9 +280,24 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
             from = convert(s, actor.markerId, marker, mouth.x, mouth.y, mouth.z) ?? from;
           }
         }
-        // The referee already counted the hit: the flash shows when the egg lands.
-        addLocalEgg(local.current, { marker, from, to: { x, y, z: 0 }, own: false, targetMarker: target ? marker : null, targetUserId: targetId });
+        addLocalEgg(local.current, { marker, from, to: { x, y, z: 0 }, own: false, targetMarker: target ? marker : null, targetUserId: targetId, nonce, hit });
+      } else if (event.kind === "hit") {
+        if (!nonces.current.add(nonce ? `hit:${nonce}` : undefined)) continue;
+        const hit = payload.hit === true;
+        const targetId = typeof payload.target === "string" ? payload.target : null;
+        const target = targetId ? byUser.get(targetId) : undefined;
+        const flying = local.current.eggs.find((e) => e.nonce !== undefined && e.nonce === nonce);
+        if (flying) {
+          flying.hit = hit;
+          if (target && typeof payload.x === "number" && typeof payload.y === "number") flying.to = { x: payload.x, y: payload.y, z: 0 };
+        } else if (hit && target && s.isTracked(target.markerId)) {
+          const top = s.topOf(target.markerId) ?? 1;
+          addLocalEffect(local.current, target.markerId, "hit", typeof payload.x === "number" ? payload.x : 0, typeof payload.y === "number" ? payload.y : 0, top * 0.45, 1);
+          addLocalEffect(local.current, target.markerId, "ouch", 0, 0, top * 0.5, 1.2);
+        }
+        if (hit) optimisticHp(target, -snapshot.match.eggDamage);
       } else if (event.kind === "tongue") {
+        if (!nonces.current.add(nonce)) continue;
         const angle = typeof payload.angle === "number" ? payload.angle : 0;
         const length = typeof payload.length === "number" ? payload.length : 1.2;
         const ids = Array.isArray(payload.bonusIds) ? (payload.bonusIds as string[]) : [];
@@ -270,18 +311,31 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
           const top = s.topOf(actor.markerId) ?? 1;
           addLocalEffect(local.current, actor.markerId, "heal", 0, 0, top * 0.5, 1);
         }
+      } else if (event.kind === "eat") {
+        if (!nonces.current.add(nonce ? `eat:${nonce}` : undefined)) continue;
+        const ids = Array.isArray(payload.bonusIds) ? (payload.bonusIds as string[]) : [];
+        let heal = 0;
+        for (const id of ids) {
+          const bonus = snapshot.bonuses.find((b) => b.id === id);
+          if (bonus && !eatenLocally.current.has(id)) heal += bonus.heal;
+          eatenLocally.current.add(id);
+        }
+        if (heal > 0) {
+          optimisticHp(actor, heal);
+          if (s.isTracked(actor.markerId)) addLocalEffect(local.current, actor.markerId, "heal", 0, 0, (s.topOf(actor.markerId) ?? 1) * 0.5, 1);
+        }
       } else if (event.kind === "eliminated") {
         if (s.isTracked(actor.markerId)) addLocalEffect(local.current, actor.markerId, "ouch", 0, 0, (s.topOf(actor.markerId) ?? 1) * 0.5, 1.6);
       }
     }
   }
 
-  /** Judges an own egg where it lands, in the target's current frame, and tells the referee. */
+  /** Judges an own egg where it lands, in the target's current frame, and tells the referee and the other phones. */
   function judgeLanding(s: ThreeStage, egg: ReturnType<typeof addLocalEgg>) {
     const snapshot = latest.current;
     if (!egg.own) {
       const target = egg.targetUserId ? snapshot.players.find((p) => p.userId === egg.targetUserId) : undefined;
-      const hit = target !== undefined && Math.hypot(egg.to.x, egg.to.y) <= ARENA.hitRadius;
+      const hit = egg.hit ?? (target !== undefined && Math.hypot(egg.to.x, egg.to.y) <= ARENA.hitRadius);
       if (hit) {
         const top = s.topOf(egg.marker) ?? 1;
         addLocalEffect(local.current, egg.marker, "hit", egg.to.x, egg.to.y, top * 0.45, 1);
@@ -291,7 +345,8 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
     }
     if (egg.targetMarker === null || !egg.targetUserId) {
       addLocalEffect(local.current, egg.marker, "splat", egg.to.x, egg.to.y, 0, 0.55);
-      void transport.shoot({ targetUserId: null, x: egg.to.x, y: egg.to.y, hit: false });
+      void transport.shoot({ targetUserId: null, x: egg.to.x, y: egg.to.y, hit: false, nonce: egg.nonce });
+      if (egg.nonce) transport.broadcast({ t: "hit", nonce: egg.nonce, target: null, x: egg.to.x, y: egg.to.y, hit: false });
       return;
     }
     const target = snapshot.players.find((p) => p.userId === egg.targetUserId);
@@ -302,9 +357,10 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
       addLocalEffect(local.current, egg.targetMarker, "hit", point.x, point.y, top * 0.45, 1);
       addLocalEffect(local.current, egg.targetMarker, "ouch", 0, 0, top * 0.5, 1.2);
       // Optimistic: the bar drops now, the referee confirms at the next poll.
-      target.hp = Math.max(0, target.hp - snapshot.match.eggDamage);
+      optimisticHp(target, -snapshot.match.eggDamage);
     } else addLocalEffect(local.current, egg.targetMarker, "splat", point.x, point.y, 0, 0.55);
-    void transport.shoot({ targetUserId: egg.targetUserId, x: point.x, y: point.y, hit });
+    void transport.shoot({ targetUserId: egg.targetUserId, x: point.x, y: point.y, hit, nonce: egg.nonce });
+    if (egg.nonce) transport.broadcast({ t: "hit", nonce: egg.nonce, target: egg.targetUserId, x: point.x, y: point.y, hit });
   }
 
   /** Resolves the own tongue at full extension: the good foods on its path, wherever they are anchored. */
@@ -324,7 +380,9 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
     const swept = sweptByTongue(tongue, candidates);
     for (const item of swept) eatenLocally.current.add(item.id);
     if (swept.length > 0) addLocalEffect(local.current, myMarker, "heal", 0, 0, (s.topOf(myMarker) ?? 1) * 0.5, 1);
-    void transport.lick({ bonusIds: swept.map((b) => b.id), angle: Math.atan2(tongue.dir.y, tongue.dir.x), length: tongue.length });
+    const bonusIds = swept.map((b) => b.id);
+    void transport.lick({ bonusIds, angle: Math.atan2(tongue.dir.y, tongue.dir.x), length: tongue.length, nonce: tongue.nonce });
+    if (tongue.nonce) transport.broadcast({ t: "eat", nonce: tongue.nonce, bonusIds });
   }
 
   function onFrame(frame: CameraFrame) {
@@ -409,6 +467,7 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
       ever: lastSeen.current.size > 0,
       target: target ? (byMarker.get(target.marker)?.username ?? null) : null,
       others: players.filter((p) => !p.mine).map((p) => ({ userId: p.userId, username: p.username, hp: p.hp, standing: isStanding(p) })),
+      link: transport.linkState(),
     };
     const prev = hudRef.current;
     const othersKey = (list: OtherHud[]) => list.map((o) => `${o.userId}:${o.hp}:${o.standing}`).join("|");
@@ -422,7 +481,10 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
       prev.mineSeen !== next.mineSeen ||
       prev.ever !== next.ever ||
       prev.target !== next.target ||
-      othersKey(prev.others) !== othersKey(next.others)
+      othersKey(prev.others) !== othersKey(next.others) ||
+      prev.link.mode !== next.link.mode ||
+      prev.link.connected !== next.link.connected ||
+      prev.link.total !== next.link.total
     ) {
       hudRef.current = next;
       setHud(next);
@@ -461,6 +523,7 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
     const { target, own } = aim.current;
     const myMarker = me.markerId;
     const mineVisible = s.isVisible(myMarker);
+    const nonce = randomNonce();
     if (target) {
       // Flight in the own paper's frame when it is in view (the target may dodge), else in the target's.
       const marker = mineVisible ? myMarker : target.marker;
@@ -475,11 +538,13 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
         const hand = s.localPoint(marker, CAMERA_HAND, localVec.current);
         from = hand ? { x: hand.x, y: hand.y, z: Math.max(0.3, hand.z) } : { x: to.x, y: to.y, z: 1.6 };
       }
-      shootLocal(local.current, { marker, from, to, targetMarker: target.marker, targetUserId: target.userId });
+      const egg = shootLocal(local.current, { marker, from, to, targetMarker: target.marker, targetUserId: target.userId, nonce });
+      if (egg) transport.broadcast({ t: "egg", nonce, target: target.userId, x: target.x, y: target.y });
     } else if (own && mineVisible) {
       const len = Math.hypot(own.x, own.y) || 1;
       turnToward(myMarker, own);
-      shootLocal(local.current, { marker: myMarker, from: mouthPoint(s, myMarker, { x: own.x / len, y: own.y / len }), to: { x: own.x, y: own.y, z: 0 }, targetMarker: null, targetUserId: null });
+      const egg = shootLocal(local.current, { marker: myMarker, from: mouthPoint(s, myMarker, { x: own.x / len, y: own.y / len }), to: { x: own.x, y: own.y, z: 0 }, targetMarker: null, targetUserId: null, nonce });
+      if (egg) transport.broadcast({ t: "egg", nonce, target: null, x: own.x, y: own.y });
     }
   }
 
@@ -495,7 +560,10 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
     const point = target ? convert(s, target.marker, myMarker, target.x, target.y, 0) : own;
     if (!point) return;
     const tongue = lickLocal(local.current, myMarker, point);
-    if (tongue) turnToward(myMarker, point);
+    if (!tongue) return;
+    tongue.nonce = randomNonce();
+    turnToward(myMarker, point);
+    transport.broadcast({ t: "tongue", nonce: tongue.nonce, angle: Math.atan2(tongue.dir.y, tongue.dir.x), length: tongue.length });
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -536,6 +604,8 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
               data-mine-seen={hud.mineSeen ? "1" : "0"}
               data-target={hud.target ?? undefined}
               data-standing={hud.standing ? "1" : "0"}
+              data-link={hud.link.mode}
+              data-peers={`${hud.link.connected}/${hud.link.total}`}
             >
               <div className="flex items-center gap-2">
                 <span className="rounded-full bg-ink-950/70 px-3 py-1 text-xs font-semibold tabular-nums text-cream-50 backdrop-blur">
@@ -547,6 +617,14 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
                 <span className={cn("rounded-full px-3 py-1 text-xs font-semibold backdrop-blur", hud.target ? "bg-brass-400/90 text-ink-950" : "bg-ink-950/70 text-cream-500")}>{hud.target ? `→ ${hud.target}` : "Vise une créature"}</span>
               </div>
               <ul className="flex flex-wrap gap-1.5" aria-label="Adversaires">
+                {hud.link.mode === "webrtc" ? (
+                  <li
+                    className={cn("rounded-full px-2.5 py-1 text-[11px] font-semibold backdrop-blur", hud.link.total > 0 && hud.link.connected === hud.link.total ? "bg-sage-700/70 text-sage-100" : "bg-ink-950/70 text-cream-500")}
+                    title="Liaison directe entre les téléphones (WebRTC) ; le serveur reste l'arbitre"
+                  >
+                    Direct {hud.link.connected}/{hud.link.total}
+                  </li>
+                ) : null}
                 {hud.others.map((o) => (
                   <li key={o.userId} className={cn("flex items-center gap-1.5 rounded-full bg-ink-950/70 px-2.5 py-1 text-[11px] font-semibold text-cream-100 backdrop-blur", !o.standing && "line-through opacity-60")}>
                     {o.username}

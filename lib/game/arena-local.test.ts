@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ARENA, DEFENSE } from "./config";
-import { addLocalEffect, addLocalEgg, canLick, canShoot, createArenaLocal, lickLocal, shootLocal, stepArenaLocal, sweptByTongue } from "./arena-local";
+import { addLocalEffect, addLocalEgg, canLick, canShoot, createArenaLocal, lickLocal, shootLocal, stepArenaLocal, sweptByTongue, VERDICT_GRACE_SECONDS } from "./arena-local";
 
 describe("arena local animation", () => {
   it("throws one egg per cooldown and reports its landing once", () => {
@@ -19,11 +19,32 @@ describe("arena local animation", () => {
 
   it("reports the landing of the others' eggs too, flagged as not own", () => {
     const state = createArenaLocal();
-    addLocalEgg(state, { marker: 42, from: { x: 0, y: 0, z: 1 }, to: { x: 0.2, y: 0, z: 0 }, own: false, targetMarker: 17, targetUserId: "me" });
+    addLocalEgg(state, { marker: 42, from: { x: 0, y: 0, z: 1 }, to: { x: 0.2, y: 0, z: 0 }, own: false, targetMarker: 17, targetUserId: "me", hit: true });
     const landed: boolean[] = [];
     for (let i = 0; i < 40; i += 1) landed.push(...stepArenaLocal(state, 0.05).landed.map((e) => e.own));
     expect(landed).toEqual([false]);
     expect(state.eggs).toEqual([]);
+  });
+
+  it("holds a remote egg without a verdict a moment on its landing point, then judges it", () => {
+    const state = createArenaLocal();
+    const egg = addLocalEgg(state, { marker: 42, from: { x: 0, y: 0, z: 1 }, to: { x: 0.2, y: 0, z: 0 }, own: false, targetMarker: 17, targetUserId: "me" });
+    let landedAt: number | null = null;
+    let steps = 0;
+    while (landedAt === null && steps < 100) {
+      steps += 1;
+      if (stepArenaLocal(state, 0.05).landed.length > 0) landedAt = state.time;
+    }
+    expect(landedAt).not.toBeNull();
+    expect(landedAt!).toBeGreaterThanOrEqual(egg.duration + VERDICT_GRACE_SECONDS - 0.05);
+    // A verdict that arrives meanwhile ends the wait at the next step.
+    const quick = createArenaLocal();
+    const other = addLocalEgg(quick, { marker: 42, from: { x: 0, y: 0, z: 1 }, to: { x: 0.2, y: 0, z: 0 }, own: false, targetMarker: 17, targetUserId: "me" });
+    for (let i = 0; i < 12; i += 1) stepArenaLocal(quick, 0.05);
+    expect(quick.eggs).toHaveLength(1);
+    expect(other.t).toBe(1);
+    other.hit = false;
+    expect(stepArenaLocal(quick, 0.01).landed).toHaveLength(1);
   });
 
   it("sticks the tongue out once at a time and resolves the catch at full extension", () => {
