@@ -346,6 +346,38 @@ export const COOP = {
   aimMaxRadius: 3.4,
 } as const;
 
+/** "Ping-pong" (spec § 3.25): a rally between two creatures on their papers, hit on time. */
+export const PINGPONG = {
+  players: 2,
+  pointsToWin: 7,
+  /** Safety net: a match nobody ended is closed after this. */
+  maxSeconds: 300,
+  /** Flight of the ball between the two creatures: at the start of a rally, then faster with every hit, down to a floor. */
+  firstFlightMs: 2200,
+  minFlightMs: 900,
+  paceFactor: 0.92,
+  /** Timing windows around the ball's arrival: a perfect hit speeds the ball up twice as much. */
+  perfectMs: 130,
+  goodMs: 330,
+  /** The referee waits this long past the window for the receiver's report before calling a miss. */
+  graceMs: 1500,
+  /** The point is shown this long before the next serve. */
+  pointPauseMs: 1800,
+  /** The server has this long to serve before the ball is served for them. */
+  serveTimeoutMs: 10_000,
+  /** Height of the arc and of the ball at the creatures (marker sides). */
+  arcHeight: 0.6,
+  ballHeight: 0.55,
+  ballRadius: 0.11,
+  /** The host publishes its state this often over the direct link, and to the server. */
+  broadcastMs: 400,
+  storeMs: 1000,
+  /** Without news from the host for this long, a guest may end the match itself. */
+  hostSilenceMs: 20_000,
+  /** A guest keeps its own prediction ahead of the host's state at most this long. */
+  maxPredictionMs: 3000,
+} as const;
+
 /** Growth stages by XP (spec § 3.8). */
 export const STAGES = [
   { id: "bebe", label: "Bébé", minXp: 0 },

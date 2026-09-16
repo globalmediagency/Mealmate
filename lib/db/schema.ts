@@ -251,7 +251,7 @@ export const playSessions = pgTable(
       table.creatureId,
       table.createdAt,
     ),
-    check("play_sessions_kind_check", sql`${table.kind} in ('catch', 'defense', 'arena', 'coop')`),
+    check("play_sessions_kind_check", sql`${table.kind} in ('catch', 'defense', 'arena', 'coop', 'pingpong')`),
   ],
 );
 
@@ -559,8 +559,8 @@ export const arenaMatches = pgTable(
     finishedAt: timestamptz("finished_at"),
     /** When the next good food pops (lazy: applied on the next read). */
     nextBonusAt: timestamptz("next_bonus_at"),
-    /** `arena`: everyone for themselves; `coop`: "Défendre à deux", the junk attacks every creature (migration 016). */
-    mode: text("mode", { enum: ["arena", "coop"] }).notNull().default("arena"),
+    /** `arena`: everyone for themselves; `coop`: "Défendre à deux", the junk attacks every creature (migration 016); `pingpong`: a rally between two creatures (migration 018). */
+    mode: text("mode", { enum: ["arena", "coop", "pingpong"] }).notNull().default("arena"),
     /** Seed of the coop waves, shared by every phone. */
     seed: integer("seed").notNull().default(0),
     /** Coop: the host's latest simulation (and the final result), for the phones that poll. */
@@ -571,7 +571,7 @@ export const arenaMatches = pgTable(
   (table) => [
     index("arena_matches_host_status_idx").on(table.hostId, table.status),
     check("arena_matches_status_check", sql`${table.status} IN ('lobby', 'playing', 'finished', 'cancelled')`),
-    check("arena_matches_mode_check", sql`${table.mode} IN ('arena', 'coop')`),
+    check("arena_matches_mode_check", sql`${table.mode} IN ('arena', 'coop', 'pingpong')`),
   ],
 );
 
@@ -605,6 +605,10 @@ export const arenaPlayers = pgTable(
     rewardedAt: timestamptz("rewarded_at"),
     /** The reward recorded at the end ({ score, perfect, effects }), or the reason it was skipped. */
     reward: jsonb("reward"),
+    /** When the player validated the pot as it stands (reset whenever a stake changes, migration 017). */
+    stakesAgreedAt: timestamptz("stakes_agreed_at"),
+    /** Ping-pong: points scored, set when the match ends (migration 018). */
+    points: integer("points").notNull().default(0),
     createdAt: timestamptz("created_at").notNull().defaultNow(),
   },
   (table) => [
@@ -653,7 +657,32 @@ export const arenaEvents = pgTable(
   (table) => [index("arena_events_match_id_idx").on(table.matchId, table.id)],
 );
 
+/**
+ * An accessory copy a player bets on a match (migration 017): taken from the
+ * owner when the battle starts (`taken_at`), handed to the winner (or back on
+ * a tie / a cancelled match) once it is over (`settled_at`, `winner_id`).
+ */
+export const arenaStakes = pgTable(
+  "arena_stakes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    matchId: uuid("match_id")
+      .notNull()
+      .references(() => arenaMatches.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    accessoryId: text("accessory_id").notNull(),
+    takenAt: timestamptz("taken_at"),
+    settledAt: timestamptz("settled_at"),
+    winnerId: text("winner_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("arena_stakes_match_user_accessory_idx").on(table.matchId, table.userId, table.accessoryId), index("arena_stakes_user_idx").on(table.userId)],
+);
+
 export type ArenaMatch = typeof arenaMatches.$inferSelect;
 export type ArenaPlayer = typeof arenaPlayers.$inferSelect;
 export type ArenaBonus = typeof arenaBonuses.$inferSelect;
 export type ArenaEvent = typeof arenaEvents.$inferSelect;
+export type ArenaStake = typeof arenaStakes.$inferSelect;

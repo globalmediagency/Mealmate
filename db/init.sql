@@ -165,7 +165,7 @@ CREATE TABLE IF NOT EXISTS play_sessions (
   score       integer NOT NULL,
   kind        text NOT NULL DEFAULT 'catch',
   created_at  timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT play_sessions_kind_check CHECK (kind IN ('catch', 'defense', 'arena', 'coop'))
+  CONSTRAINT play_sessions_kind_check CHECK (kind IN ('catch', 'defense', 'arena', 'coop', 'pingpong'))
 );
 CREATE INDEX IF NOT EXISTS play_sessions_creature_created_idx ON play_sessions (creature_id, created_at);
 
@@ -361,7 +361,7 @@ CREATE TABLE IF NOT EXISTS arena_matches (
   state_at         timestamptz,
   created_at       timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT arena_matches_status_check CHECK (status IN ('lobby', 'playing', 'finished', 'cancelled')),
-  CONSTRAINT arena_matches_mode_check CHECK (mode IN ('arena', 'coop'))
+  CONSTRAINT arena_matches_mode_check CHECK (mode IN ('arena', 'coop', 'pingpong'))
 );
 CREATE INDEX IF NOT EXISTS arena_matches_host_status_idx ON arena_matches (host_id, status);
 
@@ -383,6 +383,8 @@ CREATE TABLE IF NOT EXISTS arena_players (
   last_shot_at  timestamptz,
   rewarded_at   timestamptz,
   reward        jsonb,
+  stakes_agreed_at timestamptz,
+  points        integer NOT NULL DEFAULT 0,
   created_at    timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT arena_players_status_check CHECK (status IN ('invited', 'ready', 'declined', 'left'))
 );
@@ -413,3 +415,17 @@ CREATE TABLE IF NOT EXISTS arena_events (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS arena_events_match_id_idx ON arena_events (match_id, id);
+
+-- Mises de l'Arène (migration 017) : un exemplaire d'accessoire par ligne, séquestré au lancement, remis au gagnant à la fin.
+CREATE TABLE IF NOT EXISTS arena_stakes (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  match_id     uuid NOT NULL REFERENCES arena_matches(id) ON DELETE CASCADE,
+  user_id      text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  accessory_id text NOT NULL,
+  taken_at     timestamptz,
+  settled_at   timestamptz,
+  winner_id    text REFERENCES "user"(id) ON DELETE SET NULL,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS arena_stakes_match_user_accessory_idx ON arena_stakes (match_id, user_id, accessory_id);
+CREATE INDEX IF NOT EXISTS arena_stakes_user_idx ON arena_stakes (user_id);

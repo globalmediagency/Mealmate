@@ -1,10 +1,15 @@
 import type { ArenaEventView, ArenaPlayerView, ArenaSnapshot, ShotInput, ShotOutcome, TongueInput, TongueOutcome } from "@/lib/arena/service";
 import type { CoopStateMessage } from "@/lib/game/coop";
+import type { PingPongStateMessage } from "@/lib/game/pingpong";
 import type { DefenseSummary } from "@/lib/game/defense";
 import type { PeerMessage } from "@/lib/arena/rtc-protocol";
 import { ARENA } from "@/lib/game/config";
 
 export type LobbyAction = "join" | "decline" | "start" | "leave" | "cancel";
+/** A lobby move: a plain action, or a stake change / validation (spec § 3.24). */
+export type LobbyMove = LobbyAction | { action: "stake"; accessoryId: string; staked: boolean } | { action: "agree" };
+/** The wire shape of a lobby move. */
+export const moveBody = (move: LobbyMove): Record<string, unknown> => (typeof move === "string" ? { action: move } : move);
 export type ArenaListener = (snapshot: ArenaSnapshot) => void;
 export type ArenaErrorListener = (message: string) => void;
 /** A message from another phone over the direct link, shaped like a server event (`id` 0, `payload` = the message). */
@@ -48,7 +53,7 @@ export interface ArenaTransport {
   stop(): void;
   /** Asks for a fresh complete snapshot right away. */
   refresh(): Promise<ArenaSnapshot | null>;
-  act(action: LobbyAction): Promise<ArenaSnapshot>;
+  act(move: LobbyMove): Promise<ArenaSnapshot>;
   shoot(input: ShotInput): Promise<ShotOutcome | null>;
   lick(input: TongueInput): Promise<TongueOutcome | null>;
   /** The direct link, when there is one. */
@@ -63,14 +68,19 @@ export interface ArenaTransport {
 
 export const NO_LINK: LinkState = { mode: "polling", connected: 0, total: 0, peers: [] };
 
-/** "Défendre à deux" moves sent to the server (relayed to the phones that poll, and stored for the host's state). */
+/** "Défendre à deux" and ping-pong moves sent to the server (relayed to the phones that poll, and stored for the host's state). */
 export type CoopAction =
   | { action: "state"; state: CoopStateMessage }
   | { action: "fire"; frame: string; x: number; y: number; from: { x: number; y: number; z: number } | null; nonce: string }
   | { action: "smash"; frame: string; hits: number[]; x: number; y: number; nonce: string }
   | { action: "lick"; frame: string; angle: number; length: number; nonce: string }
   | { action: "catch"; frame: string; bonusIds: number[]; junkIds: number[]; nonce: string }
-  | { action: "finish"; summaries: Record<string, DefenseSummary> };
+  | { action: "finish"; summaries: Record<string, DefenseSummary> }
+  // Ping-pong (spec § 3.25).
+  | { action: "state"; state: PingPongStateMessage }
+  | { action: "swing"; flightId: number; at: number; nonce: string }
+  | { action: "serve"; at: number; nonce: string }
+  | { action: "finish"; points: Record<string, number>; longestRally: number; hits: Record<string, number>; perfects: Record<string, number> };
 
 /** A snapshot with every player carrying their creature: incremental ones borrow it from the previous complete one. */
 export function completeSnapshot(incoming: ArenaSnapshot, previous: ArenaSnapshot | null): ArenaSnapshot {
@@ -82,7 +92,8 @@ export function completeSnapshot(incoming: ArenaSnapshot, previous: ArenaSnapsho
     return { ...p, creature: before.creature, creatureName: p.creatureName ?? before.creatureName };
   });
   const me = players.find((p) => p.mine) ?? incoming.me;
-  return { ...incoming, players, me };
+  const collection = incoming.collection ?? previous.collection;
+  return { ...incoming, players, me, ...(collection ? { collection } : {}) };
 }
 
 export class ArenaRequestError extends Error {
@@ -239,8 +250,8 @@ export class PollingTransport implements ArenaTransport {
     }
   }
 
-  async act(action: LobbyAction): Promise<ArenaSnapshot> {
-    const snapshot = await request<ArenaSnapshot>(`/api/arena/${this.matchId}/action`, { method: "POST", body: JSON.stringify({ action }) });
+  async act(move: LobbyMove): Promise<ArenaSnapshot> {
+    const snapshot = await request<ArenaSnapshot>(`/api/arena/${this.matchId}/action`, { method: "POST", body: JSON.stringify(moveBody(move)) });
     const accepted = this.accept(snapshot);
     this.schedule();
     return accepted;
@@ -335,8 +346,8 @@ class LazyRtcTransport implements ArenaTransport {
     return this.inner.refresh();
   }
 
-  act(action: LobbyAction): Promise<ArenaSnapshot> {
-    return (this.link ?? this.inner).act(action);
+  act(move: LobbyMove): Promise<ArenaSnapshot> {
+    return (this.link ?? this.inner).act(move);
   }
 
   shoot(input: ShotInput): Promise<ShotOutcome | null> {

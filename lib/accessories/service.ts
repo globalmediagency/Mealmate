@@ -39,27 +39,38 @@ export async function addAccessoryCopies(userId: string, accessoryId: string, co
  * accessory is unequipped from the user's creatures. Returns the copies left.
  */
 export async function takeAccessoryCopy(userId: string, accessoryId: string): Promise<number> {
-  const db = getDb();
-  const rows = await db
+  const left = await decrementAccessoryCopy(userId, accessoryId);
+  if (left <= 0) await dropEmptyAccessory(userId, accessoryId);
+  return left;
+}
+
+/**
+ * The conditional decrement alone: the row may stay at 0 and the creature keeps
+ * wearing the accessory. Used to hold a stake during an arena battle; call
+ * `dropEmptyAccessory` when the copy is finally gone. Returns the copies left.
+ */
+export async function decrementAccessoryCopy(userId: string, accessoryId: string): Promise<number> {
+  const rows = await getDb()
     .update(userAccessories)
     .set({ qty: sql`${userAccessories.qty} - 1` })
     .where(and(eq(userAccessories.userId, userId), eq(userAccessories.accessoryId, accessoryId), sql`${userAccessories.qty} > 0`))
     .returning({ qty: userAccessories.qty });
   if (rows.length === 0) throw new DomainError("not_owned", "Tu ne possèdes pas cet accessoire.", 403);
-  const left = rows[0].qty;
-  if (left <= 0) {
-    const removed = await db
-      .delete(userAccessories)
-      .where(and(eq(userAccessories.userId, userId), eq(userAccessories.accessoryId, accessoryId), sql`${userAccessories.qty} <= 0`))
-      .returning({ id: userAccessories.accessoryId });
-    if (removed.length > 0) {
-      const owned = await db.select({ id: creatures.id }).from(creatures).where(eq(creatures.userId, userId));
-      if (owned.length > 0) {
-        await db.delete(creatureOutfits).where(and(inArray(creatureOutfits.creatureId, owned.map((c) => c.id)), eq(creatureOutfits.accessoryId, accessoryId)));
-      }
-    }
+  return rows[0].qty;
+}
+
+/** Deletes a row left at 0 copies (a copy arriving in between survives) and unequips the accessory from the user's creatures. */
+export async function dropEmptyAccessory(userId: string, accessoryId: string): Promise<void> {
+  const db = getDb();
+  const removed = await db
+    .delete(userAccessories)
+    .where(and(eq(userAccessories.userId, userId), eq(userAccessories.accessoryId, accessoryId), sql`${userAccessories.qty} <= 0`))
+    .returning({ id: userAccessories.accessoryId });
+  if (removed.length === 0) return;
+  const owned = await db.select({ id: creatures.id }).from(creatures).where(eq(creatures.userId, userId));
+  if (owned.length > 0) {
+    await db.delete(creatureOutfits).where(and(inArray(creatureOutfits.creatureId, owned.map((c) => c.id)), eq(creatureOutfits.accessoryId, accessoryId)));
   }
-  return left;
 }
 
 export async function getOutfit(creatureId: string): Promise<Outfit> {

@@ -4,6 +4,7 @@
  * WebRTC plumbing lives in `components/arena/rtc-transport.ts`.
  */
 import { parseCoopState, type CoopStateMessage } from "@/lib/game/coop";
+import { parsePingPongState, type PingPongState } from "@/lib/game/pingpong";
 
 /** Signals exchanged through the server to open the direct link. */
 export type ArenaSignal =
@@ -11,7 +12,7 @@ export type ArenaSignal =
   | { type: "offer"; session: string; sdp: string }
   | { type: "answer"; session: string; target: string; sdp: string };
 
-/** Messages carried by the data channel once the link is open (arena, then "Défendre à deux"). */
+/** Messages carried by the data channel once the link is open (arena, "Défendre à deux", ping-pong). */
 export type PeerMessage =
   | { t: "egg"; nonce: string; target: string | null; x: number; y: number }
   | { t: "hit"; nonce: string; target: string | null; x: number; y: number; hit: boolean }
@@ -21,7 +22,10 @@ export type PeerMessage =
   | { t: "fire"; nonce: string; frame: string; x: number; y: number; from: { x: number; y: number; z: number } | null }
   | { t: "smash"; nonce: string; frame: string; hits: number[]; x: number; y: number }
   | { t: "lick"; nonce: string; frame: string; angle: number; length: number }
-  | { t: "catch"; nonce: string; frame: string; bonusIds: number[]; junkIds: number[] };
+  | { t: "catch"; nonce: string; frame: string; bonusIds: number[]; junkIds: number[] }
+  | { t: "ppstate"; nonce: string; hostTime: number; state: PingPongState }
+  | { t: "swing"; nonce: string; flightId: number; at: number }
+  | { t: "serve"; nonce: string; at: number };
 
 /** Between two players, the one with the smaller id opens the connection. */
 export function isOfferer(me: string, peer: string): boolean {
@@ -77,6 +81,16 @@ export function parsePeerMessage(raw: unknown): PeerMessage | null {
     case "catch":
       if (!isString(m.frame) || !isNumberList(m.bonusIds) || !isNumberList(m.junkIds)) return null;
       return { t: "catch", nonce: m.nonce, frame: m.frame, bonusIds: m.bonusIds, junkIds: m.junkIds };
+    case "ppstate": {
+      const parsed = parsePingPongState({ hostTime: m.hostTime, state: m.state });
+      return parsed ? { t: "ppstate", nonce: m.nonce, hostTime: parsed.hostTime, state: parsed.state } : null;
+    }
+    case "swing":
+      if (!isNumber(m.flightId) || !isNumber(m.at)) return null;
+      return { t: "swing", nonce: m.nonce, flightId: m.flightId, at: m.at };
+    case "serve":
+      if (!isNumber(m.at)) return null;
+      return { t: "serve", nonce: m.nonce, at: m.at };
     default:
       return null;
   }

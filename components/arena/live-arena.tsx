@@ -47,7 +47,12 @@ function notifyInBackground(notice: ArenaInviteNotice, open: () => void) {
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
   try {
     const notification = new Notification("Bataille dans l'arène", {
-      body: notice.mode === "coop" ? `${notice.hostName} t'invite à défendre vos créatures ensemble. Rejoins la partie avant qu'elle ne commence !` : `${notice.hostName} t'invite à une bataille d'œufs. Rejoins-la avant qu'elle ne commence !`,
+      body:
+        notice.mode === "coop"
+          ? `${notice.hostName} t'invite à défendre vos créatures ensemble. Rejoins la partie avant qu'elle ne commence !`
+          : notice.mode === "pingpong"
+            ? `${notice.hostName} te défie au ping-pong. Rejoins la partie avant qu'elle ne commence !`
+            : `${notice.hostName} t'invite à une bataille d'œufs. Rejoins-la avant qu'elle ne commence !`,
       tag: `arena-${notice.matchId}`,
     });
     notification.onclick = () => {
@@ -94,7 +99,7 @@ export function ArenaInviteToasts({ notices, onDismiss, now = Date.now() }: Aren
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-sm text-cream-50">
-                <span className="font-semibold">{notice.hostName}</span> {notice.mode === "coop" ? "t'invite à défendre à deux" : "t'invite à une bataille dans l'arène"}
+                <span className="font-semibold">{notice.hostName}</span> {notice.mode === "coop" ? "t'invite à défendre à deux" : notice.mode === "pingpong" ? "te défie au ping-pong" : "t'invite à une bataille dans l'arène"}
               </p>
               <p className="mt-0.5 text-xs text-cream-500">
                 {notice.players.length > 0 ? `Avec ${notice.players.join(", ")} · ` : ""}

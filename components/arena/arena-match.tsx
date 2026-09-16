@@ -10,10 +10,13 @@ import { Card, CardText, CardTitle } from "@/components/ui/card";
 import type { ArenaPlayerView, ArenaSnapshot } from "@/lib/arena/service";
 import { cn } from "@/lib/utils/cn";
 import { CoopGame } from "@/components/coop/coop-game";
+import { PingPongGame } from "@/components/pingpong/pingpong-game";
+import { PINGPONG } from "@/lib/game/config";
 import { ArenaGame } from "./arena-game";
 import { PreviewTransport } from "./preview-transport";
 import { ChannelSignaling, RtcTransport } from "./rtc-transport";
-import { ArenaRequestError, createArenaTransport, type ArenaTransport, type LobbyAction } from "./transport";
+import { StakesCard, StakesResult } from "./stakes-card";
+import { ArenaRequestError, createArenaTransport, type ArenaTransport, type LobbyMove } from "./transport";
 
 export type ArenaMatchProps = {
   initial: ArenaSnapshot;
@@ -57,7 +60,7 @@ export function ArenaMatch({ initial, webrtc, preview = false, previewRtc = fals
   const transport = transportRef.current;
   const [snapshot, setSnapshot] = useState(initial);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<LobbyAction | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
   const refreshed = useRef(false);
 
   useEffect(() => {
@@ -89,11 +92,11 @@ export function ArenaMatch({ initial, webrtc, preview = false, previewRtc = fals
     if (mergedInto && !preview) router.replace(`/arena/${mergedInto}`);
   }, [mergedInto, preview, router]);
 
-  async function act(action: LobbyAction) {
-    setBusy(action);
+  async function act(move: LobbyMove) {
+    setBusy(typeof move === "string" ? move : move.action);
     setError(null);
     try {
-      setSnapshot(await transport.act(action));
+      setSnapshot(await transport.act(move));
     } catch (err) {
       setError(err instanceof ArenaRequestError ? err.message : "Impossible de joindre le serveur.");
     } finally {
@@ -103,28 +106,38 @@ export function ArenaMatch({ initial, webrtc, preview = false, previewRtc = fals
 
   const { match, players, me } = snapshot;
   const ready = players.filter((p) => p.status === "ready");
-  const canStart = match.isHost && match.status === "lobby" && ready.length >= 2;
+  const stakesPending = match.stakes.enabled && !match.stakes.agreed;
+  const canStart = match.isHost && match.status === "lobby" && ready.length >= 2 && !stakesPending;
   const inGame = me?.status === "ready" && (match.status === "lobby" || match.status === "playing");
   const coop = match.mode === "coop";
+  const pingpong = match.mode === "pingpong";
   const coopResult = match.coop?.result ?? null;
+  const pingpongResult = match.pingpong?.result ?? null;
+  const opponent = players.find((p) => !p.mine && (p.status === "ready" || p.status === "left")) ?? null;
   const ranked = [...players].filter((p) => p.status === "ready" || p.status === "left").sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
   const reward = me?.reward ?? null;
 
   return (
     <div className="space-y-4 animate-rise" data-arena-match data-status={match.status}>
       <header>
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-cream-50">{coop ? "Défendre à deux" : "Arène"}</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-cream-50">{coop ? "Défendre à deux" : pingpong ? "Ping-pong" : "Arène"}</h1>
         <p className="mt-0.5 text-sm text-cream-500">
           {match.status === "lobby"
             ? coop
               ? `${ready.length} joueur${ready.length > 1 ? "s" : ""} prêt${ready.length > 1 ? "s" : ""} · la malbouffe attaque chaque créature, ${match.defense.hp} points de vie chacune.`
-              : `${ready.length} joueur${ready.length > 1 ? "s" : ""} prêt${ready.length > 1 ? "s" : ""} · ${match.durationSeconds} s de bataille, ${match.maxHp} points de vie chacun.`
+              : pingpong
+                ? `${ready.length} joueur${ready.length > 1 ? "s" : ""} prêt${ready.length > 1 ? "s" : ""} · ${PINGPONG.pointsToWin} points pour gagner, frappe quand la balle arrive.`
+                : `${ready.length} joueur${ready.length > 1 ? "s" : ""} prêt${ready.length > 1 ? "s" : ""} · ${match.durationSeconds} s de bataille, ${match.maxHp} points de vie chacun.`
             : match.status === "playing"
               ? coop
                 ? "Protégez vos créatures ensemble : vise n'importe laquelle, la langue attrape les bons aliments près de la tienne."
-                : "Vise les créatures adverses, attrape les bons aliments avec la langue."
+                : pingpong
+                  ? "Renvoie la balle quand l'anneau autour de ta créature devient vert."
+                  : "Vise les créatures adverses, attrape les bons aliments avec la langue."
               : match.status === "finished"
-                ? "La bataille est terminée."
+                ? pingpong
+                  ? "La partie est terminée."
+                  : "La bataille est terminée."
                 : "Cette partie a été annulée."}
         </p>
       </header>
@@ -162,7 +175,7 @@ export function ArenaMatch({ initial, webrtc, preview = false, previewRtc = fals
             {me?.status === "ready" && match.isHost ? (
               <>
                 <Button onClick={() => void act("start")} disabled={!canStart || busy !== null} variant="brass" className="w-auto px-6" data-arena-start>
-                  {busy === "start" ? "Lancement…" : canStart ? "Lancer la bataille" : "En attente d'un ami…"}
+                  {busy === "start" ? "Lancement…" : canStart ? (pingpong ? "Lancer la partie" : "Lancer la bataille") : ready.length < 2 ? "En attente d'un ami…" : "En attente des validations…"}
                 </Button>
                 <Button onClick={() => void act("cancel")} disabled={busy !== null} variant="secondary" className="w-auto px-6">
                   Annuler la partie
@@ -178,13 +191,18 @@ export function ArenaMatch({ initial, webrtc, preview = false, previewRtc = fals
           {me?.status === "declined" || me?.status === "left" ? <CardText className="mt-3">Tu ne participes pas à cette partie.</CardText> : null}
           <CardText className="mt-3 text-xs">
             Chaque joueur pose le marqueur de sa créature sur la même table. Lance la caméra dès maintenant pour vérifier que les créatures sont reconnues ; la partie démarre pour
-            tout le monde quand l&apos;hôte la lance{coop ? ", et c'est son téléphone qui mène la malbouffe : il doit garder l'écran allumé" : ""}. Une partie compte dans la limite quotidienne, comme « Jouer » et « Défendre ».
+            tout le monde quand l&apos;hôte la lance{coop ? ", et c'est son téléphone qui mène la malbouffe : il doit garder l'écran allumé" : pingpong ? ", et c'est son téléphone qui arbitre : il doit garder l'écran allumé" : ""}. Une partie compte dans la limite quotidienne, comme « Jouer » et « Défendre ».
           </CardText>
         </Card>
       ) : null}
 
+      {match.status === "lobby" && match.stakes.enabled ? (
+        <StakesCard snapshot={snapshot} busy={busy !== null} onStake={(accessoryId, staked) => void act({ action: "stake", accessoryId, staked })} onAgree={() => void act({ action: "agree" })} />
+      ) : null}
+
       {inGame && coop ? <CoopGame transport={transport} initial={snapshot} preview={preview} onLeave={() => void act("leave")} /> : null}
-      {inGame && !coop ? <ArenaGame transport={transport} initial={snapshot} preview={preview} onLeave={() => void act("leave")} /> : null}
+      {inGame && pingpong ? <PingPongGame transport={transport} initial={snapshot} preview={preview} onLeave={() => void act("leave")} /> : null}
+      {inGame && !coop && !pingpong ? <ArenaGame transport={transport} initial={snapshot} preview={preview} onLeave={() => void act("leave")} /> : null}
 
       {match.status === "finished" && coop ? (
         <Card data-arena-results data-coop-results>
@@ -245,7 +263,74 @@ export function ArenaMatch({ initial, webrtc, preview = false, previewRtc = fals
         </Card>
       ) : null}
 
-      {match.status === "finished" && !coop ? (
+      {match.status === "finished" && pingpong ? (
+        <Card data-arena-results data-pingpong-results>
+          <div className="flex items-center gap-2">
+            <Trophy className="h-6 w-6 text-brass-300" aria-hidden="true" />
+            <CardTitle>Score final</CardTitle>
+          </div>
+          {pingpongResult ? (
+            <>
+              <div className="mt-3 rounded-2xl bg-ink-900/70 p-3 text-center">
+                <p className="font-display text-5xl font-semibold tabular-nums text-cream-50">
+                  <span className={cn(pingpongResult.winnerId === me?.userId && "text-brass-300")}>{me?.points ?? 0}</span> – <span className={cn(pingpongResult.winnerId && pingpongResult.winnerId === opponent?.userId && "text-brass-300")}>{opponent?.points ?? 0}</span>
+                </p>
+                <p className="text-sm text-cream-300">
+                  {pingpongResult.winnerId === null
+                    ? "Égalité parfaite !"
+                    : pingpongResult.winnerId === me?.userId
+                      ? me?.status === "ready" && (opponent?.points ?? 0) === 0
+                        ? "Victoire sans concéder un point !"
+                        : "Tu remportes la partie !"
+                      : `${opponent?.username ?? "L'autre"} remporte la partie. Belle revanche en vue ?`}
+                </p>
+                {pingpongResult.longestRally > 1 ? <p className="mt-1 text-xs text-cream-500">Plus long échange : {pingpongResult.longestRally} renvois.</p> : null}
+              </div>
+              <ul className="mt-3 divide-y divide-ink-600/80">
+                {ranked.map((p) => (
+                  <li key={p.userId} className={cn("flex min-h-11 items-center justify-between gap-3 py-2 text-sm", p.mine && "font-semibold text-cream-50")}>
+                    <span>
+                      {p.mine ? "Toi" : p.username} <span className="text-cream-500">· {p.creatureName ?? "sa créature"}</span>
+                    </span>
+                    <span className="text-xs text-cream-500">
+                      {p.status === "left" ? "parti · " : ""}
+                      {p.points} pt{p.points > 1 ? "s" : ""} · {pingpongResult.hits[p.userId] ?? 0} renvoi{(pingpongResult.hits[p.userId] ?? 0) > 1 ? "s" : ""}
+                      {(pingpongResult.perfects[p.userId] ?? 0) > 0 ? ` dont ${pingpongResult.perfects[p.userId]} parfait${(pingpongResult.perfects[p.userId] ?? 0) > 1 ? "s" : ""}` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <CardText className="mt-2">La partie s&apos;est arrêtée sans score (temps écoulé sans hôte) : pas de récompense.</CardText>
+          )}
+          {reward && "score" in reward ? (
+            <p className="mt-3 text-center text-xs text-cream-500">
+              {reward.score} pts · +{reward.effects.moodDelta} humeur · +{reward.effects.xpDelta} XP
+              {reward.effects.xpMultiplier > 1
+                ? ` (bonne humeur : XP ×${reward.effects.xpMultiplier.toLocaleString("fr-FR")})`
+                : reward.effects.xpMultiplier < 1
+                  ? ` (humeur basse : XP ×${reward.effects.xpMultiplier.toLocaleString("fr-FR")})`
+                  : ""}{" "}
+              · {reward.playsLeft} partie{reward.playsLeft > 1 ? "s" : ""} restante{reward.playsLeft > 1 ? "s" : ""} aujourd&apos;hui
+            </p>
+          ) : reward && "skipped" in reward ? (
+            <CardText className="mt-3">{SKIPPED_LABEL[reward.skipped] ?? "Pas de récompense pour cette partie."}</CardText>
+          ) : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <LinkButton href="/arena" variant="brass" className="w-auto px-5">
+              Nouvelle partie
+            </LinkButton>
+            <LinkButton href="/home" variant="secondary" className="w-auto px-5">
+              Retour à l&apos;accueil
+            </LinkButton>
+          </div>
+        </Card>
+      ) : null}
+
+      {match.status === "finished" ? <StakesResult snapshot={snapshot} /> : null}
+
+      {match.status === "finished" && !coop && !pingpong ? (
         <Card data-arena-results>
           <div className="flex items-center gap-2">
             <Trophy className="h-6 w-6 text-brass-300" aria-hidden="true" />

@@ -9,8 +9,8 @@ export const dynamic = "force-dynamic";
 
 const createSchema = z.object({
   friendIds: z.array(z.string().min(1).max(64)).min(1).max(ARENA.maxPlayers - 1),
-  /** `arena` (everyone for themselves) or `coop` ("Défendre à deux"). */
-  mode: z.enum(["arena", "coop"]).default("arena"),
+  /** `arena` (everyone for themselves), `coop` ("Défendre à deux") or `pingpong` (a duel). */
+  mode: z.enum(["arena", "coop", "pingpong"]).default("arena"),
 });
 
 /** GET /api/arena → the user's invitations, open matches and latest results (spec § 3.22). */

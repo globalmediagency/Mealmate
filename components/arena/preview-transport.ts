@@ -1,10 +1,12 @@
-import type { ArenaEventView, ArenaMode, ArenaPlayerView, ArenaSnapshot, CoopResultStored, ShotInput, ShotOutcome, TongueInput, TongueOutcome } from "@/lib/arena/service";
+import type { ArenaCollectionItem, ArenaEventView, ArenaMode, ArenaPlayerView, ArenaSnapshot, ArenaStakeView, ArenaStakesView, CoopResultStored, PingPongResultStored, ShotInput, ShotOutcome, TongueInput, TongueOutcome } from "@/lib/arena/service";
+import { getAccessory } from "@/lib/accessories/catalog";
 import { coopScore, parseCoopState, type CoopStateMessage } from "@/lib/game/coop";
+import { parsePingPongState, pingpongScore, type PingPongStateMessage } from "@/lib/game/pingpong";
 import { DEFAULT_RULES } from "@/lib/game/rules";
 import { arenaScore, placeArenaBonus, rankArenaPlayers } from "@/lib/game/arena";
 import { ARENA } from "@/lib/game/config";
 import { playEffects } from "@/lib/game/play";
-import { NO_LINK, type ArenaErrorListener, type ArenaListener, type ArenaTransport, type CoopAction, type LinkState, type LobbyAction } from "./transport";
+import { NO_LINK, type ArenaErrorListener, type ArenaListener, type ArenaTransport, type CoopAction, type LinkState, type LobbyMove } from "./transport";
 
 /** The two players of the preview: the viewer (marker 17) and Léa (marker 42). */
 export const PREVIEW_ME = "preview-me";
@@ -13,15 +15,35 @@ const MATCH_ID = "00000000-0000-4000-8000-000000000042";
 const MAX_HP = 100;
 const EGG_DAMAGE = 15;
 const DURATION = 90;
+/** What the viewer may bet in the preview lobby, and what Léa already bets. */
+const PREVIEW_COLLECTION: Array<{ id: string; qty: number; equipped: boolean }> = [
+  { id: "beret", qty: 1, equipped: true },
+  { id: "straw_hat", qty: 2, equipped: false },
+  { id: "scarf", qty: 1, equipped: false },
+  { id: "monocle", qty: 1, equipped: false },
+];
+const OTHER_STAKES = ["bow_tie"];
 
 type Player = ArenaPlayerView & { outAt: number | null };
+
+const stakeView = (id: string): ArenaStakeView | null => {
+  const accessory = getAccessory(id);
+  return accessory ? { accessoryId: id, name: accessory.name, slot: accessory.slot, rarity: accessory.rarity } : null;
+};
+
+const collectionItems = (): ArenaCollectionItem[] => PREVIEW_COLLECTION.flatMap((c) => {
+  const view = stakeView(c.id);
+  return view ? [{ ...view, qty: c.qty, equipped: c.equipped }] : [];
+});
+
+const noStakes = (enabled: boolean, waitingFor: string[] = []): ArenaStakesView => ({ enabled, agreed: false, waitingFor, pot: 0, winnerId: null });
 
 /** Which of the two the viewer plays: the viewer's own creature (marker 17) or Léa (marker 42), for the two-tab WebRTC dev screen. */
 export type PreviewSide = "me" | "lea";
 
 /** The two players, the viewer's row first. */
 function basePlayers(side: PreviewSide = "me"): Player[] {
-  const common = { hitsDealt: 0, hitsTaken: 0, shots: 0, goodEaten: 0, healed: 0, rank: null, eliminatedAt: null, outAt: null, hp: MAX_HP };
+  const common = { hitsDealt: 0, hitsTaken: 0, shots: 0, goodEaten: 0, healed: 0, rank: null, eliminatedAt: null, outAt: null, hp: MAX_HP, stakes: [] as ArenaStakeView[], agreed: false, points: 0 };
   const miso: Player = {
     ...common,
     userId: PREVIEW_ME,
@@ -83,6 +105,8 @@ export function previewArenaSnapshot(side: PreviewSide = "me", webrtc = false, m
       seed: 4242,
       defense: DEFAULT_RULES.defense,
       coop: mode === "coop" ? { live: null, liveAt: null, result: null } : null,
+      pingpong: mode === "pingpong" ? { live: null, liveAt: null, result: null } : null,
+      stakes: noStakes(mode !== "coop", mode !== "coop" ? ["toi", players[1].username] : []),
     },
     players,
     bonuses: [],
@@ -90,6 +114,7 @@ export function previewArenaSnapshot(side: PreviewSide = "me", webrtc = false, m
     cursor: 0,
     me: players[0],
     now,
+    ...(mode !== "coop" ? { collection: collectionItems() } : {}),
   };
 }
 
@@ -121,12 +146,42 @@ export class PreviewTransport implements ArenaTransport {
   private coopLive: CoopStateMessage | null = null;
   private coopLiveAt: string | null = null;
   private coopResult: CoopResultStored | null = null;
+  /** Ping-pong: the host's published rally state and the final score. */
+  private pingpongLive: PingPongStateMessage | null = null;
+  private pingpongResult: PingPongResultStored | null = null;
+  /** Stakes (arena mode): the viewer's bets, Léa's, who validated the pot, when Léa validates it again. */
+  private myStakes: string[] = [];
+  private readonly otherStakes: string[];
+  private agreed = { me: false, other: false };
+  private otherAgreesAt: number | null = null;
+  private stakesWinner: string | null = null;
 
   constructor(initial: ArenaSnapshot = previewArenaSnapshot(), random: () => number = Math.random) {
     this.snapshot = initial;
     this.status = initial.match.status;
     this.players = basePlayers(initial.me?.userId === PREVIEW_OTHER ? "lea" : "me");
     this.random = random;
+    this.otherStakes = initial.match.stakes.enabled ? [...OTHER_STAKES] : [];
+    this.syncStakes();
+  }
+
+  private get stakesEnabled(): boolean {
+    return this.snapshot.match.stakes.enabled;
+  }
+
+  /** Copies the bets onto the players' rows. */
+  private syncStakes() {
+    this.me.stakes = this.myStakes.flatMap((id) => stakeView(id) ?? []);
+    this.other.stakes = this.otherStakes.flatMap((id) => stakeView(id) ?? []);
+    this.me.agreed = this.agreed.me;
+    this.other.agreed = this.agreed.other;
+  }
+
+  private stakesView(): ArenaStakesView {
+    if (!this.stakesEnabled) return noStakes(false);
+    const waitingFor = this.status === "lobby" ? [...(this.agreed.me ? [] : ["toi"]), ...(this.agreed.other ? [] : [this.other.username])] : [];
+    const pot = this.myStakes.length + this.otherStakes.length;
+    return { enabled: true, agreed: waitingFor.length === 0, waitingFor, pot, winnerId: this.status === "finished" && pot > 0 ? this.stakesWinner : null };
   }
 
   /** The viewer's row, then the other's. */
@@ -155,12 +210,35 @@ export class PreviewTransport implements ArenaTransport {
   /** Coop moves: the state is kept for the snapshot, a finish closes the battle with the team's score; relays are no-ops (nobody else here). */
   async coop(action: CoopAction): Promise<boolean> {
     if (this.status !== "playing") return false;
-    if (action.action === "state") {
+    if (action.action === "state" && this.snapshot.match.mode === "pingpong") {
+      const parsed = parsePingPongState(action.state);
+      if (!parsed) return false;
+      this.pingpongLive = parsed;
+      this.coopLiveAt = new Date().toISOString();
+    } else if (action.action === "state") {
       const parsed = parseCoopState(action.state);
       if (!parsed) return false;
       this.coopLive = parsed;
       this.coopLiveAt = new Date().toISOString();
-    } else if (action.action === "finish") {
+    } else if (action.action === "finish" && "points" in action) {
+      const mine = action.points[this.me.userId] ?? 0;
+      const theirs = action.points[this.other.userId] ?? 0;
+      const winnerId = mine > theirs ? this.me.userId : theirs > mine ? this.other.userId : null;
+      this.pingpongResult = { points: action.points, winnerId, longestRally: action.longestRally, hits: action.hits, perfects: action.perfects };
+      this.stakesWinner = winnerId;
+      this.status = "finished";
+      this.finishedAt = Date.now();
+      for (const p of this.players) {
+        p.points = action.points[p.userId] ?? 0;
+        p.rank = winnerId === null || p.userId === winnerId ? 1 : 2;
+        if (p.mine) {
+          const { score, perfect } = pingpongScore(mine, theirs, winnerId === null ? null : winnerId === p.userId);
+          p.reward = { score, perfect, effects: playEffects(score), playsLeft: 2 };
+        }
+      }
+      this.log(this.me.userId, "finish", { reason: "pingpong", points: action.points, winnerId });
+      this.emit();
+    } else if (action.action === "finish" && "summaries" in action) {
       const summaries = Object.values(action.summaries);
       this.coopResult = { ...coopScore(summaries, DEFAULT_RULES.defense), summaries: action.summaries };
       this.status = "finished";
@@ -205,6 +283,8 @@ export class PreviewTransport implements ArenaTransport {
     this.status = "finished";
     this.finishedAt = reason === "time" && this.endsAt ? this.endsAt : now;
     const ranks = rankArenaPlayers(this.players.map((p) => ({ userId: p.userId, alive: p.status === "ready" && p.hp > 0, hp: p.hp, hitsDealt: p.hitsDealt, outAt: p.outAt })));
+    const first = this.players.filter((p) => ranks.get(p.userId) === 1);
+    this.stakesWinner = first.length === 1 ? first[0].userId : null;
     for (const p of this.players) {
       p.rank = ranks.get(p.userId) ?? null;
       if (p.mine) {
@@ -234,8 +314,14 @@ export class PreviewTransport implements ArenaTransport {
 
   private tick() {
     const now = Date.now();
-    if (this.status === "playing" && this.snapshot.match.mode === "coop") {
-      // Coop: the viewer's phone runs the battle itself; nothing to simulate here.
+    if (this.status === "lobby" && this.otherAgreesAt !== null && now >= this.otherAgreesAt) {
+      this.otherAgreesAt = null;
+      this.agreed.other = true;
+      this.syncStakes();
+      this.log(this.other.userId, "agree");
+    }
+    if (this.status === "playing" && this.snapshot.match.mode !== "arena") {
+      // Coop and ping-pong: the viewer's phone runs the game itself; nothing to simulate here.
     } else if (this.status === "playing") {
       if (this.endsAt !== null && now >= this.endsAt) this.finish("time");
       else {
@@ -305,6 +391,8 @@ export class PreviewTransport implements ArenaTransport {
         seed: this.snapshot.match.seed,
         defense: this.snapshot.match.defense,
         coop: this.snapshot.match.mode === "coop" ? { live: this.coopLive, liveAt: this.coopLiveAt, result: this.coopResult } : null,
+        pingpong: this.snapshot.match.mode === "pingpong" ? { live: this.pingpongLive, liveAt: this.coopLiveAt, result: this.pingpongResult } : null,
+        stakes: this.stakesView(),
       },
       players,
       bonuses:
@@ -317,6 +405,7 @@ export class PreviewTransport implements ArenaTransport {
       cursor: events.length > 0 ? events[events.length - 1].id : since,
       me: players[0],
       now: new Date(now).toISOString(),
+      ...(this.stakesEnabled && this.status === "lobby" ? { collection: collectionItems() } : {}),
     };
   }
 
@@ -333,8 +422,29 @@ export class PreviewTransport implements ArenaTransport {
     return this.emit();
   }
 
-  async act(action: LobbyAction): Promise<ArenaSnapshot> {
+  async act(move: LobbyMove): Promise<ArenaSnapshot> {
     const now = Date.now();
+    if (typeof move !== "string") {
+      if (this.status !== "lobby" || !this.stakesEnabled) return this.emit();
+      if (move.action === "stake") {
+        const has = this.myStakes.includes(move.accessoryId);
+        if (move.staked && !has && PREVIEW_COLLECTION.some((c) => c.id === move.accessoryId)) this.myStakes.push(move.accessoryId);
+        else if (!move.staked && has) this.myStakes = this.myStakes.filter((id) => id !== move.accessoryId);
+        else return this.emit();
+        // The pot changed: everybody validates again (Léa does so by herself a moment after the viewer).
+        this.agreed = { me: false, other: false };
+        this.otherAgreesAt = null;
+        this.log(this.me.userId, move.staked ? "stake" : "unstake", { accessoryId: move.accessoryId });
+      } else if (move.action === "agree" && !this.agreed.me) {
+        this.agreed.me = true;
+        this.otherAgreesAt = now + 1500;
+        this.log(this.me.userId, "agree");
+      }
+      this.syncStakes();
+      return this.emit();
+    }
+    const action = move;
+    if (action === "start" && this.status === "lobby" && this.stakesEnabled && !(this.agreed.me && this.agreed.other)) return this.emit();
     if (action === "start" && this.status === "lobby") {
       this.status = "playing";
       this.startedAt = now;

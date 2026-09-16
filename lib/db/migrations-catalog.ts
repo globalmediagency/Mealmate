@@ -306,6 +306,36 @@ ALTER TABLE arena_matches ADD COLUMN IF NOT EXISTS state_at timestamptz;
 ALTER TABLE play_sessions DROP CONSTRAINT IF EXISTS play_sessions_kind_check;
 ALTER TABLE play_sessions ADD CONSTRAINT play_sessions_kind_check CHECK (kind IN ('catch', 'defense', 'arena', 'coop'));`,
   },
+  {
+    id: "017",
+    file: "017_arena_stakes.sql",
+    title: "Mises de l'Arène : accessoires misés avant la bataille, remportés par le vainqueur",
+    checks: [{ table: "arena_stakes" }, { table: "arena_players", column: "stakes_agreed_at" }],
+    sql: `CREATE TABLE IF NOT EXISTS arena_stakes (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  match_id     uuid NOT NULL REFERENCES arena_matches(id) ON DELETE CASCADE,
+  user_id      text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  accessory_id text NOT NULL,
+  taken_at     timestamptz,
+  settled_at   timestamptz,
+  winner_id    text REFERENCES "user"(id) ON DELETE SET NULL,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS arena_stakes_match_user_accessory_idx ON arena_stakes (match_id, user_id, accessory_id);
+CREATE INDEX IF NOT EXISTS arena_stakes_user_idx ON arena_stakes (user_id);
+ALTER TABLE arena_players ADD COLUMN IF NOT EXISTS stakes_agreed_at timestamptz;`,
+  },
+  {
+    id: "018",
+    file: "018_pingpong.sql",
+    title: "Ping-pong : nouveau type de partie entre amis, points par joueur",
+    checks: [{ table: "arena_players", column: "points" }],
+    sql: `ALTER TABLE arena_matches DROP CONSTRAINT IF EXISTS arena_matches_mode_check;
+ALTER TABLE arena_matches ADD CONSTRAINT arena_matches_mode_check CHECK (mode IN ('arena', 'coop', 'pingpong'));
+ALTER TABLE arena_players ADD COLUMN IF NOT EXISTS points integer NOT NULL DEFAULT 0;
+ALTER TABLE play_sessions DROP CONSTRAINT IF EXISTS play_sessions_kind_check;
+ALTER TABLE play_sessions ADD CONSTRAINT play_sessions_kind_check CHECK (kind IN ('catch', 'defense', 'arena', 'coop', 'pingpong'));`,
+  },
 ];
 
 /** Migrations whose checks fail against the given set of existing `table` / `table.column` keys. */

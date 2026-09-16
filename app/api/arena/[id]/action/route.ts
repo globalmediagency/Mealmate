@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { fail, handleRouteError, ok } from "@/lib/api/respond";
-import { cancelMatch, eatBonuses, finishCoop, leaveMatch, logCoopEvent, recordShot, respondToInvite, startMatch, storeCoopState } from "@/lib/arena/service";
+import { agreeStakes, cancelMatch, eatBonuses, finishCoop, finishPingPong, leaveMatch, logMatchEvent, recordShot, respondToInvite, setStake, startMatch, storeMatchState } from "@/lib/arena/service";
 import { getSession } from "@/lib/auth/session";
 import { getGameRules } from "@/lib/game/rules-service";
 
@@ -32,6 +32,9 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("start") }),
   z.object({ action: z.literal("leave") }),
   z.object({ action: z.literal("cancel") }),
+  // Stakes (spec § 3.24): bet or take back one accessory copy, validate the pot.
+  z.object({ action: z.literal("stake"), accessoryId: z.string().min(1).max(64), staked: z.boolean().default(true) }),
+  z.object({ action: z.literal("agree") }),
   z.object({
     action: z.literal("shoot"),
     targetUserId: z.string().min(1).max(64).nullable().default(null),
@@ -60,13 +63,24 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("smash"), frame, hits: idList, x: coordinate, y: coordinate, nonce: z.string().max(64).optional() }),
   z.object({ action: z.literal("lick"), frame, angle: z.coerce.number().finite(), length: z.coerce.number().finite().min(0).max(10), nonce: z.string().max(64).optional() }),
   z.object({ action: z.literal("catch"), frame, bonusIds: idList, junkIds: idList, nonce: z.string().max(64).optional() }),
-  z.object({ action: z.literal("finish"), summaries: z.record(z.string().min(1).max(64), summarySchema) }),
+  // Ping-pong (spec § 3.25): a swing (hit attempt, timed by the player's phone) and a serve, relayed.
+  z.object({ action: z.literal("swing"), flightId: z.coerce.number().int().min(0), at: z.coerce.number().finite(), nonce: z.string().max(64).optional() }),
+  z.object({ action: z.literal("serve"), at: z.coerce.number().finite(), nonce: z.string().max(64).optional() }),
+  z.object({
+    action: z.literal("finish"),
+    summaries: z.record(z.string().min(1).max(64), summarySchema).optional(),
+    points: z.record(z.string().min(1).max(64), z.coerce.number().int().min(0).max(1000)).optional(),
+    longestRally: z.coerce.number().int().min(0).max(10_000).optional(),
+    hits: z.record(z.string().min(1).max(64), counter).optional(),
+    perfects: z.record(z.string().min(1).max(64), counter).optional(),
+  }),
 ]);
 
 /**
  * POST /api/arena/:id/action { action, … } → lobby moves (join, decline,
- * start, leave, cancel) return the new snapshot; battle moves (shoot, eat)
- * return their outcome. The phone judges the geometry, the server the rules.
+ * start, leave, cancel, stake, agree) return the new snapshot; battle moves
+ * (shoot, eat) return their outcome. The phone judges the geometry, the
+ * server the rules.
  */
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -89,25 +103,33 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         return ok(await leaveMatch(userId, matchId, now, rules));
       case "cancel":
         return ok(await cancelMatch(userId, matchId, now, rules));
+      case "stake":
+        return ok(await setStake(userId, matchId, body.accessoryId, body.staked, now, rules));
+      case "agree":
+        return ok(await agreeStakes(userId, matchId, now, rules));
       case "shoot":
         return ok(await recordShot(userId, matchId, { targetUserId: body.targetUserId, x: body.x, y: body.y, hit: body.hit, nonce: body.nonce }, now));
       case "eat":
         return ok(await eatBonuses(userId, matchId, { bonusIds: body.bonusIds, angle: body.angle, length: body.length, nonce: body.nonce }, now));
       case "state": {
         if (JSON.stringify(body.state ?? null).length > MAX_STATE_JSON) return fail("validation_error", "État de partie trop volumineux.", 413);
-        await storeCoopState(userId, matchId, body.state, now);
+        await storeMatchState(userId, matchId, body.state, now);
         return ok({ stored: true });
       }
       case "fire":
       case "smash":
       case "lick":
-      case "catch": {
+      case "catch":
+      case "swing":
+      case "serve": {
         const { action, ...payload } = body;
-        await logCoopEvent(userId, matchId, action, payload, now);
+        await logMatchEvent(userId, matchId, action, payload, now);
         return ok({ logged: true });
       }
       case "finish":
-        return ok(await finishCoop(userId, matchId, body.summaries, now, rules));
+        if (body.points) return ok(await finishPingPong(userId, matchId, { points: body.points, longestRally: body.longestRally, hits: body.hits, perfects: body.perfects }, now, rules));
+        if (body.summaries) return ok(await finishCoop(userId, matchId, body.summaries, now, rules));
+        return fail("validation_error", "Il manque le bilan de la partie.", 400);
     }
   } catch (error) {
     return handleRouteError(error);

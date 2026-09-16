@@ -1,6 +1,6 @@
 "use client";
 
-import { Shield, Swords } from "lucide-react";
+import { CircleDot, Shield, Swords } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -22,12 +22,16 @@ export type ArenaListProps = {
 
 const dateFormat = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
 
-const MODE_LABEL: Record<ArenaMode, string> = { arena: "Arène", coop: "Défendre à deux" };
+const MODE_LABEL: Record<ArenaMode, string> = { arena: "Arène", coop: "Défendre à deux", pingpong: "Ping-pong" };
 
 const MODES: Array<{ id: ArenaMode; label: string; help: string; icon: typeof Swords }> = [
   { id: "arena", label: "Arène", help: "Chacun pour soi : lance des œufs sur les créatures des autres.", icon: Swords },
   { id: "coop", label: "Défendre à deux", help: "Ensemble contre la malbouffe qui attaque toutes vos créatures.", icon: Shield },
+  { id: "pingpong", label: "Ping-pong", help: "En duel : renvoie la balle au bon moment, 7 points pour gagner.", icon: CircleDot },
 ];
+
+/** How many friends a mode takes. */
+const guestLimit = (mode: ArenaMode, maxPlayers: number): number => (mode === "pingpong" ? 1 : maxPlayers - 1);
 
 function names(snapshot: ArenaSnapshot): string {
   return snapshot.players
@@ -45,8 +49,15 @@ export function ArenaList({ listing, friends, blocked, maxPlayers }: ArenaListPr
   const [busy, setBusy] = useState(false);
   const available = friends.filter((f) => f.available);
 
+  const limit = guestLimit(mode, maxPlayers);
+
   function toggle(userId: string) {
-    setSelected((list) => (list.includes(userId) ? list.filter((id) => id !== userId) : list.length < maxPlayers - 1 ? [...list, userId] : list));
+    setSelected((list) => (list.includes(userId) ? list.filter((id) => id !== userId) : list.length < limit ? [...list, userId] : list));
+  }
+
+  function pickMode(next: ArenaMode) {
+    setMode(next);
+    setSelected((list) => list.slice(0, guestLimit(next, maxPlayers)));
   }
 
   async function create() {
@@ -114,7 +125,8 @@ export function ArenaList({ listing, friends, blocked, maxPlayers }: ArenaListPr
           <CardTitle>Nouvelle partie</CardTitle>
         </div>
         <CardText className="mt-1">
-          Invite jusqu&apos;à {maxPlayers - 1} amis dont la créature est vivante. Chacun pose son marqueur sur la même table et cadre la table avec son téléphone.
+          {mode === "pingpong" ? "Invite un ami dont la créature est vivante." : `Invite jusqu'à ${maxPlayers - 1} amis dont la créature est vivante.`} Chacun pose son marqueur sur la même table et cadre la table avec son
+          téléphone.
         </CardText>
         <div className="mt-3 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Type de partie">
           {MODES.map(({ id, label, help, icon: Icon }) => (
@@ -123,7 +135,7 @@ export function ArenaList({ listing, friends, blocked, maxPlayers }: ArenaListPr
               type="button"
               role="radio"
               aria-checked={mode === id}
-              onClick={() => setMode(id)}
+              onClick={() => pickMode(id)}
               data-arena-mode={id}
               className={cn("flex min-h-11 flex-col items-start gap-1 rounded-2xl border px-3 py-2 text-left transition-colors", mode === id ? "border-brass-400/70 bg-brass-400/10" : "border-ink-600/80 bg-ink-900/60 hover:border-ink-500")}
             >
@@ -155,7 +167,7 @@ export function ArenaList({ listing, friends, blocked, maxPlayers }: ArenaListPr
                     <input
                       type="checkbox"
                       className="h-5 w-5 accent-sage-400"
-                      disabled={!f.available || busy}
+                      disabled={!f.available || busy || (!selected.includes(f.userId) && selected.length >= limit)}
                       checked={selected.includes(f.userId)}
                       onChange={() => toggle(f.userId)}
                     />
@@ -179,7 +191,7 @@ export function ArenaList({ listing, friends, blocked, maxPlayers }: ArenaListPr
 
       {listing.recent.length > 0 ? (
         <Card data-arena-recent>
-          <CardTitle>Dernières batailles</CardTitle>
+          <CardTitle>Dernières parties</CardTitle>
           <ul className="mt-2 divide-y divide-ink-600/80">
             {listing.recent.map((s) => {
               const count = s.players.filter((p) => p.status === "ready" || p.status === "left").length;
@@ -188,7 +200,16 @@ export function ArenaList({ listing, friends, blocked, maxPlayers }: ArenaListPr
                 <li key={s.match.id} className="flex min-h-11 items-center justify-between gap-3 py-2 text-sm">
                   <span className="text-cream-100">
                     {s.match.finishedAt ? dateFormat.format(new Date(s.match.finishedAt)) : ""} · {MODE_LABEL[s.match.mode]} ·{" "}
-                    {s.match.mode === "coop" ? (s.match.coop?.result ? `${s.match.coop.result.score} pts à ${count}` : "sans bilan") : `${rank === null ? "—" : rank === 1 ? "1er" : `${rank}e`} sur ${count}`}
+                    {s.match.mode === "coop"
+                      ? s.match.coop?.result
+                        ? `${s.match.coop.result.score} pts à ${count}`
+                        : "sans bilan"
+                      : s.match.mode === "pingpong"
+                        ? s.match.pingpong?.result
+                          ? `${s.me?.points ?? 0} – ${s.players.find((p) => !p.mine)?.points ?? 0} · ${rank === 1 ? (s.match.pingpong.result.winnerId ? "gagné" : "égalité") : "perdu"}`
+                          : "sans bilan"
+                        : `${rank === null ? "—" : rank === 1 ? "1er" : `${rank}e`} sur ${count}`}
+                    {s.match.stakes.winnerId ? (s.match.stakes.winnerId === s.me?.userId ? " · mises remportées" : " · mises perdues") : ""}
                   </span>
                   <Link href={`/arena/${s.match.id}`} className="shrink-0 text-xs font-semibold text-sage-300 underline">
                     Détail

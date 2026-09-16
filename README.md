@@ -105,6 +105,8 @@ Si tu avais déjà exécuté `db/init.sql` avant une phase, colle ses migrations
 - défendre (type de partie enregistré) : [`db/migrations/014_play_sessions_kind.sql`](./db/migrations/014_play_sessions_kind.sql)
 - arène (bataille entre amis) : [`db/migrations/015_arena.sql`](./db/migrations/015_arena.sql)
 - défendre à deux (mode coopératif) : [`db/migrations/016_coop_defense.sql`](./db/migrations/016_coop_defense.sql)
+- mises de l'arène (accessoires pariés) : [`db/migrations/017_arena_stakes.sql`](./db/migrations/017_arena_stakes.sql)
+- ping-pong (duel) : [`db/migrations/018_pingpong.sql`](./db/migrations/018_pingpong.sql)
 
 Si une migration manque, l'application l'indique elle-même : au lieu de planter, elle affiche « La base de données doit être mise à jour » avec le SQL exact à copier dans Neon → SQL Editor (bouton « Copier le SQL »). Recharge la page une fois le SQL exécuté.
 
@@ -352,6 +354,13 @@ apparaissent alors, sans connexion nécessaire :
     œufs, la langue attrape les fruits près de ta créature. C'est le téléphone de l'hôte qui mène la partie : il garde
     l'écran allumé ; la partie s'arrête quand toutes les créatures sont K.-O. ou sur « Terminer ». Score d'équipe
     (moyenne des deux défenses) et mêmes récompenses que Jouer, dans la même limite quotidienne.
+14. **Mises** (migration `017`) : dans la salle d'attente d'une Arène ou d'un Ping-pong, chacun peut miser des accessoires
+    de sa collection, ou rien, puis valider le pot ; toute modification redemande l'accord de tous et l'hôte ne peut
+    lancer qu'une fois tout le monde d'accord. Le premier remporte toutes les mises, à égalité chacun récupère les
+    siennes, abandonner en cours de partie fait perdre la sienne.
+15. **Ping-pong** (migration `018`) : dans Arène, choisis « Ping-pong » et invite un seul ami. Marqueurs face à face,
+    la balle vole d'une créature à l'autre : appuie sur « Frapper » quand l'anneau autour de la tienne devient vert
+    (frappe parfaite = balle plus rapide), 7 points pour gagner. Le téléphone de l'hôte arbitre et garde l'écran allumé.
 
 ## 5. Limites connues
 
@@ -369,6 +378,9 @@ apparaissent alors, sans connexion nécessaire :
   quitte. Sans WebGL, le dessin tourne par pas de 45° (huit vues).
 - **Défendre** : le marqueur doit rester dans l'image pendant qu'on vise (le jeu se met en pause quand
   il est perdu) et le jeu demande WebGL (Chrome ou Safari récents).
+- **Ping-pong** : un jeu de timing sur deux téléphones ; en sondage seul (sans WebRTC), la balle renvoyée par l'ami peut
+  apparaître avec un léger retard chez toi, mais le rythme et les points restent justes (chaque téléphone juge sa
+  propre frappe). Deux feuilles trop éloignées (plus de 40 cm) rendent la balle petite : rapproche-les.
 - **Défendre à deux** : le téléphone de l'hôte fait tourner la partie ; s'il quitte l'écran, la malbouffe se fige pour
   tout le monde jusqu'à son retour, et sans nouvelles pendant 20 s un invité peut terminer la partie avec son propre bilan.
 - **Arène** : synchronisation par le serveur toutes les 500 ms (l'œuf d'un ami apparaît avec ce léger délai) ; les

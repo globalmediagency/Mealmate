@@ -7,7 +7,8 @@
  */
 import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
 import type { ArCreature } from "@/components/ar/types";
-import { getOutfit, outfitToEquipped } from "@/lib/accessories/service";
+import { getAccessory, type Slot } from "@/lib/accessories/catalog";
+import { addAccessoryCopies, decrementAccessoryCopy, dropEmptyAccessory, getOutfit, getOwnedAccessories, outfitToEquipped } from "@/lib/accessories/service";
 import { DomainError } from "@/lib/api/errors";
 import { ensureCreatureMarker } from "@/lib/ar/service";
 import { getHeldCreature } from "@/lib/boarding/service";
@@ -18,17 +19,20 @@ import {
   arenaEvents,
   arenaMatches,
   arenaPlayers,
+  arenaStakes,
   creatures,
   type ArenaBonus,
   type ArenaEvent,
   type ArenaMatch,
   type ArenaPlayer,
+  type ArenaStake,
   type Creature,
 } from "@/lib/db/schema";
 import { acceptedFriendIds, publicProfiles } from "@/lib/friends/service";
 import { arenaScore, arenaSecondsLeft, placeArenaBonus, rankArenaPlayers } from "@/lib/game/arena";
-import { ARENA, COOP } from "@/lib/game/config";
+import { ARENA, COOP, PINGPONG, type Rarity } from "@/lib/game/config";
 import { coopScore, parseCoopState, type CoopStateMessage } from "@/lib/game/coop";
+import { parsePingPongState, pingpongScore, type PingPongStateMessage } from "@/lib/game/pingpong";
 import type { DefenseSummary } from "@/lib/game/defense";
 import { randomSeed } from "@/lib/game/random";
 import type { DefenseRules } from "@/lib/game/rules";
@@ -71,13 +75,38 @@ export type ArenaMatchView = {
   defense: DefenseRules;
   /** Coop only: the host's latest published simulation and, once finished, the team's result. */
   coop: { live: CoopStateMessage | null; liveAt: string | null; result: CoopResultStored | null } | null;
+  /** Ping-pong only: the host's latest published state and, once finished, the score (spec § 3.25). */
+  pingpong: { live: PingPongStateMessage | null; liveAt: string | null; result: PingPongResultStored | null } | null;
+  /** The accessories bet on the match (spec § 3.24). */
+  stakes: ArenaStakesView;
 };
+
+/** Where the pot stands: validated by everybody in the lobby, taken by the winner at the end. */
+export type ArenaStakesView = {
+  /** The mode lets the players bet accessories (competitive modes only). */
+  enabled: boolean;
+  /** Lobby: every ready player validated the pot as it stands. */
+  agreed: boolean;
+  /** Lobby: the ready players who did not validate the current pot yet ("toi" for the reader). */
+  waitingFor: string[];
+  /** Accessories in the pot. */
+  pot: number;
+  /** Finished: the player who took every stake (null: a tie, each one keeps their own; or nothing was bet). */
+  winnerId: string | null;
+};
+
+/** One accessory copy bet by a player. */
+export type ArenaStakeView = { accessoryId: string; name: string; slot: Slot; rarity: Rarity };
+
+/** An accessory of the reader's collection they may bet (lobby of a competitive match). */
+export type ArenaCollectionItem = ArenaStakeView & { qty: number; equipped: boolean };
 
 export type ArenaMode = ArenaMatch["mode"];
 
-/** What `arena_matches.state` holds for a coop match. */
-export type CoopStored = { live?: unknown; result?: CoopResultStored };
+/** What `arena_matches.state` holds for a coop or ping-pong match: the host's last published state and the final result. */
+export type MatchStored = { live?: unknown; result?: CoopResultStored | PingPongResultStored };
 export type CoopResultStored = { score: number; perfect: boolean; summaries: Record<string, DefenseSummary> };
+export type PingPongResultStored = { points: Record<string, number>; winnerId: string | null; longestRally: number; hits: Record<string, number>; perfects: Record<string, number> };
 
 export type ArenaReward = { score: number; perfect: boolean; effects: PlayEffects; playsLeft: number } | { skipped: string };
 
@@ -100,6 +129,12 @@ export type ArenaPlayerView = {
   eliminatedAt: string | null;
   mine: boolean;
   isHost: boolean;
+  /** Ping-pong: points scored (set when the match ends). */
+  points: number;
+  /** Accessories this player bets (spec § 3.24). */
+  stakes: ArenaStakeView[];
+  /** Lobby: the player validated the pot as it stands. */
+  agreed: boolean;
   /** Only for the reader's own row, once the match is finished. */
   reward?: ArenaReward | null;
 };
@@ -119,6 +154,8 @@ export type ArenaSnapshot = {
   me: ArenaPlayerView | null;
   /** Server time of the snapshot, for the phones' clocks. */
   now: string;
+  /** Full snapshots of a lobby where accessories may be bet: what the reader owns and may stake. */
+  collection?: ArenaCollectionItem[];
 };
 
 export type ArenaListing = {
@@ -138,11 +175,17 @@ async function logEvent(matchId: string, actorId: string | null, kind: string, p
 
 function coopView(match: ArenaMatch): ArenaMatchView["coop"] {
   if (match.mode !== "coop") return null;
-  const stored = (match.state ?? {}) as CoopStored;
-  return { live: parseCoopState(stored.live), liveAt: iso(match.stateAt), result: stored.result ?? null };
+  const stored = (match.state ?? {}) as MatchStored;
+  return { live: parseCoopState(stored.live), liveAt: iso(match.stateAt), result: (stored.result as CoopResultStored | undefined) ?? null };
 }
 
-function toMatchView(match: ArenaMatch, userId: string, now: Date, rules: GameRules, mergedInto: string | null = null): ArenaMatchView {
+function pingpongView(match: ArenaMatch): ArenaMatchView["pingpong"] {
+  if (match.mode !== "pingpong") return null;
+  const stored = (match.state ?? {}) as MatchStored;
+  return { live: parsePingPongState(stored.live), liveAt: iso(match.stateAt), result: (stored.result as PingPongResultStored | undefined) ?? null };
+}
+
+function toMatchView(match: ArenaMatch, userId: string, now: Date, rules: GameRules, mergedInto: string | null, stakes: ArenaStakesView): ArenaMatchView {
   return {
     id: match.id,
     status: match.status,
@@ -162,7 +205,160 @@ function toMatchView(match: ArenaMatch, userId: string, now: Date, rules: GameRu
     seed: match.seed,
     defense: rules.defense,
     coop: coopView(match),
+    pingpong: pingpongView(match),
+    stakes,
   };
+}
+
+/** Modes with a winner, where accessories may be bet (spec § 3.24). */
+export const STAKE_MODES: readonly ArenaMode[] = ["arena", "pingpong"];
+export const stakesEnabled = (mode: ArenaMode): boolean => STAKE_MODES.includes(mode);
+
+async function loadStakes(matchId: string): Promise<ArenaStake[]> {
+  return getDb().select().from(arenaStakes).where(eq(arenaStakes.matchId, matchId)).orderBy(asc(arenaStakes.createdAt), asc(arenaStakes.accessoryId));
+}
+
+function stakeView(accessoryId: string): ArenaStakeView | null {
+  const accessory = getAccessory(accessoryId);
+  return accessory ? { accessoryId, name: accessory.name, slot: accessory.slot, rarity: accessory.rarity } : null;
+}
+
+/** The single first-ranked participant of a finished match, or null on a tie. */
+function stakeWinner(players: ArenaPlayer[]): string | null {
+  const first = participants(players).filter((p) => p.rank === 1);
+  return first.length === 1 ? first[0].userId : null;
+}
+
+/** Any change to the pot asks everybody to validate it again. */
+async function resetAgreements(matchId: string): Promise<void> {
+  await getDb().update(arenaPlayers).set({ stakesAgreedAt: null }).where(eq(arenaPlayers.matchId, matchId));
+}
+
+/** Forgets the stakes of a player leaving a lobby (the pot changed: everybody validates again). */
+async function removeStakesOf(matchId: string, userId: string): Promise<void> {
+  const removed = await getDb()
+    .delete(arenaStakes)
+    .where(and(eq(arenaStakes.matchId, matchId), eq(arenaStakes.userId, userId), isNull(arenaStakes.takenAt)))
+    .returning({ id: arenaStakes.id });
+  if (removed.length > 0) await resetAgreements(matchId);
+}
+
+/**
+ * Takes the copies bet by the players of a starting battle (`taken_at`, then
+ * the conditional decrement; the creature keeps wearing it meanwhile). A copy
+ * given away since the validation simply leaves the pot.
+ */
+async function escrowStakes(match: ArenaMatch, ready: ArenaPlayer[], now: Date): Promise<void> {
+  if (!stakesEnabled(match.mode)) return;
+  const db = getDb();
+  const readyIds = new Set(ready.map((p) => p.userId));
+  for (const stake of await loadStakes(match.id)) {
+    if (!readyIds.has(stake.userId)) {
+      await db.delete(arenaStakes).where(and(eq(arenaStakes.id, stake.id), isNull(arenaStakes.takenAt)));
+      continue;
+    }
+    if (stake.takenAt) continue;
+    const [reserved] = await db
+      .update(arenaStakes)
+      .set({ takenAt: now })
+      .where(and(eq(arenaStakes.id, stake.id), isNull(arenaStakes.takenAt)))
+      .returning({ id: arenaStakes.id });
+    if (!reserved) continue;
+    try {
+      await decrementAccessoryCopy(stake.userId, stake.accessoryId);
+    } catch (error) {
+      if (!(error instanceof DomainError && error.code === "not_owned")) throw error;
+      await db.delete(arenaStakes).where(eq(arenaStakes.id, stake.id));
+      await logEvent(match.id, stake.userId, "stake_dropped", { accessoryId: stake.accessoryId }, now);
+    }
+  }
+}
+
+/**
+ * Hands the pot over once the match is over: to the single winner, or back to
+ * each owner on a tie or a cancelled match. Lazy and idempotent (each stake is
+ * reserved by a conditional update), so concurrent readers never pay twice.
+ */
+async function settleStakes(match: ArenaMatch, players: ArenaPlayer[], now: Date): Promise<void> {
+  if (!stakesEnabled(match.mode) || (match.status !== "finished" && match.status !== "cancelled")) return;
+  const db = getDb();
+  const open = await db.select().from(arenaStakes).where(and(eq(arenaStakes.matchId, match.id), isNull(arenaStakes.settledAt)));
+  if (open.length === 0) return;
+  const winnerId = match.status === "finished" ? stakeWinner(players) : null;
+  let moved = 0;
+  for (const stake of open) {
+    // A stake never taken (the battle did not start) has nothing to hand over.
+    const recipient = stake.takenAt ? (winnerId ?? stake.userId) : null;
+    const [reserved] = await db
+      .update(arenaStakes)
+      .set({ settledAt: now, winnerId: recipient })
+      .where(and(eq(arenaStakes.id, stake.id), isNull(arenaStakes.settledAt)))
+      .returning({ id: arenaStakes.id });
+    if (!reserved || !recipient) continue;
+    await addAccessoryCopies(recipient, stake.accessoryId, 1, now);
+    if (recipient !== stake.userId) {
+      await dropEmptyAccessory(stake.userId, stake.accessoryId);
+      moved += 1;
+    }
+  }
+  if (winnerId && moved > 0) await logEvent(match.id, null, "stakes", { winnerId, count: moved }, now);
+}
+
+/** How the pot stands for the snapshot. */
+function stakesView(match: ArenaMatch, players: ArenaPlayer[], views: ArenaPlayerView[], stakes: ArenaStake[]): ArenaStakesView {
+  const enabled = stakesEnabled(match.mode);
+  const ready = views.filter((v) => v.status === "ready");
+  const waitingFor = enabled && match.status === "lobby" ? ready.filter((v) => !v.agreed).map((v) => (v.mine ? "toi" : v.username)) : [];
+  const settledTo = new Set(stakes.filter((st) => st.settledAt && st.winnerId && st.winnerId !== st.userId).map((st) => st.winnerId!));
+  const winnerId = match.status === "finished" ? (settledTo.size === 1 ? [...settledTo][0] : stakeWinner(players)) : null;
+  return { enabled, agreed: enabled && ready.length > 0 && waitingFor.length === 0, waitingFor, pot: stakes.length, winnerId: enabled && stakes.length > 0 ? winnerId : null };
+}
+
+/**
+ * A ready player bets (or takes back) one copy of an accessory they own, in
+ * the lobby of a competitive match. Everybody then validates the pot again.
+ */
+export async function setStake(userId: string, matchId: string, accessoryId: string, staked: boolean, now: Date, rules: GameRules): Promise<ArenaSnapshot> {
+  const { match, me } = await loadFor(userId, matchId);
+  if (!stakesEnabled(match.mode)) throw new DomainError("no_stakes", "On ne mise rien dans ce type de partie.", 400);
+  if (match.status !== "lobby") throw new DomainError("arena_closed", "Les mises sont fermées : la partie a commencé.", 409);
+  if (me.status !== "ready") throw new DomainError("not_ready", "Rejoins d'abord la partie pour miser.", 409);
+  const accessory = getAccessory(accessoryId);
+  if (!accessory) throw new DomainError("unknown_accessory", "Accessoire inconnu.", 404);
+  const db = getDb();
+  if (staked) {
+    const owned = (await getOwnedAccessories(userId)).some((o) => o.accessory.id === accessoryId);
+    if (!owned) throw new DomainError("not_owned", "Tu ne possèdes pas cet accessoire.", 403);
+    const inserted = await db
+      .insert(arenaStakes)
+      .values({ matchId, userId, accessoryId, createdAt: now })
+      .onConflictDoNothing({ target: [arenaStakes.matchId, arenaStakes.userId, arenaStakes.accessoryId] })
+      .returning({ id: arenaStakes.id });
+    if (inserted.length === 0) return snapshot(userId, matchId, now, rules);
+  } else {
+    const removed = await db
+      .delete(arenaStakes)
+      .where(and(eq(arenaStakes.matchId, matchId), eq(arenaStakes.userId, userId), eq(arenaStakes.accessoryId, accessoryId), isNull(arenaStakes.takenAt)))
+      .returning({ id: arenaStakes.id });
+    if (removed.length === 0) return snapshot(userId, matchId, now, rules);
+  }
+  await resetAgreements(matchId);
+  await logEvent(matchId, userId, staked ? "stake" : "unstake", { accessoryId }, now);
+  return snapshot(userId, matchId, now, rules);
+}
+
+/** A ready player validates the pot as it stands (their agreement is forgotten when a stake changes). */
+export async function agreeStakes(userId: string, matchId: string, now: Date, rules: GameRules): Promise<ArenaSnapshot> {
+  const { match, me } = await loadFor(userId, matchId);
+  if (!stakesEnabled(match.mode)) throw new DomainError("no_stakes", "Rien à valider dans ce type de partie.", 400);
+  if (match.status !== "lobby") throw new DomainError("arena_closed", "La partie a déjà commencé.", 409);
+  if (me.status !== "ready") throw new DomainError("not_ready", "Rejoins d'abord la partie.", 409);
+  await getDb()
+    .update(arenaPlayers)
+    .set({ stakesAgreedAt: now })
+    .where(and(eq(arenaPlayers.id, me.id), isNull(arenaPlayers.stakesAgreedAt)));
+  await logEvent(matchId, userId, "agree", {}, now);
+  return snapshot(userId, matchId, now, rules);
 }
 
 /** The living, named creature of a player as the arena draws it. */
@@ -220,6 +416,7 @@ export async function createMatch(hostId: string, friendIds: string[], now: Date
   const ids = [...new Set(friendIds)].filter((id) => id !== hostId);
   if (ids.length === 0) throw new DomainError("no_friends", "Invite au moins un ami.", 400);
   if (ids.length > ARENA.maxPlayers - 1) throw new DomainError("too_many", `${ARENA.maxPlayers} joueurs au maximum, toi compris.`, 400);
+  if (mode === "pingpong" && ids.length !== PINGPONG.players - 1) throw new DomainError("too_many", "Le ping-pong se joue à deux : invite un seul ami.", 400);
   const friends = new Set(await acceptedFriendIds(hostId));
   if (ids.some((id) => !friends.has(id))) throw new DomainError("not_friends", "Tu ne peux inviter que des amis acceptés.", 403);
 
@@ -404,33 +601,37 @@ async function mergeReciprocal(match: ArenaMatch, players: ArenaPlayer[], now: D
 }
 
 /** A coop battle in progress where the caller takes part. */
-async function loadCoop(userId: string, matchId: string): Promise<{ match: ArenaMatch; me: ArenaPlayer; players: ArenaPlayer[] }> {
+/** Modes where the host's phone runs the game and publishes its state (spec § 3.23, § 3.25). */
+const HOSTED_MODES: readonly ArenaMode[] = ["coop", "pingpong"];
+
+async function loadHosted(userId: string, matchId: string): Promise<{ match: ArenaMatch; me: ArenaPlayer; players: ArenaPlayer[] }> {
   const loaded = await loadFor(userId, matchId);
-  if (loaded.match.mode !== "coop") throw new DomainError("not_coop", "Cette partie n'est pas une défense à deux.", 409);
+  if (!HOSTED_MODES.includes(loaded.match.mode)) throw new DomainError("not_coop", "Ce type de partie n'a pas d'état publié.", 409);
   if (loaded.match.status !== "playing") throw new DomainError("arena_over", "La partie est terminée.", 409);
   if (loaded.me.status !== "ready") throw new DomainError("eliminated", "Tu ne participes pas à cette partie.", 409);
   return loaded;
 }
 
-/** The host publishes its simulation for the phones that poll (spec § 3.23). */
-export async function storeCoopState(userId: string, matchId: string, live: unknown, now: Date): Promise<void> {
-  const { match } = await loadCoop(userId, matchId);
+/** The host publishes its simulation (coop) or rally state (ping-pong) for the phones that poll (spec § 3.23, § 3.25). */
+export async function storeMatchState(userId: string, matchId: string, live: unknown, now: Date): Promise<void> {
+  const { match } = await loadHosted(userId, matchId);
   if (match.hostId !== userId) throw new DomainError("forbidden", "Seul l'hôte publie l'état de la partie.", 403);
-  const parsed = parseCoopState(live);
+  const parsed = match.mode === "pingpong" ? parsePingPongState(live) : parseCoopState(live);
   if (!parsed) throw new DomainError("validation_error", "État de partie illisible.", 400);
-  const stored = (match.state ?? {}) as CoopStored;
+  const stored = (match.state ?? {}) as MatchStored;
   await getDb()
     .update(arenaMatches)
     .set({ state: { ...stored, live: parsed }, stateAt: now })
     .where(and(eq(arenaMatches.id, matchId), eq(arenaMatches.status, "playing")));
 }
 
-export const COOP_EVENT_KINDS = ["fire", "smash", "lick", "catch"] as const;
-export type CoopEventKind = (typeof COOP_EVENT_KINDS)[number];
+/** Moves relayed through the event log: eggs, landings, tongues and catches (coop), swings and serves (ping-pong). */
+export const MATCH_EVENT_KINDS = ["fire", "smash", "lick", "catch", "swing", "serve"] as const;
+export type MatchEventKind = (typeof MATCH_EVENT_KINDS)[number];
 
-/** A player's egg, landing, tongue or catch, relayed to the other phones through the event log. */
-export async function logCoopEvent(userId: string, matchId: string, kind: CoopEventKind, payload: Record<string, unknown>, now: Date): Promise<void> {
-  await loadCoop(userId, matchId);
+/** A player's move, relayed to the other phones through the event log (for those without a direct link). */
+export async function logMatchEvent(userId: string, matchId: string, kind: MatchEventKind, payload: Record<string, unknown>, now: Date): Promise<void> {
+  await loadHosted(userId, matchId);
   await logEvent(matchId, userId, kind, payload, now);
 }
 
@@ -441,12 +642,13 @@ export async function logCoopEvent(userId: string, matchId: string, kind: CoopEv
  * guest when the host went silent); the first one wins.
  */
 export async function finishCoop(userId: string, matchId: string, summaries: Record<string, DefenseSummary>, now: Date, rules: GameRules): Promise<ArenaSnapshot> {
-  const { match, players } = await loadCoop(userId, matchId);
+  const { match, players } = await loadHosted(userId, matchId);
+  if (match.mode !== "coop") throw new DomainError("not_coop", "Cette partie n'est pas une défense à deux.", 409);
   const ready = players.filter((p) => p.status === "ready");
   const ownSummaries = ready.map((p) => summaries[p.userId]).filter((s): s is DefenseSummary => s !== undefined);
   if (ownSummaries.length === 0) throw new DomainError("validation_error", "Il manque le bilan des créatures.", 400);
   const result: CoopResultStored = { ...coopScore(ownSummaries, rules.defense), summaries };
-  const stored = (match.state ?? {}) as CoopStored;
+  const stored = (match.state ?? {}) as MatchStored;
   const db = getDb();
   const [closed] = await db
     .update(arenaMatches)
@@ -458,6 +660,42 @@ export async function finishCoop(userId: string, matchId: string, summaries: Rec
       await db.update(arenaPlayers).set({ rank: p.status === "ready" ? 1 : 2 }).where(eq(arenaPlayers.id, p.id));
     }
     await logEvent(matchId, userId, "finish", { reason: "coop", score: result.score, perfect: result.perfect }, now);
+  }
+  return snapshot(userId, matchId, now, rules);
+}
+
+export type PingPongFinishInput = { points: Record<string, number>; longestRally?: number; hits?: Record<string, number>; perfects?: Record<string, number> };
+
+/**
+ * Ends a ping-pong match with the score the host's phone (or a guest, when the
+ * host went silent) reports: the leader wins, a tie stays a tie, the winner
+ * takes the pot. First report in wins (conditional update).
+ */
+export async function finishPingPong(userId: string, matchId: string, input: PingPongFinishInput, now: Date, rules: GameRules): Promise<ArenaSnapshot> {
+  const { match, players } = await loadHosted(userId, matchId);
+  if (match.mode !== "pingpong") throw new DomainError("not_coop", "Cette partie n'est pas un ping-pong.", 409);
+  const ready = players.filter((p) => p.status === "ready");
+  const points: Record<string, number> = {};
+  for (const p of participants(players)) points[p.userId] = Math.max(0, Math.min(1000, Math.floor(input.points[p.userId] ?? 0)));
+  if (ready.length === 0) throw new DomainError("validation_error", "Il manque les joueurs.", 400);
+  const best = Math.max(...ready.map((p) => points[p.userId]));
+  const leaders = ready.filter((p) => points[p.userId] === best);
+  const winnerId = leaders.length === 1 ? leaders[0].userId : null;
+  const result: PingPongResultStored = { points, winnerId, longestRally: Math.max(0, Math.floor(input.longestRally ?? 0)), hits: input.hits ?? {}, perfects: input.perfects ?? {} };
+  const stored = (match.state ?? {}) as MatchStored;
+  const db = getDb();
+  const [closed] = await db
+    .update(arenaMatches)
+    .set({ status: "finished", finishedAt: now, state: { ...stored, result } })
+    .where(and(eq(arenaMatches.id, matchId), eq(arenaMatches.status, "playing")))
+    .returning({ id: arenaMatches.id });
+  if (closed) {
+    for (const p of participants(players)) {
+      const rank = p.status !== "ready" ? 2 : winnerId === null ? 1 : p.userId === winnerId ? 1 : 2;
+      await db.update(arenaPlayers).set({ rank, points: points[p.userId] }).where(eq(arenaPlayers.id, p.id));
+    }
+    await logEvent(matchId, userId, "finish", { reason: "pingpong", points, winnerId }, now);
+    await settleStakes({ ...match, status: "finished" }, await loadPlayers(matchId, match.hostId), now);
   }
   return snapshot(userId, matchId, now, rules);
 }
@@ -479,7 +717,7 @@ async function finishIfOver(match: ArenaMatch, players: ArenaPlayer[], now: Date
   if (match.status !== "playing") return match;
   const timeUp = match.endsAt !== null && now.getTime() >= match.endsAt.getTime();
   const standing = alivePlayers(players);
-  if (!timeUp && (match.mode === "coop" || standing.length > 1)) return match;
+  if (!timeUp && (match.mode !== "arena" || standing.length > 1)) return match;
   const finishedAt = timeUp && match.endsAt ? match.endsAt : now;
   const db = getDb();
   const [closed] = await db
@@ -549,17 +787,28 @@ async function rewardIfDue(match: ArenaMatch, me: ArenaPlayer, now: Date, rules:
     .returning();
   if (!reserved) return (await db.select().from(arenaPlayers).where(eq(arenaPlayers.id, me.id)))[0] ?? me;
   let reward: ArenaReward;
-  const coopResult = match.mode === "coop" ? ((match.state ?? {}) as CoopStored).result : undefined;
+  const stored = (match.state ?? {}) as MatchStored;
+  const coopResult = match.mode === "coop" ? (stored.result as CoopResultStored | undefined) : undefined;
+  const pingpongResult = match.mode === "pingpong" ? (stored.result as PingPongResultStored | undefined) : undefined;
   if (me.status !== "ready") reward = { skipped: me.status === "left" ? "left" : "absent" };
-  else if (match.mode === "coop" && !coopResult) reward = { skipped: "unfinished" };
+  else if (HOSTED_MODES.includes(match.mode) && !coopResult && !pingpongResult) reward = { skipped: "unfinished" };
   else {
-    const count = participants(await loadPlayers(match.id, match.hostId)).length;
-    const { score, perfect } = coopResult ?? arenaScore(me.hp, match.maxHp, me.rank ?? count, count);
+    const all = await loadPlayers(match.id, match.hostId);
+    const count = participants(all).length;
+    const { score, perfect } = pingpongResult
+      ? pingpongScore(
+          pingpongResult.points[me.userId] ?? 0,
+          participants(all)
+            .filter((p) => p.userId !== me.userId)
+            .reduce((sum, p) => sum + (pingpongResult.points[p.userId] ?? 0), 0),
+          pingpongResult.winnerId === null ? null : pingpongResult.winnerId === me.userId,
+        )
+      : (coopResult ?? arenaScore(me.hp, match.maxHp, me.rank ?? count, count));
     try {
       const [creature] = await db.select().from(creatures).where(and(eq(creatures.id, me.creatureId), eq(creatures.userId, me.userId))).limit(1);
       if (!creature) throw new DomainError("no_creature", "Créature introuvable.", 409);
       const ticked = await tickCreature(creature, now, rules);
-      const result = await recordPlay(me.userId, ticked, score, now, {}, rules, match.mode === "coop" ? "coop" : "arena");
+      const result = await recordPlay(me.userId, ticked, score, now, {}, rules, match.mode);
       reward = { score, perfect, effects: result.effects, playsLeft: result.playsLeft };
     } catch (error) {
       reward = { skipped: error instanceof DomainError ? error.code : "error" };
@@ -576,14 +825,21 @@ async function settle(match: ArenaMatch, players: ArenaPlayer[], now: Date, rand
     return { match: await loadMatch(match.id), players };
   }
   if (match.status === "lobby") return mergeReciprocal(match, players, now);
-  if (match.status !== "playing") return { match, players };
-  if (match.mode !== "coop") await tickBonuses(match, players, now, random);
+  if (match.status !== "playing") {
+    await settleStakes(match, players, now);
+    return { match, players };
+  }
+  if (match.mode === "arena") await tickBonuses(match, players, now, random);
   const finished = await finishIfOver(match, players, now);
-  if (finished.status !== match.status) return { match: finished, players: await loadPlayers(match.id, match.hostId) };
+  if (finished.status !== match.status) {
+    const ranked = await loadPlayers(match.id, match.hostId);
+    await settleStakes(finished, ranked, now);
+    return { match: finished, players: ranked };
+  }
   return { match: finished, players };
 }
 
-async function playerViews(match: ArenaMatch, players: ArenaPlayer[], userId: string, full: boolean): Promise<ArenaPlayerView[]> {
+async function playerViews(match: ArenaMatch, players: ArenaPlayer[], userId: string, full: boolean, stakes: ArenaStake[]): Promise<ArenaPlayerView[]> {
   const names = await publicProfiles(players.map((p) => p.userId));
   let byCreature = new Map<string, Creature>();
   if (full && players.length > 0) {
@@ -609,6 +865,9 @@ async function playerViews(match: ArenaMatch, players: ArenaPlayer[], userId: st
       eliminatedAt: iso(p.eliminatedAt),
       mine: p.userId === userId,
       isHost: p.userId === match.hostId,
+      points: p.points,
+      stakes: stakes.filter((st) => st.userId === p.userId).flatMap((st) => stakeView(st.accessoryId) ?? []),
+      agreed: p.stakesAgreedAt !== null,
     };
     if (full) {
       const creature = byCreature.get(p.creatureId);
@@ -642,8 +901,10 @@ export async function snapshot(userId: string, matchId: string, now: Date, rules
   }
   const full = options.since === undefined;
   const db = getDb();
+  const withStakes = stakesEnabled(settled.match.mode);
+  const stakes = withStakes ? await loadStakes(matchId) : [];
   const [views, bonuses, events] = await Promise.all([
-    playerViews(settled.match, players, userId, full),
+    playerViews(settled.match, players, userId, full, stakes),
     settled.match.status === "playing"
       ? db
           .select()
@@ -676,8 +937,8 @@ export async function snapshot(userId: string, matchId: string, now: Date, rules
     const into = (merged?.payload as { into?: unknown } | undefined)?.into;
     if (typeof into === "string") mergedInto = into;
   }
-  return {
-    match: toMatchView(settled.match, userId, now, rules, mergedInto),
+  const result: ArenaSnapshot = {
+    match: toMatchView(settled.match, userId, now, rules, mergedInto, stakesView(settled.match, players, views, stakes)),
     players: views,
     bonuses: bonuses.map(toBonusView),
     events: events.map(toEventView),
@@ -685,6 +946,11 @@ export async function snapshot(userId: string, matchId: string, now: Date, rules
     me: views.find((v) => v.mine) ?? null,
     now: now.toISOString(),
   };
+  if (full && withStakes && settled.match.status === "lobby" && mine) {
+    const [owned, outfit] = await Promise.all([getOwnedAccessories(userId), getOutfit(mine.creatureId)]);
+    result.collection = owned.map((o) => ({ accessoryId: o.accessory.id, name: o.accessory.name, slot: o.accessory.slot, rarity: o.accessory.rarity, qty: o.qty, equipped: outfit[o.accessory.slot] === o.accessory.id }));
+  }
+  return result;
 }
 
 /** The user's invitations, open matches and latest results (full snapshots). */
@@ -794,17 +1060,22 @@ export async function startMatch(hostId: string, matchId: string, now: Date, rul
   if (match.status !== "lobby") throw new DomainError("arena_closed", "Cette partie a déjà commencé.", 409);
   const ready = players.filter((p) => p.status === "ready");
   if (ready.length < 2) throw new DomainError("not_enough_players", "Attends qu'au moins un ami rejoigne la partie.", 409);
+  if (stakesEnabled(match.mode) && ready.some((p) => p.stakesAgreedAt === null)) {
+    throw new DomainError("stakes_not_agreed", "Tout le monde doit valider les mises (même sans rien miser) avant le lancement.", 409);
+  }
+  if (match.mode === "pingpong" && ready.length !== PINGPONG.players) throw new DomainError("too_many", "Le ping-pong se joue à deux exactement.", 409);
   const db = getDb();
-  const coop = match.mode === "coop";
-  const endsAt = new Date(now.getTime() + (coop ? COOP.maxSeconds : match.durationSeconds) * 1000);
+  const arena = match.mode === "arena";
+  const endsAt = new Date(now.getTime() + (match.mode === "coop" ? COOP.maxSeconds : match.mode === "pingpong" ? PINGPONG.maxSeconds : match.durationSeconds) * 1000);
   const [started] = await db
     .update(arenaMatches)
-    .set({ status: "playing", startedAt: now, endsAt, nextBonusAt: coop ? null : new Date(now.getTime() + ARENA.firstBonusSeconds * 1000) })
+    .set({ status: "playing", startedAt: now, endsAt, nextBonusAt: arena ? new Date(now.getTime() + ARENA.firstBonusSeconds * 1000) : null })
     .where(and(eq(arenaMatches.id, matchId), eq(arenaMatches.status, "lobby")))
     .returning();
   if (!started) throw new DomainError("arena_closed", "Cette partie a déjà commencé.", 409);
   await db.update(arenaPlayers).set({ hp: match.maxHp }).where(and(eq(arenaPlayers.matchId, matchId), eq(arenaPlayers.status, "ready")));
   await db.update(arenaPlayers).set({ status: "declined" }).where(and(eq(arenaPlayers.matchId, matchId), eq(arenaPlayers.status, "invited")));
+  await escrowStakes(match, ready, now);
   await logEvent(matchId, hostId, "start", { endsAt: endsAt.toISOString() }, now);
   return snapshot(hostId, matchId, now, rules);
 }
@@ -823,6 +1094,7 @@ export async function leaveMatch(userId: string, matchId: string, now: Date, rul
     .returning();
   if (!updated) throw new DomainError("already_answered", "Tu ne participes pas à cette partie.", 409);
   await logEvent(matchId, userId, "leave", {}, now);
+  if (match.status === "lobby") await removeStakesOf(matchId, userId);
   if (match.status === "playing") await finishIfOver(match, await loadPlayers(matchId, match.hostId), now);
   return snapshot(userId, matchId, now, rules);
 }

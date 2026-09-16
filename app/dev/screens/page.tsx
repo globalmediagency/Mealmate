@@ -58,7 +58,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "turnaround", "creature-3d", "defense", "defense-boss", "arena", "arena-rtc", "arena-invite", "coop", "food-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "turnaround", "creature-3d", "defense", "defense-boss", "arena", "arena-rtc", "arena-invite", "coop", "pingpong", "food-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -205,6 +205,18 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
       content = (
         <div className="space-y-4">
           <ArenaMatch initial={previewArenaSnapshot("me", false, "coop")} webrtc={false} preview />
+          <div className="flex justify-center gap-4">
+            <div id="dev-marker-17" className="w-40 bg-white p-1" dangerouslySetInnerHTML={{ __html: markerSvg(17) }} />
+            <div id="dev-marker-42" className="w-40 bg-white p-1" dangerouslySetInnerHTML={{ __html: markerSvg(42) }} />
+          </div>
+        </div>
+      );
+      break;
+    case "pingpong":
+      // Ping-pong seen from the host's phone: Miso (17) against Léa's Pipo (42), Léa played by the phone, an in-memory referee.
+      content = (
+        <div className="space-y-4">
+          <ArenaMatch initial={previewArenaSnapshot("me", false, "pingpong")} webrtc={false} preview />
           <div className="flex justify-center gap-4">
             <div id="dev-marker-17" className="w-40 bg-white p-1" dangerouslySetInnerHTML={{ __html: markerSvg(17) }} />
             <div id="dev-marker-42" className="w-40 bg-white p-1" dangerouslySetInnerHTML={{ __html: markerSvg(42) }} />

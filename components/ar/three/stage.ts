@@ -155,6 +155,15 @@ export class ThreeStage {
     this.slots.get(id)?.group.remove(object);
   }
 
+  /** Adds an object in the camera's frame (shared by several markers, like a ball flying between two papers). */
+  attachWorld(object: THREE.Object3D) {
+    this.scene.add(object);
+  }
+
+  detachWorld(object: THREE.Object3D) {
+    this.scene.remove(object);
+  }
+
   /** Where the camera's axis (the centre of the screen) meets a marker's plane, in that marker's frame; null when it looks away. */
   aimOnMarker(id: number): { x: number; y: number } | null {
     const slot = this.slots.get(id);
