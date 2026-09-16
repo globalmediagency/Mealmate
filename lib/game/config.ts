@@ -216,6 +216,43 @@ export const PLAY = {
   xpBonusPerfect: 5,
 } as const;
 
+/**
+ * "Défendre": the tower-defense game played on the printed marker (spec § 3.21).
+ * Lengths are in marker sides, times in seconds. The first six values are the
+ * admin-tunable defaults (`rules.defense`); the rest is fixed.
+ */
+export const DEFENSE = {
+  hp: 100,
+  /** Speed (sides per second) of a plain food on wave 1. */
+  baseSpeed: 0.32,
+  /** Speed increase per wave, in percent of the base speed. */
+  speedGrowthPercent: 12,
+  firstWaveEnemies: 5,
+  enemiesGrowthPerWave: 2,
+  fireCooldownMs: 350,
+  /** Where foods appear, from the creature. */
+  arenaRadius: 2.8,
+  /** How far the aim point can go beyond the arena. */
+  aimMaxRadius: 3.4,
+  /** A food closer than this has reached the creature. */
+  reachRadius: 0.45,
+  /** An egg destroys the foods within this distance of its landing point (and lower than `blastHeight`). */
+  blastRadius: 0.5,
+  blastHeight: 0.35,
+  eggFlightSeconds: 0.42,
+  /** Extra flight time per side of distance. */
+  eggFlightPerSide: 0.06,
+  eggArcHeight: 0.55,
+  smokeSeconds: 0.7,
+  waveIntroSeconds: 2.2,
+  firstSpawnInterval: 1.8,
+  spawnIntervalStepPerWave: 0.15,
+  minSpawnInterval: 0.55,
+  /** Waves to clear for a perfect game (with every food destroyed). */
+  perfectWaves: 3,
+  pointsPerFood: 10,
+} as const;
+
 /** Growth stages by XP (spec § 3.8). */
 export const STAGES = [
   { id: "bebe", label: "Bébé", minXp: 0 },

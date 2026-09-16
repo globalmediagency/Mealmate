@@ -12,6 +12,14 @@ describe("rules", () => {
     expect(DEFAULT_RULES.coaching).toEqual({ thumbsPerStudentReward: 5, thumbsPerCoachReward: 10 });
     expect(DEFAULT_RULES.feeding.mealRetentionDays).toBe(30);
     expect(DEFAULT_RULES.mood).toEqual({ happyMin: 70, xpBonusPercent: 25, lowMax: 30, xpMalusPercent: 25, gloomyMax: 20, healthLossPerHourWhenGloomy: 0.5, chestStepsBonusPercent: 10 });
+    expect(DEFAULT_RULES.defense).toEqual({ hp: 100, baseSpeed: 0.32, speedGrowthPercent: 12, firstWaveEnemies: 5, enemiesGrowthPerWave: 2, fireCooldownMs: 350 });
+  });
+
+  it("tunes the defense rules", () => {
+    const rules = mergeRules({ defense: { hp: 60, fireCooldownMs: 0 } });
+    expect(rules.defense).toMatchObject({ hp: 60, fireCooldownMs: 0, baseSpeed: 0.32 });
+    expect(gameRulesPatchSchema.safeParse({ defense: { hp: 5 } }).success).toBe(false);
+    expect(gameRulesPatchSchema.safeParse({ defense: { baseSpeed: "0.5" } }).success).toBe(true);
   });
 
   it("tunes the mood rules", () => {

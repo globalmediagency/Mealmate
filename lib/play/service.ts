@@ -26,7 +26,10 @@ export async function countPlaysToday(creatureId: string, today = gameDate()): P
 
 export type PlayResult = { effects: PlayEffects; creature: Creature; playsToday: number; playsLeft: number };
 
-/** Records a finished mini-game and applies its effects (max 3 per day and per creature). */
+/** The two games sharing the daily limit: the food catch and the tower defense on the marker (spec § 3.21). */
+export type PlayKind = "catch" | "defense";
+
+/** Records a finished game and applies its effects (max 3 per day and per creature, both games together). */
 export async function recordPlay(
   userId: string,
   creature: Creature,
@@ -34,6 +37,7 @@ export async function recordPlay(
   now = new Date(),
   options: HolderOptions = {},
   rules: GameRules = DEFAULT_RULES,
+  kind: PlayKind = "catch",
 ): Promise<PlayResult> {
   assertHolder(userId, creature, options);
   if (creature.status !== "alive") throw new DomainError("no_creature", "Tu n'as pas de créature avec qui jouer.", 409);
@@ -45,7 +49,7 @@ export async function recordPlay(
   const safeScore = clamp(Math.round(score), 0, 100);
   const effects = playEffects(safeScore, creature.mood, rules);
   const db = getDb();
-  await db.insert(playSessions).values({ creatureId: creature.id, userId, score: safeScore, createdAt: now });
+  await db.insert(playSessions).values({ creatureId: creature.id, userId, score: safeScore, kind, createdAt: now });
   const [updated] = await db
     .update(creatures)
     .set({ mood: clamp(creature.mood + effects.moodDelta, 0, 100), xp: creature.xp + effects.xpDelta })

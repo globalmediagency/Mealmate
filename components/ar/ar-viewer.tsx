@@ -4,16 +4,15 @@ import { Camera, CameraOff, Share2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { loadAruco } from "@/lib/ar/aruco-loader";
-import { AR_MARKER } from "@/lib/ar/config";
 import { coverTransform, CREATURE_HEIGHT_PER_MARKER, mapQuad, markerPose, smoothPose, type MarkerPose, type Quad } from "@/lib/ar/geometry";
 import { getSpecies } from "@/lib/creatures";
 import { viewFromAngle } from "@/lib/creatures/turnaround";
 import { cn } from "@/lib/utils/cn";
+import { CameraError, MarkerCamera, type CameraFrame, type Corner } from "./marker-camera";
 import { ViewsRenderer } from "./renderers/views";
 import { AccessorySprites, accessoryMarkup } from "./three/accessory-sprites";
 import type { CreatureMeshInput } from "./three/creature-mesh";
-import type { Corner, ThreeStage } from "./three/stage";
+import type { ThreeStage } from "./three/stage";
 import type { ArTarget } from "./types";
 
 type Status = "idle" | "starting" | "running" | "unsupported" | "denied" | "error";
@@ -22,10 +21,6 @@ type Mode = "three" | "views";
 type StageModule = typeof import("./three/stage");
 type TexturePromise = ReturnType<StageModule["textureFromSvg"]>;
 
-/** Frame width handed to the detector: an 8 cm marker at arm's length spans about 80 px here, enough to read its 8 cells. */
-const DETECT_WIDTH = 640;
-/** When one detection takes longer than this, the next frame is skipped so the video stays smooth on slower phones. */
-const SLOW_DETECT_MS = 24;
 /** Box the fallback renderer draws in (CSS px) before scaling to the marker. */
 const BOX = 200;
 /** Ground line of the creature drawings (viewBox y ≈ 92 / 100). */
@@ -34,14 +29,12 @@ const GROUND = 0.92;
 const LOST_MS = 450;
 const SMOOTHING = 0.35;
 
-type Detector = { detect(image: { width: number; height: number; data: Uint8ClampedArray }): { id: number; corners: { x: number; y: number }[] }[] };
-
 const shadowSize = (p: MarkerPose) => ({ w: Math.max(24, p.width * 0.8), h: Math.max(8, p.height * 0.55) });
 
 /**
  * Camera view with every recognised creature standing on its own printed
  * marker (spec § 3.19): the viewer's, the ones boarded with them and their
- * friends'. Detection runs on a downscaled copy of each frame. Level 3: a
+ * friends'. `MarkerCamera` reads the markers on a downscaled copy of each frame. Level 3: a
  * WebGL canvas over the video draws each creature in 3D from the marker's
  * full pose; without WebGL, the level-2 drawings are moved with
  * `style.transform` instead. React only re-renders when a marker appears or
@@ -60,10 +53,7 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
   const figures = useRef(new Map<number, HTMLDivElement>());
   const shadows = useRef(new Map<number, HTMLDivElement>());
   const labels = useRef(new Map<number, HTMLParagraphElement>());
-  const work = useRef<HTMLCanvasElement | null>(null);
-  const stream = useRef<MediaStream | null>(null);
-  const raf = useRef<number | null>(null);
-  const detector = useRef<Detector | null>(null);
+  const camera = useRef<MarkerCamera | null>(null);
   const stageModule = useRef<StageModule | null>(null);
   const stage = useRef<ThreeStage | null>(null);
   const textures = useRef(new Map<string, TexturePromise>());
@@ -72,16 +62,12 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
   const lastSeen = useRef(new Map<number, number>());
   const visibleRef = useRef<number[]>([]);
   const views = useRef(new Map<number, number>());
-  const skipNext = useRef(false);
   const byMarker = useRef(new Map<number, ArTarget>());
   byMarker.current = new Map(targets.map((t) => [t.markerId, t]));
 
   const stop = useCallback(() => {
-    if (raf.current) cancelAnimationFrame(raf.current);
-    raf.current = null;
-    stream.current?.getTracks().forEach((t) => t.stop());
-    stream.current = null;
-    if (video.current) video.current.srcObject = null;
+    camera.current?.stop();
+    camera.current = null;
     stage.current?.dispose();
     stage.current = null;
     textures.current.clear();
@@ -113,48 +99,40 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
   }
 
   async function start() {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setStatus("unsupported");
-      return;
-    }
+    const v = video.current;
+    if (!v) return;
     setStatus("starting");
+    const cam = new MarkerCamera(v);
+    cam.onFrame = onFrame;
+    camera.current = cam;
     try {
-      const [AR, media, three] = await Promise.all([
-        loadAruco(),
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }),
+      const [started, three] = await Promise.all([
+        cam.start(),
         modeRef.current === "three" ? import("./three/stage").catch((error: unknown) => (fallBackToViews(error), null)) : Promise.resolve(null),
       ]);
-      detector.current ??= new AR.Detector({ dictionaryName: AR_MARKER.dictionary });
+      if (!started || camera.current !== cam) return;
       stageModule.current = three;
-      stream.current = media;
-      const v = video.current!;
-      v.srcObject = media;
-      await v.play();
       setStatus("running");
-      raf.current = requestAnimationFrame(tick);
     } catch (error) {
       console.error("[ar] cannot start", error);
-      const name = error instanceof DOMException ? error.name : "";
-      setStatus(name === "NotAllowedError" || name === "SecurityError" ? "denied" : "error");
+      camera.current = null;
+      setStatus(error instanceof CameraError ? error.kind : "error");
     }
   }
 
   /** The 3D scene is created once the video size is known and the canvas mounted; a WebGL failure switches to the drawings. */
-  function ensureStage(v: HTMLVideoElement): ThreeStage | null {
+  function ensureStage(videoWidth: number, videoHeight: number): ThreeStage | null {
     if (modeRef.current !== "three") return null;
     if (stage.current) {
-      stage.current.resize(v.videoWidth, v.videoHeight);
+      stage.current.resize(videoWidth, videoHeight);
       return stage.current;
     }
     const canvas = glCanvas.current;
     const three = stageModule.current;
-    if (!three) {
-      fallBackToViews("module");
-      return null;
-    }
-    if (!canvas) return null;
+    // The module may still be loading while the camera already runs: frames wait (a failed import switches the mode in `start`).
+    if (!canvas || !three) return null;
     try {
-      stage.current = new three.ThreeStage(canvas, v.videoWidth, v.videoHeight);
+      stage.current = new three.ThreeStage(canvas, videoWidth, videoHeight);
     } catch (error) {
       fallBackToViews(error);
     }
@@ -185,42 +163,21 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
     };
   }
 
-  function tick() {
-    raf.current = requestAnimationFrame(tick);
-    const v = video.current;
+  /** One camera frame: poses for the markers we know, then the 3D scene (or the fallback drawings). */
+  function onFrame({ markers, videoWidth, videoHeight, now }: CameraFrame) {
     const container = box.current;
-    if (!v || !container || v.readyState < 2 || v.videoWidth === 0) return;
-    if (skipNext.current) {
-      skipNext.current = false;
-      return;
-    }
-    const scene = ensureStage(v);
+    if (!container) return;
+    const scene = ensureStage(videoWidth, videoHeight);
     if (modeRef.current === "three" && !scene) return; // canvas not mounted yet
-    const canvas = (work.current ??= document.createElement("canvas"));
-    const w = DETECT_WIDTH;
-    const h = Math.round((DETECT_WIDTH * v.videoHeight) / v.videoWidth);
-    if (canvas.width !== w || canvas.height !== h) {
-      canvas.width = w;
-      canvas.height = h;
-    }
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) return;
-    ctx.drawImage(v, 0, 0, w, h);
-    const started = performance.now();
-    const markers = detector.current?.detect(ctx.getImageData(0, 0, w, h)) ?? [];
-    const now = performance.now();
-    skipNext.current = now - started > SLOW_DETECT_MS;
-    const upscale = v.videoWidth / w;
     const rect = container.getBoundingClientRect();
-    const transform = coverTransform(v.videoWidth, v.videoHeight, rect.width, rect.height);
+    const transform = coverTransform(videoWidth, videoHeight, rect.width, rect.height);
 
     const detections = new Map<number, Corner[]>();
     let viewsChanged = false;
     for (const marker of markers) {
       const target = byMarker.current.get(marker.id);
-      if (marker.corners.length !== 4 || !target) continue;
-      const videoCorners = marker.corners.map((c) => ({ x: c.x * upscale, y: c.y * upscale }));
-      const quad = mapQuad(videoCorners as unknown as Quad, transform);
+      if (!target) continue;
+      const quad = mapQuad(marker.corners as unknown as Quad, transform);
       const pose = smoothPose(poses.current.get(marker.id) ?? null, markerPose(quad), SMOOTHING);
       poses.current.set(marker.id, pose);
       lastSeen.current.set(marker.id, now);
@@ -229,7 +186,7 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
         const input = meshInput(target, stageModule.current);
         if (input) {
           scene.ensureTarget(marker.id, input);
-          detections.set(marker.id, videoCorners);
+          detections.set(marker.id, marker.corners);
         }
       } else {
         // Fallback: the paper's rotation picks one of the eight views; React only re-renders when it changes.

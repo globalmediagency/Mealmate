@@ -39,6 +39,19 @@ type Draft = {
   thumbsPerStudentReward: string;
   thumbsPerCoachReward: string;
   mood: Record<MoodField, string>;
+  defense: Record<DefenseField, string>;
+};
+
+const DEFENSE_FIELDS = ["hp", "baseSpeed", "speedGrowthPercent", "firstWaveEnemies", "enemiesGrowthPerWave", "fireCooldownMs"] as const;
+type DefenseField = (typeof DEFENSE_FIELDS)[number];
+
+const DEFENSE_LABELS: Record<DefenseField, { label: string; help: string; integer: boolean }> = {
+  hp: { label: "Points de vie de la créature", help: "Dans le jeu seulement : rien ne touche la vraie créature.", integer: true },
+  baseSpeed: { label: "Vitesse des aliments à la vague 1", help: "En côtés de marqueur par seconde (le carré imprimé fait 1). Les aliments partent à 2,8 côtés.", integer: false },
+  speedGrowthPercent: { label: "Accélération par vague (%)", help: "Ajouté à la vitesse de base à chaque nouvelle vague.", integer: false },
+  firstWaveEnemies: { label: "Aliments à la vague 1", help: "Nombre d'aliments de la première vague.", integer: true },
+  enemiesGrowthPerWave: { label: "Aliments en plus par vague", help: "Chaque vague en envoie autant de plus que la précédente.", integer: true },
+  fireCooldownMs: { label: "Rechargement entre deux œufs (ms)", help: "0 = tir libre.", integer: true },
 };
 
 const MOOD_FIELDS = ["happyMin", "xpBonusPercent", "lowMax", "xpMalusPercent", "gloomyMax", "healthLossPerHourWhenGloomy", "chestStepsBonusPercent"] as const;
@@ -70,6 +83,7 @@ function toDraft(rules: GameRules): Draft {
     thumbsPerStudentReward: String(rules.coaching.thumbsPerStudentReward),
     thumbsPerCoachReward: String(rules.coaching.thumbsPerCoachReward),
     mood: Object.fromEntries(MOOD_FIELDS.map((f) => [f, String(rules.mood[f])])) as Draft["mood"],
+    defense: Object.fromEntries(DEFENSE_FIELDS.map((f) => [f, String(rules.defense[f])])) as Draft["defense"],
   };
 }
 
@@ -85,6 +99,7 @@ function toPatch(draft: Draft): GameRulesPatch {
     boarding: { maxPerHost: num(draft.maxPerHost), cooldownMultiplier: num(draft.cooldownMultiplier) },
     coaching: { thumbsPerStudentReward: num(draft.thumbsPerStudentReward), thumbsPerCoachReward: num(draft.thumbsPerCoachReward) },
     mood: Object.fromEntries(MOOD_FIELDS.map((f) => [f, num(draft.mood[f])])) as GameRulesPatch["mood"],
+    defense: Object.fromEntries(DEFENSE_FIELDS.map((f) => [f, num(draft.defense[f])])) as GameRulesPatch["defense"],
   };
 }
 
@@ -103,6 +118,7 @@ function safePreview(draft: Draft): GameRules | null {
       patch.coaching?.thumbsPerStudentReward,
       patch.coaching?.thumbsPerCoachReward,
       ...MOOD_FIELDS.map((f) => patch.mood?.[f]),
+      ...DEFENSE_FIELDS.map((f) => patch.defense?.[f]),
     ];
     if (flat.some((v) => v === undefined || Number.isNaN(v))) return null;
     return mergeRules(patch);
@@ -307,6 +323,29 @@ export function RulesForm({ initialRules, storedPatch, updatedAt, updatedBy }: R
             />
             <span className="block text-[11px] text-cream-700">
               {MOOD_LABELS[field].help} · défaut {DEFAULT_RULES.mood[field]}
+            </span>
+          </label>
+        ))}
+      </section>
+
+      <section className="grid gap-3 rounded-3xl border border-ink-600/80 bg-ink-800/90 p-4 shadow-card sm:grid-cols-2">
+        <h2 className="font-display text-xl text-cream-50 sm:col-span-2">Défendre (tower defense sur le marqueur)</h2>
+        <p className="-mt-2 text-xs text-cream-500 sm:col-span-2">
+          La malbouffe arrive par vagues vers la créature posée sur son marqueur ; le joueur lance des œufs. Les parties comptent dans la même limite quotidienne que le
+          jeu « Jouer » et donnent les mêmes récompenses.
+        </p>
+        {DEFENSE_FIELDS.map((field) => (
+          <label key={field} className="space-y-1 text-sm">
+            <span className="text-cream-100">{DEFENSE_LABELS[field].label}</span>
+            <input
+              type="text"
+              inputMode={DEFENSE_LABELS[field].integer ? "numeric" : "decimal"}
+              value={draft.defense[field]}
+              onChange={(e) => setDraft((d) => ({ ...d, defense: { ...d.defense, [field]: e.target.value } }))}
+              className={inputClass}
+            />
+            <span className="block text-[11px] text-cream-700">
+              {DEFENSE_LABELS[field].help} · défaut {DEFAULT_RULES.defense[field]}
             </span>
           </label>
         ))}

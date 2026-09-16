@@ -99,6 +99,7 @@ export default async function MorePage() {
         <ul className="divide-y divide-ink-600/80">
           {[
             { href: "/ar", label: "Voir ma créature en vrai (caméra)" },
+            { href: "/defense", label: "Défendre ma créature (jeu en réalité augmentée)" },
             { href: "/shop", label: "Boutique et armoire à pharmacie" },
             { href: "/coach", label: "Coaching" },
             { href: "/collection", label: "Collection" },

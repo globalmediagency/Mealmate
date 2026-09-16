@@ -241,6 +241,8 @@ export const playSessions = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     score: integer("score").notNull(),
+    /** Which game: the food catch ("catch") or the tower defense on the marker ("defense", migration 014). */
+    kind: text("kind").notNull().default("catch"),
     createdAt: timestamptz("created_at").notNull().defaultNow(),
   },
   (table) => [
@@ -248,6 +250,7 @@ export const playSessions = pgTable(
       table.creatureId,
       table.createdAt,
     ),
+    check("play_sessions_kind_check", sql`${table.kind} in ('catch', 'defense')`),
   ],
 );
 

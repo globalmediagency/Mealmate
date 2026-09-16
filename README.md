@@ -101,6 +101,7 @@ Si tu avais déjà exécuté `db/init.sql` avant une phase, colle ses migrations
 - coaching : [`db/migrations/010_coaching.sql`](./db/migrations/010_coaching.sql)
 - effets de l'humeur : [`db/migrations/012_creatures_chest_bonus_steps.sql`](./db/migrations/012_creatures_chest_bonus_steps.sql)
 - voir en vrai (un marqueur par créature) : [`db/migrations/013_creatures_ar_marker.sql`](./db/migrations/013_creatures_ar_marker.sql)
+- défendre (type de partie enregistré) : [`db/migrations/014_play_sessions_kind.sql`](./db/migrations/014_play_sessions_kind.sql)
 
 Si une migration manque, l'application l'indique elle-même : au lieu de planter, elle affiche « La base de données doit être mise à jour » avec le SQL exact à copier dans Neon → SQL Editor (bouton « Copier le SQL »). Recharge la page une fois le SQL exécuté.
 
@@ -303,6 +304,10 @@ apparaissent alors, sans connexion nécessaire :
     voir de profil ou de dos. Un ami pose son propre marqueur à côté : les deux créatures apparaissent
     ensemble. Le bouton Photo garde ou partage l'image. Les images de la caméra ne quittent pas le
     téléphone.
+11. **Défendre** : depuis l'écran Créature (ou la carte de « Voir en vrai »), lance le jeu : la malbouffe
+    surgit autour de ta créature posée sur son marqueur et fonce dessus ; vise avec le centre de l'écran
+    et tire des œufs avec le bouton en bas à droite. Les vagues accélèrent ; la partie s'arrête à zéro
+    point de vie (dans le jeu seulement). Trois parties par jour, jeu et défense confondus.
 
 ## 5. Limites connues
 
@@ -318,6 +323,8 @@ apparaissent alors, sans connexion nécessaire :
   une feuille tenue face à la caméra la montre de dessus. Il faut un marqueur imprimé en noir
   franc et un éclairage correct ; la caméra chauffe le téléphone, l'écran la coupe dès qu'on le
   quitte. Sans WebGL, le dessin tourne par pas de 45° (huit vues).
+- **Défendre** : le marqueur doit rester dans l'image pendant qu'on vise (le jeu se met en pause quand
+  il est perdu) et le jeu demande WebGL (Chrome ou Safari récents).
 - **Gemini** : quota gratuit limité ; en cas d'erreur, le repas n'est pas compté et un message
   l'explique.
 

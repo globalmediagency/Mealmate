@@ -18,6 +18,7 @@ import { PlayerCard } from "@/components/admin/player-card";
 import { Creature } from "@/components/creatures/creature";
 import { ArViewer } from "@/components/ar/ar-viewer";
 import { Creature3dView } from "@/components/ar/three/creature-3d-view";
+import { DefenseGame } from "@/components/defense/defense-game";
 import { Species3dButton } from "@/components/admin/species-3d-dialog";
 import { markerSvg } from "@/lib/ar/marker";
 import { VIEW_COUNT, yawForView } from "@/lib/creatures/turnaround";
@@ -53,7 +54,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "turnaround", "creature-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "turnaround", "creature-3d", "defense", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -174,6 +175,21 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
             ))}
           </ul>
         </Card>
+      );
+      break;
+    case "defense":
+      content = (
+        <div className="space-y-4">
+          <DefenseGame
+            target={{ markerId: 17, mine: true, ownerName: null, creature: { name: "Miso", speciesId: "facile-panda-roux", stage: "adulte", state: "healthy", accessories: [{ slot: "head", id: "beret" }] } }}
+            rules={DEFAULT_RULES.defense}
+            playsLeft={3}
+            preview
+          />
+          <div className="flex justify-center">
+            <div id="dev-marker-17" className="w-40 bg-white p-1" dangerouslySetInnerHTML={{ __html: markerSvg(17) }} />
+          </div>
+        </div>
       );
       break;
     case "creature-3d":

@@ -199,6 +199,15 @@ ALTER TABLE boardings ADD CONSTRAINT boardings_status_check CHECK (status IN ('p
     checks: [{ table: "creatures", column: "ar_marker" }],
     sql: `ALTER TABLE creatures ADD COLUMN IF NOT EXISTS ar_marker integer;`,
   },
+  {
+    id: "014",
+    file: "014_play_sessions_kind.sql",
+    title: "Défendre : type de partie enregistré",
+    checks: [{ table: "play_sessions", column: "kind" }],
+    sql: `ALTER TABLE play_sessions ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'catch';
+ALTER TABLE play_sessions DROP CONSTRAINT IF EXISTS play_sessions_kind_check;
+ALTER TABLE play_sessions ADD CONSTRAINT play_sessions_kind_check CHECK (kind IN ('catch', 'defense'));`,
+  },
 ];
 
 /** Migrations whose checks fail against the given set of existing `table` / `table.column` keys. */

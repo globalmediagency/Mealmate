@@ -163,7 +163,9 @@ CREATE TABLE IF NOT EXISTS play_sessions (
   creature_id uuid NOT NULL REFERENCES creatures(id) ON DELETE CASCADE,
   user_id     text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
   score       integer NOT NULL,
-  created_at  timestamptz NOT NULL DEFAULT now()
+  kind        text NOT NULL DEFAULT 'catch',
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT play_sessions_kind_check CHECK (kind IN ('catch', 'defense'))
 );
 CREATE INDEX IF NOT EXISTS play_sessions_creature_created_idx ON play_sessions (creature_id, created_at);
 

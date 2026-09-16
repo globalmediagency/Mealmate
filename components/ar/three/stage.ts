@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { cameraFovDeg, pickPose, posesFromCorners, type Pose3d } from "@/lib/ar/pose3d";
+import type { Corner } from "../marker-camera";
 import { buildCreatureMesh, type CreatureMesh, type CreatureMeshInput } from "./creature-mesh";
 
 export { textureFromSvg } from "./textures";
-
-export type Corner = { x: number; y: number };
+export type { Corner } from "../marker-camera";
 
 /** Weight of a new pose against the smoothed one (0–1): high enough to follow the hand, low enough to hide jitter. */
 const SMOOTHING = 0.35;
@@ -14,6 +14,8 @@ const SHADOW_RADIUS = 0.42;
 type Slot = {
   /** Marker frame: x right, y toward the top edge, z out of the paper. */
   group: THREE.Group;
+  /** Turns the creature about the paper's normal (0 = facing the bottom edge). */
+  turn: THREE.Group;
   mesh: CreatureMesh;
   /** Last raw pose kept, so the next frame picks the POSIT solution closest to it. */
   pose: Pose3d | null;
@@ -23,6 +25,9 @@ type Slot = {
 const matrix = new THREE.Matrix4();
 const nextQuaternion = new THREE.Quaternion();
 const nextPosition = new THREE.Vector3();
+const inverse = new THREE.Matrix4();
+const rayOrigin = new THREE.Vector3();
+const rayDirection = new THREE.Vector3();
 /** Stands the creature on the paper: its up (+y) becomes the marker's z, its front (+z) the marker's bottom edge (−y). */
 const STANDING = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
 
@@ -87,9 +92,44 @@ export class ThreeStage {
     const holder = new THREE.Group();
     holder.quaternion.copy(STANDING);
     holder.add(mesh.root);
-    group.add(holder);
+    const turn = new THREE.Group();
+    turn.add(holder);
+    group.add(turn);
     this.scene.add(group);
-    this.slots.set(id, { group, mesh, pose: null, fresh: true });
+    this.slots.set(id, { group, turn, mesh, pose: null, fresh: true });
+  }
+
+  isTracked(id: number): boolean {
+    return this.slots.has(id);
+  }
+
+  /** Turns a creature on its marker (radians about the paper's normal, positive = counter-clockwise seen from above). */
+  setYaw(id: number, yaw: number) {
+    const slot = this.slots.get(id);
+    if (slot) slot.turn.rotation.z = yaw;
+  }
+
+  /** Adds an object to a marker's frame (x right, y toward the top edge, z up, the side is 1). */
+  attach(id: number, object: THREE.Object3D) {
+    this.slots.get(id)?.group.add(object);
+  }
+
+  detach(id: number, object: THREE.Object3D) {
+    this.slots.get(id)?.group.remove(object);
+  }
+
+  /** Where the camera's axis (the centre of the screen) meets a marker's plane, in that marker's frame; null when it looks away. */
+  aimOnMarker(id: number): { x: number; y: number } | null {
+    const slot = this.slots.get(id);
+    if (!slot || !slot.group.visible) return null;
+    slot.group.updateMatrixWorld(true);
+    inverse.copy(slot.group.matrixWorld).invert();
+    rayOrigin.set(0, 0, 0).applyMatrix4(inverse);
+    rayDirection.set(0, 0, -1).transformDirection(inverse);
+    if (Math.abs(rayDirection.z) < 1e-4) return null;
+    const t = -rayOrigin.z / rayDirection.z;
+    if (t <= 0) return null;
+    return { x: rayOrigin.x + rayDirection.x * t, y: rayOrigin.y + rayDirection.y * t };
   }
 
   /**

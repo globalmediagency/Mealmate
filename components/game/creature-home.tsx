@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Footprints, Gamepad2, Gift, Heart, HeartPulse, ScanLine, Shield, Shirt, Smile, Utensils } from "lucide-react";
+import { Camera, Crosshair, Footprints, Gamepad2, Gift, Heart, HeartPulse, ScanLine, Shield, Shirt, Smile, Utensils } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Creature, type EquippedAccessory, type Reaction } from "@/components/creatures/creature";
@@ -28,7 +28,7 @@ type CreatureHomeProps = {
   gifts?: GiftView[];
 };
 
-type Action = { id: string; label: string; icon: typeof Camera; href: string; highlight?: boolean };
+type Action = { id: string; label: string; icon: typeof Camera; href: string; highlight?: boolean; wide?: boolean };
 
 const DAY_MS = 86_400_000;
 
@@ -57,10 +57,11 @@ export function CreatureHome({ creature, line, accessories = [], chestsAvailable
   const actions: Action[] = [
     { id: "feed", label: "Nourrir", icon: Camera, href: "/feed", highlight: creature.hunger >= 60 && creature.state !== "sick" },
     { id: "play", label: "Jouer", icon: Gamepad2, href: "/play" },
+    { id: "defend", label: "Défendre", icon: Crosshair, href: "/defense" },
     { id: "walk", label: "Marcher", icon: Footprints, href: "/activity" },
     { id: "dress", label: "Habiller", icon: Shirt, href: "/wardrobe" },
     { id: "heal", label: doses > 0 ? `Soigner (${doses})` : "Soigner", icon: HeartPulse, href: "/shop", highlight: creature.state === "sick" || (creature.state === "tired" && doses > 0) },
-    { id: "ar", label: "Voir en vrai", icon: ScanLine, href: "/ar" },
+    { id: "ar", label: "Voir en vrai", icon: ScanLine, href: "/ar", wide: true },
   ];
   const protectedDays = creature.protectedUntil ? Math.ceil((new Date(creature.protectedUntil).getTime() - Date.now()) / DAY_MS) : 0;
 
@@ -135,8 +136,8 @@ export function CreatureHome({ creature, line, accessories = [], chestsAvailable
       </section>
 
       <nav aria-label="Actions" className="grid grid-cols-3 gap-2">
-        {actions.map(({ id, label, icon: Icon, href, highlight }) => (
-          <Link key={id} href={href} className={cn(buttonClasses(highlight ? "brass" : "secondary", "md"), "min-h-14 flex-col gap-1 text-xs")}>
+        {actions.map(({ id, label, icon: Icon, href, highlight, wide }) => (
+          <Link key={id} href={href} className={cn(buttonClasses(highlight ? "brass" : "secondary", "md"), "min-h-14 flex-col gap-1 text-xs", wide && "col-span-3 flex-row")}>
             <Icon className="h-5 w-5" aria-hidden="true" />
             {label}
           </Link>

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { FileDown, Printer } from "lucide-react";
+import { Crosshair, FileDown, Printer } from "lucide-react";
 import Link from "next/link";
 import { ArViewer } from "@/components/ar/ar-viewer";
 import { Card, CardText, CardTitle } from "@/components/ui/card";
@@ -39,6 +39,23 @@ export default async function ArPage() {
           </Link>
         </Card>
       )}
+
+      {own ? (
+        <Card className="border-brass-500/40">
+          <CardTitle>Défendre {own.creature.name}</CardTitle>
+          <CardText className="mt-1">
+            Un jeu sur le même marqueur : la malbouffe surgit autour de ta créature et fonce dessus, tu lances des œufs pour la protéger. Même limite de parties et
+            mêmes récompenses que « Jouer ».
+          </CardText>
+          <Link
+            href="/defense"
+            className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brass-400 px-4 text-sm font-semibold text-ink-950 hover:bg-brass-300"
+          >
+            <Crosshair className="h-5 w-5" aria-hidden="true" />
+            Jouer à Défendre
+          </Link>
+        </Card>
+      ) : null}
 
       {own ? (
         <Card>

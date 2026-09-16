@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BOARDING, COACHING, FEEDING, HUNGER_DAMAGE_THRESHOLD, MOOD, TICK, TIER_CONFIG, TIERS, type Tier, type TierConfig } from "./config";
+import { BOARDING, COACHING, DEFENSE, FEEDING, HUNGER_DAMAGE_THRESHOLD, MOOD, TICK, TIER_CONFIG, TIERS, type Tier, type TierConfig } from "./config";
 
 /** Per-tier demands that the admin can tune (spec § 3.1). */
 export type TierRules = Pick<
@@ -31,6 +31,16 @@ export type MoodRules = {
   chestStepsBonusPercent: number;
 };
 
+/** "Défendre" difficulty (spec § 3.21). */
+export type DefenseRules = {
+  hp: number;
+  baseSpeed: number;
+  speedGrowthPercent: number;
+  firstWaveEnemies: number;
+  enemiesGrowthPerWave: number;
+  fireCooldownMs: number;
+};
+
 export type GameRules = {
   tiers: Record<Tier, TierRules>;
   /** Hunger above which health starts dropping. */
@@ -40,6 +50,7 @@ export type GameRules = {
   boarding: BoardingRules;
   coaching: { thumbsPerStudentReward: number; thumbsPerCoachReward: number };
   mood: MoodRules;
+  defense: DefenseRules;
 };
 
 const pickTier = (config: TierConfig): TierRules => ({
@@ -65,6 +76,14 @@ export const DEFAULT_RULES: GameRules = {
   boarding: { maxPerHost: BOARDING.maxPerHost, cooldownMultiplier: BOARDING.cooldownMultiplier },
   coaching: { thumbsPerStudentReward: COACHING.thumbsPerStudentReward, thumbsPerCoachReward: COACHING.thumbsPerCoachReward },
   mood: { ...MOOD },
+  defense: {
+    hp: DEFENSE.hp,
+    baseSpeed: DEFENSE.baseSpeed,
+    speedGrowthPercent: DEFENSE.speedGrowthPercent,
+    firstWaveEnemies: DEFENSE.firstWaveEnemies,
+    enemiesGrowthPerWave: DEFENSE.enemiesGrowthPerWave,
+    fireCooldownMs: DEFENSE.fireCooldownMs,
+  },
 };
 
 const tierRulesSchema = z
@@ -103,6 +122,16 @@ export const gameRulesPatchSchema = z
         chestStepsBonusPercent: z.coerce.number().min(0).max(500),
       })
       .partial(),
+    defense: z
+      .object({
+        hp: z.coerce.number().int().min(10).max(1000),
+        baseSpeed: z.coerce.number().min(0.05).max(3),
+        speedGrowthPercent: z.coerce.number().min(0).max(200),
+        firstWaveEnemies: z.coerce.number().int().min(1).max(50),
+        enemiesGrowthPerWave: z.coerce.number().int().min(0).max(20),
+        fireCooldownMs: z.coerce.number().int().min(0).max(5000),
+      })
+      .partial(),
   })
   .partial();
 
@@ -122,6 +151,7 @@ export function mergeRules(patch: GameRulesPatch | null | undefined, base: GameR
     boarding: { ...base.boarding, ...(patch.boarding ?? {}) },
     coaching: { ...base.coaching, ...(patch.coaching ?? {}) },
     mood: { ...base.mood, ...(patch.mood ?? {}) },
+    defense: { ...base.defense, ...(patch.defense ?? {}) },
   };
 }
 
