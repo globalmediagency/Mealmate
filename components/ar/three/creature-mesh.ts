@@ -5,6 +5,7 @@ import type { EarType, ExtraType, MarkingType, MouthType, SignatureType, Species
 import type { StageId } from "@/lib/game/config";
 import type { CreatureState } from "@/lib/game/creature-view";
 import { extrudeGeometry, pointsFromPath, shapesFromPath } from "./svg-shape";
+import { solidFromSvg, type SolidResult } from "./svg-solid";
 
 /** Creature height in marker sides (the printed square is 1). */
 export const CREATURE_HEIGHT_UNITS = 2.2;
@@ -12,13 +13,18 @@ export const CREATURE_HEIGHT_UNITS = 2.2;
 const UNIT = CREATURE_HEIGHT_UNITS / 100;
 
 export type TextureSource = (accessoryId: string, layer: "front" | "back") => Promise<THREE.Texture | null>;
+/** The stand-alone SVG of an accessory layer (`accessoryMarkup()`), turned into a real volume; null when unavailable. */
+export type MarkupSource = (accessoryId: string, layer: "front" | "back") => string | null;
 
 export type CreatureMeshInput = {
   species: Species;
   stage: StageId;
   state: CreatureState;
   accessories: EquippedAccessory[];
+  /** Accessory drawings rasterised: used for hats, and as the fallback of every other slot. */
   textures: TextureSource;
+  /** Accessory drawings as markup: glasses, collars and body accessories become volumes laid on the creature. */
+  markup?: MarkupSource;
 };
 
 /** Where the mouth is, in the creature's own frame (marker sides): height above the feet and distance ahead of the centre. */
@@ -57,7 +63,9 @@ type Movers = { flappers: Array<{ group: THREE.Group; side: number }>; flickers:
  * the 2D drawings extruded into thin slabs for the ears, wings, gems, flames
  * and the Sage's signature item, small spheres for the eyes, tubes for the
  * mouth and the markings, the palette's colours, and the accessories' own
- * drawings as textured cards. Nothing is modelled by hand: every species works.
+ * drawings as volumes laid on the creature (glasses with temples, collars and
+ * body accessories draped on the surface; hats as drawings facing the camera).
+ * Nothing is modelled by hand: every species and every accessory works.
  */
 export function buildCreatureMesh(input: CreatureMeshInput): CreatureMesh {
   const { species, stage, state, accessories, textures } = input;
@@ -234,7 +242,6 @@ export function buildCreatureMesh(input: CreatureMeshInput): CreatureMesh {
   const extras = species.parts.extra === null ? [] : Array.isArray(species.parts.extra) ? species.parts.extra : [species.parts.extra];
   for (const extra of extras) buildExtra(extra, layout, palette, { sphere, cone, flat, tube, material, geometry }, { head, body, headR: r, rx, ry, rz, bodyCentre, movers, haloLift: crowned ? 5 : 0 });
 
-  // --- Accessories: their own drawings as textured cards ---
   // --- The Sage's signature item, like in 2D: unless an accessory takes its place ---
   if (stage === "sage") {
     const eyeFront = surfaceZ(layout.eyeGap, eyeY) + 3.3 * layout.eyeScale * 0.5;
@@ -250,6 +257,7 @@ export function buildCreatureMesh(input: CreatureMeshInput): CreatureMesh {
       eyeFront,
     });
   }
+  // --- Accessories: their own drawings as volumes laid on the creature (or as textured cards without the markup) ---
   /** A flat card in the creature's own plane (front or back of the body), its anchor at the group's origin. */
   const card = (texture: THREE.Texture) => {
     const g = new THREE.Group();
@@ -279,13 +287,42 @@ export function buildCreatureMesh(input: CreatureMeshInput): CreatureMesh {
       holder.add(c);
     });
   };
+  /** The drawing as a real volume (slabs and tubes, spec § 3.19) draped on the surface under it; null without the markup. */
+  const solid = (id: string | undefined, layer: "front" | "back", holder: THREE.Object3D, at: THREE.Vector3, drape: (x: number, y: number) => number, facing: 1 | -1 = 1): SolidResult | null => {
+    if (!id) return null;
+    const markup = input.markup?.(id, layer);
+    if (!markup) return null;
+    const result = solidFromSvg(markup, { drape, facing });
+    if (!result) return null;
+    disposables.push(result);
+    result.group.position.copy(at);
+    holder.add(result.group);
+    return result;
+  };
   const neckX = X(layout.neck[0]);
   const neckY = Y(layout.neck[1]);
+  // Hats: the drawing facing the camera (a hat looks alike from every side, so a billboard is its best cheap volume).
   attach(worn.head, "front", head, new THREE.Vector3(0, layout.head.cy - layout.top, 0), "sprite");
-  attach(worn.eyes, "front", face, new THREE.Vector3(0, eyeY, surfaceZ(0, eyeY) + 1.5), "sprite");
-  attach(worn.neck, "front", body, new THREE.Vector3(neckX, neckY, frontZ(neckX, neckY) / scales.body + 1.5), "sprite");
-  attach(worn.body, "front", body, new THREE.Vector3(bodyCentre.x, bodyCentre.y, rz + 2), "card");
-  attach(worn.body, "back", body, new THREE.Vector3(bodyCentre.x, bodyCentre.y, -rz - 2), "card");
+  // Glasses and masks: a real pair in the face's plane, slightly bent along the head, with temples back to the ears.
+  const eyeZ = surfaceZ(0, eyeY) + 2;
+  const bentOnFace = (x: number, y: number) => 0.4 * (surfaceZ(x, eyeY + y) - surfaceZ(0, eyeY));
+  const glasses = solid(worn.eyes, "front", face, new THREE.Vector3(0, eyeY, eyeZ), bentOnFace);
+  if (glasses) buildTemples(glasses, { face, tube, surfaceZ, eyeY, eyeZ, bent: bentOnFace });
+  else attach(worn.eyes, "front", face, new THREE.Vector3(0, eyeY, surfaceZ(0, eyeY) + 1.5), "sprite");
+  // Collars and scarves: draped on the front of the body (and of the head above the neck), in the body's frame.
+  const neckZ = frontZ(neckX, neckY) / scales.body;
+  const onFront = (x: number, y: number) => frontZ(neckX + x, neckY + y) / scales.body - neckZ;
+  if (!solid(worn.neck, "front", body, new THREE.Vector3(neckX, neckY, neckZ + 1.2), onFront)) {
+    attach(worn.neck, "front", body, new THREE.Vector3(neckX, neckY, neckZ + 1.5), "sprite");
+  }
+  // Body accessories: draped on the belly (front layer) and on the back (back layer, later elements further behind).
+  const onBelly = (x: number, y: number) => bodySurface(bodyCentre.x + x, bodyCentre.y + y) - rz;
+  if (!solid(worn.body, "front", body, new THREE.Vector3(bodyCentre.x, bodyCentre.y, rz + 1), onBelly)) {
+    attach(worn.body, "front", body, new THREE.Vector3(bodyCentre.x, bodyCentre.y, rz + 2), "card");
+  }
+  if (!solid(worn.body, "back", body, new THREE.Vector3(bodyCentre.x, bodyCentre.y, -rz - 1), (x, y) => -onBelly(x, y), -1)) {
+    attach(worn.body, "back", body, new THREE.Vector3(bodyCentre.x, bodyCentre.y, -rz - 2), "card");
+  }
 
   const baseScaleY = root.scale.y;
   const blinkPeriod = 3.2 + (hashOf(species.id) % 20) / 10;
@@ -326,6 +363,40 @@ type Builders = {
 
 /** A translucent material for markings and pads. */
 const alpha = (opacity: number): Partial<THREE.MeshStandardMaterialParameters> => (opacity < 1 ? { transparent: true, opacity, depthWrite: false } : {});
+
+/**
+ * The temples of a pair of glasses (or the strap of a mask): from each outer
+ * edge of the drawing straight back, then along the head to behind the ears,
+ * in the frame's colour. Only for drawings spanning both sides of the face
+ * (a monocle has none).
+ */
+function buildTemples(
+  glasses: SolidResult,
+  ctx: { face: THREE.Object3D; tube: NonNullable<Builders["tube"]>; surfaceZ: (x: number, y: number) => number; eyeY: number; eyeZ: number; bent: (x: number, y: number) => number },
+) {
+  const { leftmost, rightmost, bounds } = glasses;
+  if (!leftmost || !rightmost || !bounds || bounds.minX > -4 || bounds.maxX < 4) return;
+  for (const side of [-1, 1] as const) {
+    const edge = side > 0 ? rightmost : leftmost;
+    const y = ctx.eyeY + edge.y;
+    const startX = Math.abs(edge.x);
+    const startZ = ctx.eyeZ + ctx.bent(edge.x, edge.y);
+    // Where the head ends at that height.
+    let half = startX;
+    while (half < 80 && ctx.surfaceZ(side * half, y) > 0.05) half += 0.5;
+    const points: [number, number, number][] = [];
+    const n = 8;
+    for (let k = 0; k <= n; k++) {
+      const t = k / n;
+      const x = startX + (half - startX) * t;
+      const hug = ctx.surfaceZ(side * x, y) + 0.9;
+      // Straight back from the hinge, then hugging the head.
+      points.push([side * x, y, Math.max(hug, startZ * (1 - t * 1.6))]);
+    }
+    points.push([side * (half + 0.2), y - 0.6, -2.5], [side * (half - 0.6), y - 2.2, -5.5]);
+    ctx.face.add(ctx.tube(glasses.frameColor, points, 0.6, { roughness: 0.5 }));
+  }
+}
 
 function buildMouth(
   type: MouthType,

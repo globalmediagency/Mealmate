@@ -160,6 +160,7 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
       state: target.creature.state,
       accessories: target.creature.accessories,
       textures: (accessoryId, layer) => textureFor(three, species.id, accessoryId, layer),
+      markup: (accessoryId, layer) => accessoryMarkup(sprites.current, species.id, accessoryId, layer),
     };
   }
 

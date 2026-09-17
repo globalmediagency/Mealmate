@@ -161,6 +161,7 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPer
       state: target.creature.state,
       accessories: target.creature.accessories,
       textures: (accessoryId, layer) => textureFor(`acc/${accessoryId}/${layer}`, accessoryMarkup(sprites.current, species.id, accessoryId, layer)),
+      markup: (accessoryId, layer) => accessoryMarkup(sprites.current, species.id, accessoryId, layer),
     };
   }
 

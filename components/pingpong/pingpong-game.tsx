@@ -253,6 +253,7 @@ export function PingPongGame({ transport, initial, preview = false, onLeave }: P
       state: creature.state,
       accessories: creature.accessories,
       textures: (accessoryId, layer) => textureFor(`acc/${species.id}/${accessoryId}/${layer}`, accessoryMarkup(sprites.current, species.id, accessoryId, layer)),
+      markup: (accessoryId, layer) => accessoryMarkup(sprites.current, species.id, accessoryId, layer),
     };
   }
 

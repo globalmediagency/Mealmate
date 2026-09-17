@@ -15,7 +15,7 @@ import { HatchReveal } from "@/components/game/hatch-reveal";
 import { Incubation } from "@/components/game/incubation";
 import { StepsHistory } from "@/components/game/steps-history";
 import { PlayerCard } from "@/components/admin/player-card";
-import { Creature } from "@/components/creatures/creature";
+import { Creature, type EquippedAccessory } from "@/components/creatures/creature";
 import type { StageId } from "@/lib/game/config";
 import { ArViewer } from "@/components/ar/ar-viewer";
 import { Creature3dView } from "@/components/ar/three/creature-3d-view";
@@ -41,7 +41,7 @@ import { RulesForm } from "@/components/admin/rules-form";
 import { FoodCatchGame } from "@/components/game/food-catch-game";
 import { Wardrobe } from "@/components/game/wardrobe";
 import { ChestOpener } from "@/components/game/chest-reveal";
-import { ACCESSORIES } from "@/lib/accessories/catalog";
+import { ACCESSORIES, getAccessory } from "@/lib/accessories/catalog";
 import { CollectionGrid } from "@/components/game/collection-grid";
 import { FriendsPanel } from "@/components/game/friends-panel";
 import { ShopPanel } from "@/components/shop/shop-panel";
@@ -99,9 +99,9 @@ function mockCreature(overrides: Partial<CreatureView>): CreatureView {
   };
 }
 
-export default async function DevScreensPage({ searchParams }: { searchParams: Promise<{ screen?: string; as?: string; species?: string; stage?: string }> }) {
+export default async function DevScreensPage({ searchParams }: { searchParams: Promise<{ screen?: string; as?: string; species?: string; stage?: string; acc?: string; yaw?: string }> }) {
   if (!isDevGalleryEnabled()) notFound();
-  const { screen: raw, as: side, species: speciesParam, stage: stageParam } = await searchParams;
+  const { screen: raw, as: side, species: speciesParam, stage: stageParam, acc: accParam, yaw: yawParam } = await searchParams;
   const screen: Screen = SCREENS.includes(raw as Screen) ? (raw as Screen) : "home";
 
   let content: React.ReactNode;
@@ -281,20 +281,29 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
       );
       break;
     case "creature-3d": {
-      // `?species=<id>&stage=<stage>`: one species, the 2D drawing next to its volume, to check that the 3D keeps every trait.
+      // `?species=<id>&stage=<stage>&acc=<accessory ids>&yaw=<degrees>`: one species, the 2D drawing next to its volume
+      // (both turned by `yaw`, wearing the same accessories), to check that the 3D keeps every trait.
       const compared = speciesParam ? getSpecies(speciesParam) : undefined;
       const comparedStage: StageId = (["bebe", "enfant", "adulte", "sage"] as const).includes(stageParam as StageId) ? (stageParam as StageId) : "sage";
+      const comparedAccessories: EquippedAccessory[] = (accParam ?? "")
+        .split(",")
+        .map((id) => getAccessory(id.trim()))
+        .filter((a): a is NonNullable<typeof a> => Boolean(a))
+        .map((a) => ({ slot: a.slot, id: a.id }));
+      const comparedYaw = Number.isFinite(Number(yawParam)) ? Number(yawParam) : 0;
       if (compared) {
         content = (
           <div className="space-y-4" data-creature-compare={compared.id}>
             <p className="text-xs text-cream-500">
               {compared.name} · {compared.id} · {comparedStage}
+              {comparedAccessories.length > 0 ? ` · ${comparedAccessories.map((a) => a.id).join(", ")}` : ""}
+              {comparedYaw ? ` · ${comparedYaw}°` : ""}
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-3xl border border-ink-600/80 bg-ink-800/90 p-3">
-                <Creature species={compared} stage={comparedStage} state="healthy" size="100%" animated={false} />
+                <Creature species={compared} stage={comparedStage} state="healthy" size="100%" animated={false} accessories={comparedAccessories} yaw={comparedYaw} />
               </div>
-              <Creature3dView speciesId={compared.id} stage={comparedStage} autoRotate={false} />
+              <Creature3dView speciesId={compared.id} stage={comparedStage} accessories={comparedAccessories} autoRotate={false} yaw={comparedYaw} />
             </div>
           </div>
         );

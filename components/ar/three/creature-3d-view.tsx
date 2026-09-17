@@ -19,6 +19,8 @@ export type Creature3dViewProps = {
   accessories?: EquippedAccessory[];
   /** Start turning by itself (a drag stops it; the button restarts it). */
   autoRotate?: boolean;
+  /** Starting angle of the orbit, in degrees (0 = face, positive = the face slides to the viewer's left, like `Creature`'s `yaw`). */
+  yaw?: number;
   className?: string;
 };
 
@@ -31,7 +33,7 @@ const KEY_STEP = 0.25;
  * The creature in 3D, alone, turned by hand (spec § 3.20): the same volumes as
  * "Voir en vrai". Without WebGL, the flat drawing is shown instead.
  */
-export function Creature3dView({ speciesId, stage = "adulte", state = "healthy", accessories = [], autoRotate = true, className }: Creature3dViewProps) {
+export function Creature3dView({ speciesId, stage = "adulte", state = "healthy", accessories = [], autoRotate = true, yaw, className }: Creature3dViewProps) {
   const [status, setStatus] = useState<"loading" | "ready" | "unsupported">("loading");
   const [spinning, setSpinning] = useState(autoRotate);
   const box = useRef<HTMLDivElement>(null);
@@ -59,6 +61,7 @@ export function Creature3dView({ speciesId, stage = "adulte", state = "healthy",
         const markup = accessoryMarkup(sprites.current, current.id, id, layer);
         return markup ? loaded.textureFromSvg(markup) : Promise.resolve(null);
       },
+      markup: (id, layer) => accessoryMarkup(sprites.current, current.id, id, layer),
     });
   }
 
@@ -73,6 +76,9 @@ export function Creature3dView({ speciesId, stage = "adulte", state = "healthy",
         try {
           const t = new loaded.Turntable(c, el.clientWidth, el.clientHeight);
           t.autoRotate = autoRotate;
+          if (yaw !== undefined) t.yaw = (yaw * Math.PI) / 180;
+          // The dev gallery's probes (`/dev/screens?screen=creature-3d`) inspect the scene through this handle.
+          if (process.env.NEXT_PUBLIC_DEV_GALLERY === "true") (window as Window & { __turntable?: Turntable }).__turntable = t;
           three.current = loaded;
           table.current = t;
           apply();
