@@ -14,7 +14,6 @@ import type { GameRules } from "@/lib/game/rules";
 import {
   RARITIES,
   RARITY_LABELS,
-  SPECIES_PER_RARITY,
   SPECIES_PER_TIER,
   TIER_CONFIG,
   TIERS,
@@ -63,6 +62,8 @@ export function EggChoice({ speciesByTier, obtainedSpeciesIds, playableTiers, ru
 
   const config = { ...TIER_CONFIG[selected], ...rules.tiers[selected] };
   const species = speciesByTier[selected];
+  const baseSpecies = species.filter((s) => !s.collection);
+  const zodiac = species.filter((s) => s.collection === "zodiaque");
   const playable = playableTiers.includes(selected);
 
   return (
@@ -140,7 +141,7 @@ export function EggChoice({ speciesByTier, obtainedSpeciesIds, playableTiers, ru
 
         <div className="mt-5">
           <div className="flex items-baseline justify-between">
-            <h3 className="font-semibold text-cream-50">{SPECIES_PER_TIER} créatures à découvrir</h3>
+            <h3 className="font-semibold text-cream-50">{species.length} créatures à découvrir</h3>
             <span className="text-xs text-cream-500">
               {species.filter((s) => obtained.has(s.id)).length} obtenue(s)
             </span>
@@ -149,13 +150,13 @@ export function EggChoice({ speciesByTier, obtainedSpeciesIds, playableTiers, ru
             {RARITIES.map((rarity) => (
               <li key={rarity} className="inline-flex items-center gap-1.5" style={{ color: RARITY_COLORS[rarity] }}>
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: RARITY_COLORS[rarity] }} />
-                {SPECIES_PER_RARITY[rarity]} {RARITY_LABELS[rarity].toLowerCase()}
-                {SPECIES_PER_RARITY[rarity] > 1 ? "s" : ""}
+                {species.filter((s) => s.rarity === rarity).length} {RARITY_LABELS[rarity].toLowerCase()}
+                {species.filter((s) => s.rarity === rarity).length > 1 ? "s" : ""}
               </li>
             ))}
           </ul>
           <div className="mt-3 grid grid-cols-5 gap-2">
-            {species.map((s) => {
+            {baseSpecies.map((s) => {
               const got = obtained.has(s.id);
               return (
                 <div
@@ -173,16 +174,42 @@ export function EggChoice({ speciesByTier, obtainedSpeciesIds, playableTiers, ru
                 </div>
               );
             })}
-            {Array.from({ length: Math.max(0, SPECIES_PER_TIER - species.length) }).map((_, i) => (
+            {Array.from({ length: Math.max(0, SPECIES_PER_TIER - baseSpecies.length) }).map((_, i) => (
               <div key={`soon-${i}`} className="flex aspect-square items-center justify-center rounded-2xl border border-dashed border-ink-500 text-lg text-cream-700">
                 ?
               </div>
             ))}
           </div>
-          {species.length < SPECIES_PER_TIER ? (
+          {baseSpecies.length < SPECIES_PER_TIER ? (
             <p className="mt-2 text-xs text-cream-700">
-              {SPECIES_PER_TIER - species.length} espèces sont encore en cours de création.
+              {SPECIES_PER_TIER - baseSpecies.length} espèces sont encore en cours de création.
             </p>
+          ) : null}
+          {zodiac.length > 0 ? (
+            <div className="mt-4" data-zodiac-collection>
+              <p className="text-sm font-semibold text-cream-50">Et les {zodiac.length} animaux du zodiaque</p>
+              <p className="text-xs text-cream-500">Rat, buffle, tigre, lapin, dragon… en pixel art, à découvrir dans le même œuf.</p>
+              <div className="mt-2 grid grid-cols-6 gap-2">
+                {zodiac.map((s) => {
+                  const got = obtained.has(s.id);
+                  return (
+                    <div
+                      key={s.id}
+                      className="relative flex aspect-square items-center justify-center rounded-2xl bg-ink-900/70"
+                      style={{ boxShadow: `inset 0 0 0 1px ${RARITY_COLORS[s.rarity]}55` }}
+                      title={got ? s.name : "Espèce à découvrir"}
+                    >
+                      <Creature species={s} stage="enfant" size="88%" animated={false} silhouette={!got} title={got ? s.name : "Silhouette"} />
+                      {got ? (
+                        <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-health text-ink-950">
+                          <Check className="h-3 w-3" aria-hidden="true" />
+                        </span>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           ) : null}
           <p className="mt-2 text-xs text-cream-700">
             <Link href="/collection" className="underline">

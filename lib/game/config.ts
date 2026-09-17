@@ -98,6 +98,16 @@ export const SPECIES_PER_RARITY: Record<Rarity, number> = {
 
 export const SPECIES_PER_TIER = 20;
 
+/**
+ * Themed collections added on top of a tier's roster, with their own quotas:
+ * the Zodiaque (the twelve animals of the Chinese zodiac, in pixel art,
+ * hatched from "moyen" eggs like the rest of that tier).
+ */
+export const COLLECTIONS = {
+  zodiaque: { label: "Zodiaque", tier: "moyen", perRarity: { commun: 6, rare: 3, tres_rare: 2, legendaire: 1 } },
+} as const satisfies Record<string, { label: string; tier: Tier; perRarity: Record<Rarity, number> }>;
+export type CollectionId = keyof typeof COLLECTIONS;
+
 export const RARITY_LABELS: Record<Rarity, string> = {
   commun: "Commun",
   rare: "Rare",

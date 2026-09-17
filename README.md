@@ -306,7 +306,7 @@ apparaissent alors, sans connexion nécessaire :
 - `/dev/creatures` : toutes les espèces × 4 stades × 4 états (+ silhouettes, œufs, décors).
 - `/dev/screens?screen=egg|incubation|ready|reveal|home|home-sick|home-hungry|activity|feed|meal-result|meals|mourning|admin|play|wardrobe|chest|collection|friends` :
   les écrans du jeu avec des données factices, pour valider le design depuis un téléphone.
-- `/dev/creatures?compact=1` : vue d'ensemble des 60 espèces (adulte, en forme) ; la page complète montre aussi les 30 accessoires.
+- `/dev/creatures?compact=1` : vue d'ensemble des 72 espèces, dont les 12 du Zodiaque en pixel art (adulte, en forme) ; la page complète montre aussi les 30 accessoires.
 - `/dev/gemini` : modèles Gemini visibles avec ta clé.
 
 ---

@@ -1,4 +1,5 @@
-import type { Rarity, Tier } from "@/lib/game/config";
+import type { CollectionId, Rarity, Tier } from "@/lib/game/config";
+import type { PixelArt } from "./pixel";
 
 export type BodyType = "round" | "tall" | "blob" | "egg" | "serpent";
 export type EarType = "cat" | "rabbit" | "fox" | "round" | "horns" | "fold" | "pig" | "antlers" | "horn" | "none";
@@ -68,6 +69,10 @@ export type Species = {
   parts: SpeciesParts;
   anchors: SpeciesAnchors;
   signature: SignatureType;
+  /** Themed collection on top of the tier's roster (own quotas), none for the base roster. */
+  collection?: CollectionId;
+  /** Drawn as a pixel-art grid instead of the SVG parts (`parts` then only describe a fallback). */
+  pixel?: PixelArt;
 };
 
 /** Public projection sent to the client. */

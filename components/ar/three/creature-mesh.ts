@@ -4,13 +4,14 @@ import { LAYOUTS, shade, stageScales, type Layout } from "@/components/creatures
 import type { EarType, ExtraType, MarkingType, MouthType, SignatureType, Species, SpeciesPalette, TailType } from "@/lib/creatures/types";
 import type { StageId } from "@/lib/game/config";
 import type { CreatureState } from "@/lib/game/creature-view";
+import { parsePixelArt } from "@/lib/creatures/pixel";
+import { createAccessoryAttacher } from "./accessory-attach";
+import { buildPixelMesh } from "./pixel-mesh";
 import { extrudeGeometry, pointsFromPath, shapesFromPath } from "./svg-shape";
-import { solidFromSvg, type SolidResult } from "./svg-solid";
+import type { SolidResult } from "./svg-solid";
+import { UNIT } from "./units";
 
-/** Creature height in marker sides (the printed square is 1). */
-export const CREATURE_HEIGHT_UNITS = 2.2;
-/** One viewBox unit of the 2D drawings, in marker sides. */
-const UNIT = CREATURE_HEIGHT_UNITS / 100;
+export { CREATURE_HEIGHT_UNITS } from "./units";
 
 export type TextureSource = (accessoryId: string, layer: "front" | "back") => Promise<THREE.Texture | null>;
 /** The stand-alone SVG of an accessory layer (`accessoryMarkup()`), turned into a real volume; null when unavailable. */
@@ -42,8 +43,6 @@ export type CreatureMesh = {
 const X = (v: number) => v - 50;
 const Y = (v: number) => 92 - v;
 
-const ACCESSORY_PLANE = 72;
-
 const BRASS = "#E8C36A";
 const BRASS_DARK = "#A6823A";
 const CREAM = "#F7F4EC";
@@ -68,7 +67,8 @@ type Movers = { flappers: Array<{ group: THREE.Group; side: number }>; flickers:
  * Nothing is modelled by hand: every species and every accessory works.
  */
 export function buildCreatureMesh(input: CreatureMeshInput): CreatureMesh {
-  const { species, stage, state, accessories, textures } = input;
+  const { species, stage, state, accessories } = input;
+  if (species.pixel) return buildPixelMesh(input, parsePixelArt(species.pixel));
   const layout = LAYOUTS[species.parts.body];
   const scales = stageScales(stage, layout.hasDistinctHead);
   const palette = tintPalette(species.palette, state);
@@ -258,47 +258,7 @@ export function buildCreatureMesh(input: CreatureMeshInput): CreatureMesh {
     });
   }
   // --- Accessories: their own drawings as volumes laid on the creature (or as textured cards without the markup) ---
-  /** A flat card in the creature's own plane (front or back of the body), its anchor at the group's origin. */
-  const card = (texture: THREE.Texture) => {
-    const g = new THREE.Group();
-    const geo = geometry(new THREE.PlaneGeometry(ACCESSORY_PLANE, ACCESSORY_PLANE));
-    const m = new THREE.MeshBasicMaterial({ map: texture, transparent: true, alphaTest: 0.08, side: THREE.DoubleSide, depthWrite: false });
-    disposables.push(m, texture);
-    const plane = new THREE.Mesh(geo, m);
-    plane.position.y = 8; // the SVG origin (the anchor) sits 8 units below the card's centre
-    g.add(plane);
-    return g;
-  };
-  /** The drawing always facing the camera, its anchor at the sprite's position: readable from every side, hidden by the body from behind. */
-  const sprite = (texture: THREE.Texture) => {
-    const m = new THREE.SpriteMaterial({ map: texture, transparent: true, alphaTest: 0.08 });
-    disposables.push(m, texture);
-    const s = new THREE.Sprite(m);
-    s.scale.set(ACCESSORY_PLANE, ACCESSORY_PLANE, 1);
-    s.center.set(0.5, (ACCESSORY_PLANE - 44) / ACCESSORY_PLANE);
-    return s;
-  };
-  const attach = (id: string | undefined, layer: "front" | "back", holder: THREE.Object3D, at: THREE.Vector3, shape: "card" | "sprite") => {
-    if (!id) return;
-    void textures(id, layer).then((texture) => {
-      if (!texture || disposed) return;
-      const c = shape === "sprite" ? sprite(texture) : card(texture);
-      c.position.copy(at);
-      holder.add(c);
-    });
-  };
-  /** The drawing as a real volume (slabs and tubes, spec § 3.19) draped on the surface under it; null without the markup. */
-  const solid = (id: string | undefined, layer: "front" | "back", holder: THREE.Object3D, at: THREE.Vector3, drape: (x: number, y: number) => number, facing: 1 | -1 = 1): SolidResult | null => {
-    if (!id) return null;
-    const markup = input.markup?.(id, layer);
-    if (!markup) return null;
-    const result = solidFromSvg(markup, { drape, facing });
-    if (!result) return null;
-    disposables.push(result);
-    result.group.position.copy(at);
-    holder.add(result.group);
-    return result;
-  };
+  const { attach, solid } = createAccessoryAttacher(input, disposables, () => disposed);
   const neckX = X(layout.neck[0]);
   const neckY = Y(layout.neck[1]);
   // Hats: the drawing facing the camera (a hat looks alike from every side, so a billboard is its best cheap volume).

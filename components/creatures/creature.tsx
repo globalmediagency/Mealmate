@@ -15,6 +15,7 @@ import { BackMarkings, BodyMarkings, HeadMarkings } from "./parts/markings";
 import { Mouth } from "./parts/mouths";
 import { HeadSignature, NeckSignature } from "./parts/signatures";
 import { Tail } from "./parts/tails";
+import { PixelCreature } from "./pixel-creature";
 
 export type { Reaction } from "./parts/effects";
 
@@ -43,7 +44,13 @@ export type CreatureRenderer = (props: CreatureRenderProps) => ReactNode;
 
 const MARKING_OPACITY: Record<StageId, number> = { bebe: 0, enfant: 0.6, adulte: 1, sage: 1 };
 
-export const SvgCreatureRenderer: CreatureRenderer = ({
+export const SvgCreatureRenderer: CreatureRenderer = (props) => {
+  // A pixel-art species (the Zodiaque collection) is drawn from its grid.
+  if (props.species.pixel) return <PixelCreature {...props} pixel={props.species.pixel} />;
+  return <DrawnCreature {...props} />;
+};
+
+const DrawnCreature: CreatureRenderer = ({
   species,
   stage = "enfant",
   state = "healthy",
