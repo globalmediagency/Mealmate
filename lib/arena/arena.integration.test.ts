@@ -7,7 +7,6 @@ import { arenaBonuses, arenaMatches, arenaPlayers, arenaStakes, playSessions, pr
 import { acceptFriendRequest, listRequests, sendFriendRequest } from "@/lib/friends/service";
 import { ARENA } from "@/lib/game/config";
 import { DEFAULT_RULES, type GameRules } from "@/lib/game/rules";
-import { gameDate } from "@/lib/game/time";
 import { recordPlay } from "@/lib/play/service";
 import { saveManualSteps } from "@/lib/steps/service";
 import { createTestDatabase, insertTestUser, type TestDatabase } from "@/lib/test/pglite";
