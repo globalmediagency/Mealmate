@@ -216,6 +216,13 @@ supprimés au bout de 30 jours, pour toi comme pour ton coach. Dans **Admin › 
    `gemini-3.8-flash` → `gemini-3.6-flash` → `gemini-3.5-flash-lite` → `gemini-2.5-flash`). Pour forcer un
    modèle : `GEMINI_MODEL=gemini-3.6-flash` par exemple. Avec `NEXT_PUBLIC_DEV_GALLERY=true`, la page
    `/dev/gemini` liste les modèles visibles et l'ordre d'essai.
+4. Vitesse : la réflexion du modèle est coupée (inutile pour reconnaître une assiette), l'analyse, l'envoi de
+   la photo et les vérifications tournent en même temps, la photo part en 768 px, et l'écran Nourrir réchauffe
+   la fonction avant la prise de vue. Pour gagner encore : fixe `GEMINI_MODEL` (évite de lister les modèles à
+   chaque démarrage ; un modèle **Flash-Lite** répond plus vite qu'un Flash et suffit pour une assiette) et
+   garde Neon et les fonctions Vercel dans la même région (`vercel.json` fixe `fra1`, Francfort : change-le si
+   ta base Neon est ailleurs). L'en-tête `Server-Timing` de `POST /api/meals` (onglet Réseau du navigateur)
+   détaille le temps de chaque étape.
 
 ### Cloudflare TURN — liaison directe de l'Arène (optionnel)
 

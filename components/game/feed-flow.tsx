@@ -52,15 +52,35 @@ type State =
   | { step: "analyzing"; url: string }
   | { step: "serving"; url: string; data: FeedResponse }
   | { step: "result"; url: string; data: FeedResponse }
-  | { step: "error"; message: string; url?: string; blob?: Blob; code?: string };
+  | {
+      step: "error";
+      message: string;
+      url?: string;
+      blob?: Blob;
+      code?: string;
+    };
 
-export function FeedFlow({ creature: initial, mealsToday: initialCount, others = [] }: FeedFlowProps) {
+function warmAnalysis() {
+  void fetch("/api/meals", {
+    method: "HEAD",
+    cache: "no-store",
+    keepalive: true,
+  }).catch(() => {});
+}
+
+export function FeedFlow({
+  creature: initial,
+  mealsToday: initialCount,
+  others = [],
+}: FeedFlowProps) {
   const router = useRouter();
   const [state, setState] = useState<State>({ step: "idle" });
   const [creature, setCreature] = useState(initial);
   const [mealsToday, setMealsToday] = useState(initialCount);
   const cameraInput = useRef<HTMLInputElement>(null);
-  const species = creature.species ? getSpecies(creature.species.id) : undefined;
+  const species = creature.species
+    ? getSpecies(creature.species.id)
+    : undefined;
   const remaining = Math.max(0, FEEDING.maxMealsPerDay - mealsToday);
 
   useEffect(() => {
@@ -70,13 +90,22 @@ export function FeedFlow({ creature: initial, mealsToday: initialCount, others =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Warms the analysis function while the player frames the plate: the instance, the database and the model choice are ready when the photo arrives.
+  useEffect(() => {
+    warmAnalysis();
+  }, []);
+
   async function onFile(file: File | null) {
     if (!file) return;
+    warmAnalysis();
     try {
       const blob = await prepareMealImage(file);
       setState({ step: "preview", blob, url: URL.createObjectURL(blob) });
     } catch {
-      setState({ step: "error", message: "Impossible de lire cette image. Essaie une autre photo." });
+      setState({
+        step: "error",
+        message: "Impossible de lire cette image. Essaie une autre photo.",
+      });
     }
   }
 
@@ -85,11 +114,23 @@ export function FeedFlow({ creature: initial, mealsToday: initialCount, others =
     const form = new FormData();
     form.append("image", blob, "meal.jpg");
     try {
-      const response = await fetch("/api/meals", { method: "POST", body: form });
-      const body = (await response.json().catch(() => null)) as FeedResponse | { error: { code: string; message: string } } | null;
+      const response = await fetch("/api/meals", {
+        method: "POST",
+        body: form,
+      });
+      const body = (await response.json().catch(() => null)) as
+        | FeedResponse
+        | { error: { code: string; message: string } }
+        | null;
       if (!response.ok || !body || "error" in body) {
         const err = body && "error" in body ? body.error : null;
-        setState({ step: "error", message: err?.message ?? "L'analyse a échoué. Réessaie.", code: err?.code, url, blob });
+        setState({
+          step: "error",
+          message: err?.message ?? "L'analyse a échoué. Réessaie.",
+          code: err?.code,
+          url,
+          blob,
+        });
         return;
       }
       setCreature(body.creature);
@@ -97,13 +138,25 @@ export function FeedFlow({ creature: initial, mealsToday: initialCount, others =
       setState({ step: "serving", url, data: body });
       router.refresh();
     } catch {
-      setState({ step: "error", message: "Impossible de joindre le serveur. Vérifie ta connexion.", url, blob });
+      setState({
+        step: "error",
+        message: "Impossible de joindre le serveur. Vérifie ta connexion.",
+        url,
+        blob,
+      });
     }
   }
 
   // Camera only: `capture` opens the camera directly on phones, no gallery picker (the easy way to cheat).
   const inputs = (
-    <input ref={cameraInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onFile(e.target.files?.[0] ?? null)} />
+    <input
+      ref={cameraInput}
+      type="file"
+      accept="image/*"
+      capture="environment"
+      className="hidden"
+      onChange={(e) => onFile(e.target.files?.[0] ?? null)}
+    />
   );
 
   if (state.step === "serving") {
@@ -114,7 +167,12 @@ export function FeedFlow({ creature: initial, mealsToday: initialCount, others =
         name: data.creature.name,
         speciesId: data.creature.species.id,
         stageId: data.creature.stage.id,
-        state: data.before.health >= 60 ? "healthy" : data.before.health >= 30 ? "tired" : "sick",
+        state:
+          data.before.health >= 60
+            ? "healthy"
+            : data.before.health >= 30
+              ? "tired"
+              : "sick",
         healthBefore: data.before.health,
         healthAfter: data.creature.health,
         hungerBefore: Math.round(data.before.hunger),
@@ -147,50 +205,105 @@ export function FeedFlow({ creature: initial, mealsToday: initialCount, others =
         score={data.meal.score}
         verdict={data.meal.verdict}
         targets={targets}
-        onDone={() => setState((s) => (s.step === "serving" ? { step: "result", url: s.url, data: s.data } : s))}
+        onDone={() =>
+          setState((s) =>
+            s.step === "serving"
+              ? { step: "result", url: s.url, data: s.data }
+              : s,
+          )
+        }
       />
     );
   }
 
   if (state.step === "result") {
     const { data } = state;
-    const reaction = data.effects.healthy ? "eat" : data.effects.healthDelta < 0 ? "disgust" : "eat";
+    const reaction = data.effects.healthy
+      ? "eat"
+      : data.effects.healthDelta < 0
+        ? "disgust"
+        : "eat";
     return (
       <div className="space-y-5 animate-rise">
         {isSuspiciousPhoto(data.meal.photoSource) ? (
-          <Alert tone="warning" title={data.meal.photoSource === "printed" ? "Hmm, on dirait une image imprimée" : "Hmm, on dirait une photo d'écran"}>
-            Cette image ressemble à {data.meal.photoSource === "printed" ? "une image imprimée" : "une photo prise sur un écran"}. Le repas est compté pour cette fois, mais bientôt seules les vraies assiettes seront acceptées.
+          <Alert
+            tone="warning"
+            title={
+              data.meal.photoSource === "printed"
+                ? "Hmm, on dirait une image imprimée"
+                : "Hmm, on dirait une photo d'écran"
+            }
+          >
+            Cette image ressemble à{" "}
+            {data.meal.photoSource === "printed"
+              ? "une image imprimée"
+              : "une photo prise sur un écran"}
+            . Le repas est compté pour cette fois, mais bientôt seules les
+            vraies assiettes seront acceptées.
           </Alert>
         ) : null}
         <section className="rounded-3xl border border-ink-600/80 bg-ink-800/90 p-4 shadow-card">
           <div className="flex items-center gap-3">
             {species ? (
               <div className="shrink-0" style={{ width: 96, height: 96 }}>
-                <Creature species={species} stage={data.creature.stage.id} state={data.creature.state} size={96} reaction={reaction} />
+                <Creature
+                  species={species}
+                  stage={data.creature.stage.id}
+                  state={data.creature.state}
+                  size={96}
+                  reaction={reaction}
+                />
               </div>
             ) : null}
             <div className="min-w-0 flex-1">
               <h1 className="font-display text-2xl font-semibold text-cream-50">
-                {data.effects.healthy ? "Miam, merci !" : data.effects.healthDelta < 0 ? "Hmm… bof." : "Ça passe !"}
+                {data.effects.healthy
+                  ? "Miam, merci !"
+                  : data.effects.healthDelta < 0
+                    ? "Hmm… bof."
+                    : "Ça passe !"}
               </h1>
               <p className="text-sm text-cream-500">
-                {data.effects.full ? "Je n'avais plus très faim, l'effet est réduit." : `Faim ${Math.round(data.before.hunger)} → ${Math.round(data.creature.hunger)}`}
+                {data.effects.full
+                  ? "Je n'avais plus très faim, l'effet est réduit."
+                  : `Faim ${Math.round(data.before.hunger)} → ${Math.round(data.creature.hunger)}`}
                 {" · "}+{data.effects.xpDelta} XP
-                {data.effects.xpMultiplier > 1 ? " (bonne humeur ×" + data.effects.xpMultiplier.toLocaleString("fr-FR") + ")" : data.effects.xpMultiplier < 1 ? " (humeur basse ×" + data.effects.xpMultiplier.toLocaleString("fr-FR") + ")" : ""}
+                {data.effects.xpMultiplier > 1
+                  ? " (bonne humeur ×" +
+                    data.effects.xpMultiplier.toLocaleString("fr-FR") +
+                    ")"
+                  : data.effects.xpMultiplier < 1
+                    ? " (humeur basse ×" +
+                      data.effects.xpMultiplier.toLocaleString("fr-FR") +
+                      ")"
+                    : ""}
               </p>
             </div>
           </div>
           <div className="mt-4 overflow-hidden rounded-2xl">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={state.url} alt="Ton repas" className="h-40 w-full object-cover" />
+            <img
+              src={state.url}
+              alt="Ton repas"
+              className="h-40 w-full object-cover"
+            />
           </div>
           {data.others && data.others.length > 0 ? (
             <ul className="mt-3 space-y-1 rounded-2xl border border-sage-500/30 bg-sage-800/20 px-3 py-2 text-xs text-cream-300">
               {data.others.map((other, i) => (
                 <li key={i}>
-                  <strong className="text-cream-100">{other.name ?? "Une créature"}</strong>
-                  {other.ownerName ? ` (en pension, confiée par ${other.ownerName})` : ""} a aussi mangé : faim {other.hungerBefore} → {other.hungerAfter}
-                  {other.healthDelta !== 0 ? `, ${other.healthDelta > 0 ? "+" : ""}${Math.round(other.healthDelta * 10) / 10} santé` : ""}.
+                  <strong className="text-cream-100">
+                    {other.name ?? "Une créature"}
+                  </strong>
+                  {other.ownerName
+                    ? ` (en pension, confiée par ${other.ownerName})`
+                    : ""}{" "}
+                  a aussi mangé : faim {other.hungerBefore} →{" "}
+                  {other.hungerAfter}
+                  {other.healthDelta !== 0
+                    ? `, ${other.healthDelta > 0 ? "+" : ""}${Math.round(other.healthDelta * 10) / 10} santé`
+                    : ""}
+                  .
                 </li>
               ))}
             </ul>
@@ -222,7 +335,8 @@ export function FeedFlow({ creature: initial, mealsToday: initialCount, others =
         {remaining > 0 ? (
           <Button variant="ghost" onClick={() => setState({ step: "idle" })}>
             <Camera className="h-5 w-5" aria-hidden="true" />
-            Un autre repas ({remaining} restant{remaining > 1 ? "s" : ""} aujourd&apos;hui)
+            Un autre repas ({remaining} restant{remaining > 1 ? "s" : ""}{" "}
+            aujourd&apos;hui)
           </Button>
         ) : null}
       </div>
@@ -235,15 +349,27 @@ export function FeedFlow({ creature: initial, mealsToday: initialCount, others =
         <section className="flex flex-col items-center rounded-3xl border border-ink-600/80 bg-ink-800/90 p-6 text-center shadow-card">
           <div className="relative overflow-hidden rounded-2xl">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={state.url} alt="" className="h-36 w-full max-w-xs object-cover opacity-70" />
+            <img
+              src={state.url}
+              alt=""
+              className="h-36 w-full max-w-xs object-cover opacity-70"
+            />
           </div>
           {species ? (
             <div className="-mt-10" style={{ width: 150, height: 150 }}>
-              <Creature species={species} stage={creature.stage.id} state={creature.state} size={150} reaction="sniff" />
+              <Creature
+                species={species}
+                stage={creature.stage.id}
+                state={creature.state}
+                size={150}
+                reaction="sniff"
+              />
             </div>
           ) : null}
           <p className="mt-2 font-display text-xl text-cream-50">Je renifle…</p>
-          <p className="mt-1 text-sm text-cream-500">Analyse de ton assiette, quelques secondes.</p>
+          <p className="mt-1 text-sm text-cream-500">
+            Analyse de ton assiette, quelques secondes.
+          </p>
           <span className="mt-4 inline-block h-1.5 w-40 overflow-hidden rounded-full bg-ink-600">
             <span className="block h-full w-1/2 rounded-full bg-sage-400 animate-pulse-soft" />
           </span>
@@ -256,9 +382,14 @@ export function FeedFlow({ creature: initial, mealsToday: initialCount, others =
     <div className="space-y-5 animate-rise">
       {inputs}
       <header>
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-cream-50">Nourrir {creature.name}</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-cream-50">
+          Nourrir {creature.name}
+        </h1>
         <p className="mt-1 text-sm text-cream-500">
-          Prends ton assiette en photo. {remaining > 0 ? `${remaining} repas possible${remaining > 1 ? "s" : ""} aujourd'hui.` : "Plus de repas possible aujourd'hui."}
+          Prends ton assiette en photo.{" "}
+          {remaining > 0
+            ? `${remaining} repas possible${remaining > 1 ? "s" : ""} aujourd'hui.`
+            : "Plus de repas possible aujourd'hui."}
         </p>
         {others.length > 0 ? (
           <p className="mt-1 text-xs text-sage-200">
@@ -268,14 +399,28 @@ export function FeedFlow({ creature: initial, mealsToday: initialCount, others =
       </header>
 
       {state.step === "error" ? (
-        <Alert tone={state.code === "not_food" || state.code === "meal_limit" || state.code === "screen_photo" ? "warning" : "danger"}>{state.message}</Alert>
+        <Alert
+          tone={
+            state.code === "not_food" ||
+            state.code === "meal_limit" ||
+            state.code === "screen_photo"
+              ? "warning"
+              : "danger"
+          }
+        >
+          {state.message}
+        </Alert>
       ) : null}
 
       {state.step === "preview" || (state.step === "error" && state.url) ? (
         <section className="space-y-4 rounded-3xl border border-ink-600/80 bg-ink-800/90 p-4 shadow-card">
           <div className="overflow-hidden rounded-2xl">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={state.url} alt="Aperçu de ton repas" className="max-h-72 w-full object-cover" />
+            <img
+              src={state.url}
+              alt="Aperçu de ton repas"
+              className="max-h-72 w-full object-cover"
+            />
           </div>
           <div className="grid grid-cols-[1fr_auto] gap-2">
             <Button
@@ -283,12 +428,20 @@ export function FeedFlow({ creature: initial, mealsToday: initialCount, others =
                 const blob = state.step === "preview" ? state.blob : state.blob;
                 if (blob && state.url) analyze(blob, state.url);
               }}
-              disabled={remaining === 0 || state.step === "error" && state.code === "meal_limit"}
+              disabled={
+                remaining === 0 ||
+                (state.step === "error" && state.code === "meal_limit")
+              }
             >
               <Sparkles className="h-5 w-5" aria-hidden="true" />
               {state.step === "error" ? "Réessayer" : "Analyser ce repas"}
             </Button>
-            <Button variant="secondary" className="w-auto px-4" onClick={() => setState({ step: "idle" })} aria-label="Reprendre une photo">
+            <Button
+              variant="secondary"
+              className="w-auto px-4"
+              onClick={() => setState({ step: "idle" })}
+              aria-label="Reprendre une photo"
+            >
               <RotateCcw className="h-5 w-5" aria-hidden="true" />
             </Button>
           </div>
@@ -297,18 +450,31 @@ export function FeedFlow({ creature: initial, mealsToday: initialCount, others =
         <section className="flex flex-col items-center gap-4 rounded-3xl border border-ink-600/80 bg-ink-800/90 p-6 text-center shadow-card">
           {species ? (
             <div style={{ width: 150, height: 150 }}>
-              <Creature species={species} stage={creature.stage.id} state={creature.state} size={150} />
+              <Creature
+                species={species}
+                stage={creature.stage.id}
+                state={creature.state}
+                size={150}
+              />
             </div>
           ) : null}
           <p className="max-w-xs text-sm leading-relaxed text-cream-300">
-            {creature.hunger >= 60 ? "J'ai faim ! Qu'est-ce que tu me donnes ?" : creature.hunger < FEEDING.fullHungerThreshold ? "Je n'ai pas très faim, mais je goûterai." : "Montre-moi ton assiette !"}
+            {creature.hunger >= 60
+              ? "J'ai faim ! Qu'est-ce que tu me donnes ?"
+              : creature.hunger < FEEDING.fullHungerThreshold
+                ? "Je n'ai pas très faim, mais je goûterai."
+                : "Montre-moi ton assiette !"}
           </p>
-          <Button onClick={() => cameraInput.current?.click()} disabled={remaining === 0}>
+          <Button
+            onClick={() => cameraInput.current?.click()}
+            disabled={remaining === 0}
+          >
             <Camera className="h-5 w-5" aria-hidden="true" />
             Prendre une photo
           </Button>
           <p className="text-xs text-cream-700">
-            Prends la photo sur le moment : elle est redimensionnée sur ton appareil avant envoi et visible par toi seul·e.{" "}
+            Prends la photo sur le moment : elle est redimensionnée sur ton
+            appareil avant envoi et visible par toi seul·e.{" "}
             <Link href="/privacy" className="underline">
               Confidentialité
             </Link>

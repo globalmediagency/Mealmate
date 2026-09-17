@@ -145,7 +145,8 @@ export const FEEDING = {
   fullHungerThreshold: 15,
   maxImageBytesBeforeResize: 4 * 1024 * 1024,
   maxImageBytesAfterResize: 1.5 * 1024 * 1024,
-  resizeMaxPx: 1024,
+  /** One Gemini image tile (768 px) is enough to recognise a plate, and the upload is lighter. */
+  resizeMaxPx: 768,
   resizeJpegQuality: 0.8,
 } as const;
 

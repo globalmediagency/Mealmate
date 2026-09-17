@@ -59,7 +59,8 @@ async function agreeAll(matchId: string, ids: string[], when: Date) {
 
 async function hatchNamed(userId: string, name: string) {
   await createEgg(userId, "facile");
-  await saveManualSteps(userId, 15_000, await getActiveCreature(userId), gameDate(T0));
+  // The egg is laid on the real day: its steps must be saved on that day, whatever T0 is.
+  await saveManualSteps(userId, 15_000, await getActiveCreature(userId));
   await hatchEgg(userId, T0);
   await nameCreature(userId, name);
 }

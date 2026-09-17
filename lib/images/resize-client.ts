@@ -1,6 +1,6 @@
 import { FEEDING } from "@/lib/game/config";
 
-/** Browser-only: downsizes a photo to ≤ 1024 px JPEG (quality 0.8, ≤ 1.5 Mo). */
+/** Browser-only: downsizes a photo to ≤ `FEEDING.resizeMaxPx` (768 px) JPEG (quality 0.8, ≤ 1.5 Mo). */
 export async function prepareMealImage(file: File): Promise<Blob> {
   const bitmap = await loadBitmap(file);
   const scale = Math.min(1, FEEDING.resizeMaxPx / Math.max(bitmap.width, bitmap.height));
