@@ -10,6 +10,7 @@ const MESSAGES: Record<string, string> = {
   USER_NOT_FOUND: "Aucun compte ne correspond à cet email.",
   EMAIL_NOT_VERIFIED: "Cet email n'a pas été vérifié.",
   FAILED_TO_CREATE_USER: "Impossible de créer le compte pour le moment.",
+  INVALID_TOKEN: "Ce lien n'est plus valable : il expire après 24 h et ne sert qu'une fois. Demande-en un nouveau.",
   config_missing: "L'application n'est pas encore configurée (base de données ou secret manquant).",
 };
 

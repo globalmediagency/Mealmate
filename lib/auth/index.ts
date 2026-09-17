@@ -7,6 +7,7 @@ import { account, session, user, verification } from "@/lib/db/schema";
 import { purgeExternalData } from "@/lib/account/service";
 import { isAdminIdentifier } from "@/lib/admin/auth";
 import { optionalEnv, requireEnv } from "@/lib/env";
+import { handOverResetToken, RESET_LINK_HOURS } from "@/lib/auth/reset-link";
 import { tryCreateProfileFromName } from "@/lib/profile/service";
 import { r2Storage } from "@/lib/storage/r2";
 import { stravaApi } from "@/lib/strava/api";
@@ -61,7 +62,14 @@ export function createAuth(db?: Db) {
       minPasswordLength: 8,
       requireEmailVerification: false,
       autoSignIn: true,
+      // MealMate sends no email: the reset token is handed to the admin who asked for the link
+      // (`lib/admin/accounts.ts`), the public request endpoint being disabled below.
+      sendResetPassword: async ({ token }) => handOverResetToken(token),
+      resetPasswordTokenExpiresIn: RESET_LINK_HOURS * 3600,
+      revokeSessionsOnPasswordReset: true,
     },
+    // Only the admin may ask for a password link (the token would go nowhere otherwise).
+    disabledPaths: ["/request-password-reset", "/forget-password"],
     socialProviders: socialProviders(),
     session: {
       cookieCache: { enabled: true, maxAge: 5 * 60 },

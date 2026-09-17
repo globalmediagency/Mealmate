@@ -1,4 +1,5 @@
 import { FileDown, Heart, Smile, Utensils } from "lucide-react";
+import { PlayerActions } from "@/components/admin/player-actions";
 import { Creature } from "@/components/creatures/creature";
 import { RarityBadge } from "@/components/creatures/rarity-badge";
 import type { AdminPlayer } from "@/lib/admin/players";
@@ -11,7 +12,7 @@ const STATE_CLASS = { healthy: "text-health", tired: "text-brass-300", sick: "te
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
 const fmtDateTime = (iso: string) => new Date(iso).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
-/** One player on the admin "Joueurs" tab: account, creature with live stats and characteristics, printed marker. */
+/** One player on the admin "Joueurs" tab: account (password link, deletion), creature with live stats and characteristics, printed marker. */
 export function PlayerCard({ player }: { player: AdminPlayer }) {
   const c = player.creature;
   const species = c?.speciesId ? getSpecies(c.speciesId) : undefined;
@@ -130,6 +131,8 @@ export function PlayerCard({ player }: { player: AdminPlayer }) {
       ) : (
         <p className="mt-4 text-sm text-cream-500">Pas encore de créature.</p>
       )}
+
+      <PlayerActions userId={player.userId} username={player.username} email={player.email} />
     </article>
   );
 }
