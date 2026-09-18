@@ -369,7 +369,7 @@ apparaissent alors, sans connexion nécessaire :
     siennes, abandonner en cours de partie fait perdre la sienne.
 15. **Ping-pong** (migration `018`) : dans Arène, choisis « Ping-pong » et invite un seul ami. Marqueurs face à face,
     la balle vole d'une créature à l'autre : appuie sur « Frapper » quand l'anneau autour de la tienne devient vert
-    (frappe parfaite = balle plus rapide), 7 points pour gagner. Le téléphone de l'hôte arbitre et garde l'écran allumé.
+    (frappe parfaite = balle plus rapide), 7 points pour gagner. Le téléphone de l'hôte arbitre et garde l'écran allumé. Depuis l'admin (section « Ping-pong »), tu règles la vitesse, les fenêtres de frappe, le moment où l'anneau disparaît et la force du lob et du smash.
 
 ## 5. Limites connues
 

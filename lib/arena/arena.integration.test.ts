@@ -533,7 +533,7 @@ describe("ping-pong", () => {
     const { match } = await createMatch(alice, [bob], at(t0), RULES, { mode: "pingpong" });
     expect(match.mode).toBe("pingpong");
     const opened = await snapshot(alice, match.id, at(t0 + 1), RULES);
-    expect(opened.match.pingpong).toEqual({ live: null, liveAt: null, result: null });
+    expect(opened.match.pingpong).toEqual({ live: null, liveAt: null, result: null, rules: DEFAULT_RULES.pingpong });
     expect(opened.match.stakes.enabled).toBe(true);
     expect((await listArenaInvites(bob, at(t0 + 1))).map((n) => n.mode)).toEqual(["pingpong"]);
     await respondToInvite(bob, match.id, true, at(t0 + 2), RULES);

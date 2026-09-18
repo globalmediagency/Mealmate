@@ -4,7 +4,7 @@
  * WebRTC plumbing lives in `components/arena/rtc-transport.ts`.
  */
 import { parseCoopState, type CoopStateMessage } from "@/lib/game/coop";
-import { parsePingPongState, type PingPongState } from "@/lib/game/pingpong";
+import { parsePingPongState, type PingPongState, type PingPongShot } from "@/lib/game/pingpong";
 
 /** Signals exchanged through the server to open the direct link. */
 export type ArenaSignal =
@@ -24,7 +24,7 @@ export type PeerMessage =
   | { t: "lick"; nonce: string; frame: string; angle: number; length: number }
   | { t: "catch"; nonce: string; frame: string; bonusIds: number[]; junkIds: number[] }
   | { t: "ppstate"; nonce: string; hostTime: number; state: PingPongState }
-  | { t: "swing"; nonce: string; flightId: number; at: number }
+  | { t: "swing"; nonce: string; flightId: number; at: number; shot: PingPongShot }
   | { t: "serve"; nonce: string; at: number };
 
 /** Between two players, the one with the smaller id opens the connection. */
@@ -87,7 +87,7 @@ export function parsePeerMessage(raw: unknown): PeerMessage | null {
     }
     case "swing":
       if (!isNumber(m.flightId) || !isNumber(m.at)) return null;
-      return { t: "swing", nonce: m.nonce, flightId: m.flightId, at: m.at };
+      return { t: "swing", nonce: m.nonce, flightId: m.flightId, at: m.at, shot: m.shot === "lob" ? "lob" : "normal" };
     case "serve":
       if (!isNumber(m.at)) return null;
       return { t: "serve", nonce: m.nonce, at: m.at };

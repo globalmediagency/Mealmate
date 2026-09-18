@@ -64,7 +64,7 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("lick"), frame, angle: z.coerce.number().finite(), length: z.coerce.number().finite().min(0).max(10), nonce: z.string().max(64).optional() }),
   z.object({ action: z.literal("catch"), frame, bonusIds: idList, junkIds: idList, nonce: z.string().max(64).optional() }),
   // Ping-pong (spec § 3.25): a swing (hit attempt, timed by the player's phone) and a serve, relayed.
-  z.object({ action: z.literal("swing"), flightId: z.coerce.number().int().min(0), at: z.coerce.number().finite(), nonce: z.string().max(64).optional() }),
+  z.object({ action: z.literal("swing"), flightId: z.coerce.number().int().min(0), at: z.coerce.number().finite(), shot: z.enum(["normal", "lob"]).default("normal"), nonce: z.string().max(64).optional() }),
   z.object({ action: z.literal("serve"), at: z.coerce.number().finite(), nonce: z.string().max(64).optional() }),
   z.object({
     action: z.literal("finish"),

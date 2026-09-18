@@ -23,14 +23,18 @@ import {
   createPingPong,
   endPingPong,
   hitPingPong,
+  hitWindows,
   parsePingPongState,
   serializePingPong,
   servePingPong,
   tickPingPong,
-  type HitQuality,
+  timingRingShown,
+  type HitOutcome,
+  type PingPongShot,
   type PingPongState,
   type PingPongStateMessage,
 } from "@/lib/game/pingpong";
+import { DEFAULT_RULES } from "@/lib/game/rules";
 import { cn } from "@/lib/utils/cn";
 
 type StageModule = typeof import("@/components/ar/three/stage");
@@ -86,7 +90,15 @@ const IDLE_HUD: Hud = { status: "lobby", seen: 0, ever: false, link: NO_LINK, ph
 
 const participants = (snapshot: ArenaSnapshot): ArenaPlayerView[] => snapshot.players.filter((p) => p.status === "ready");
 
-const QUALITY_TEXT: Record<HitQuality, string> = { perfect: "Parfait !", good: "Bien joué" };
+/** Preview: Léa lobs every fifth ball she returns. */
+const PREVIEW_LOB_EVERY = 5;
+
+/** What the player reads after a hit: the shot that left. */
+function hitText(outcome: HitOutcome & { ok: true }): { text: string; tone: "good" | "perfect" | "info" } {
+  if (outcome.shot === "lob") return { text: outcome.quality === "perfect" ? "Lob parfait !" : "Lob !", tone: outcome.quality === "perfect" ? "perfect" : "info" };
+  if (outcome.shot === "smash") return { text: "Smash !", tone: "perfect" };
+  return { text: "Bien joué", tone: "good" };
+}
 
 /**
  * "Ping-pong" (spec § 3.25): the two creatures on their papers send a ball
@@ -152,7 +164,7 @@ export function PingPongGame({ transport, initial, preview = false, onLeave }: P
     }
     const startedAt = snapshot.match.startedAt ? Date.parse(snapshot.match.startedAt) : transport.serverNow();
     const endsAt = snapshot.match.endsAt ? Date.parse(snapshot.match.endsAt) : startedAt + PINGPONG.maxSeconds * 1000;
-    state.current = createPingPong([host.userId, guest.userId], startedAt, endsAt);
+    state.current = createPingPong([host.userId, guest.userId], startedAt, endsAt, snapshot.match.pingpong?.rules ?? DEFAULT_RULES.pingpong);
     if (preview) (window as unknown as { __pingpong?: unknown }).__pingpong = { state: state.current, me };
     return state.current;
   }
@@ -307,7 +319,7 @@ export function PingPongGame({ transport, initial, preview = false, onLeave }: P
     } else if (kind === "swing") {
       const flightId = typeof payload.flightId === "number" ? payload.flightId : -1;
       if (s.flight && s.flight.id !== flightId) return;
-      hitPingPong(s, actorId, at);
+      hitPingPong(s, actorId, at, payload.shot === "lob" ? "lob" : "normal");
     }
     if (isHost) localAheadSince.current = 0;
   }
@@ -350,16 +362,17 @@ export function PingPongGame({ transport, initial, preview = false, onLeave }: P
     }
   }
 
-  /** Dev screens: Léa returns most balls and serves by herself. */
+  /** Dev screens: Léa returns most balls (a lob now and then) and serves by herself. */
   function autoplayOther(s: PingPongState, now: number) {
     const other = s.players.find((p) => p !== me);
     if (!other) return;
     if (s.phase === "flight" && s.flight && s.flight.to === other) {
-      const due = s.flight.arrivesAt + (((s.flight.id * 37) % 11) - 5) * 30;
-      if (now >= due && now <= s.flight.arrivesAt + PINGPONG.goodMs) {
+      const window = hitWindows(s.flight, s.rules).good;
+      const due = s.flight.arrivesAt + (((s.flight.id * 37) % 11) - 5) * Math.min(30, window / 6);
+      if (now >= due && now <= s.flight.arrivesAt + window) {
         const returns = ((s.flight.id * 7919) % 100) / 100 < PREVIEW_RETURN_RATE;
-        if (returns) hitPingPong(s, other, now);
-        else s.flight.arrivesAt -= PINGPONG.goodMs * 4; // let the tick call the miss right away
+        if (returns) hitPingPong(s, other, now, s.flight.id % PREVIEW_LOB_EVERY === 0 ? "lob" : "normal");
+        else s.flight.arrivesAt -= window * 4; // let the tick call the miss right away
       }
     } else if (s.phase === "serve" && s.server === other) {
       if (previewServeAt.current === 0) previewServeAt.current = now + PREVIEW_SERVE_DELAY_MS;
@@ -446,6 +459,9 @@ export function PingPongGame({ transport, initial, preview = false, onLeave }: P
     else if (s.phase === "over") prompt = "Partie terminée.";
     else if (serving) prompt = "À toi de servir : appuie sur le bouton.";
     else if (s.phase === "serve") prompt = `${names.current[s.server] ?? "L'autre"} sert…`;
+    else if (incoming && s.flight?.kind === "smash") prompt = "Smash ! Frappe vite !";
+    else if (incoming && s.flight?.kind === "lob") prompt = "Un lob… attends qu'elle retombe.";
+    else if (incoming && !timingRingShown(s, now)) prompt = "La balle arrive : sens le rythme, sans l'anneau !";
     else if (incoming) prompt = "La balle arrive : frappe quand l'anneau devient vert !";
     else if (s.phase === "flight") prompt = `Balle chez ${names.current[s.flight!.to] ?? "l'autre"}…`;
     else if (s.phase === "point" && s.lastPoint) prompt = s.lastPoint.to === me ? "Point pour toi !" : `Point pour ${names.current[s.lastPoint.to] ?? "l'autre"}.`;
@@ -516,8 +532,8 @@ export function PingPongGame({ transport, initial, preview = false, onLeave }: P
     }
   }
 
-  /** The player's button: a serve when it is their serve, a hit when the ball comes to them. */
-  function swing(event?: PointerEvent<HTMLButtonElement> | KeyboardEvent<HTMLDivElement>) {
+  /** The player's buttons: a serve when it is their serve, a hit (or a lob) when the ball comes to them. */
+  function swing(shot: PingPongShot, event?: PointerEvent<HTMLButtonElement> | KeyboardEvent<HTMLDivElement>) {
     event?.preventDefault();
     const s = state.current;
     if (!s || phaseRef.current !== "live" || latest.current.match.status !== "playing") return;
@@ -533,21 +549,24 @@ export function PingPongGame({ transport, initial, preview = false, onLeave }: P
     }
     if (s.phase === "flight" && s.flight && s.flight.to === me) {
       const flightId = s.flight.id;
-      const outcome = hitPingPong(s, me, at);
-      if (outcome.ok) show(QUALITY_TEXT[outcome.quality], outcome.quality === "perfect" ? "perfect" : "good");
-      else if (outcome.reason === "early") show("Trop tôt !", "bad");
+      const outcome = hitPingPong(s, me, at, shot);
+      if (outcome.ok) {
+        const { text, tone } = hitText(outcome);
+        show(text, tone);
+      } else if (outcome.reason === "early") show("Trop tôt !", "bad");
       else return;
       if (!isHost) localAheadSince.current = Date.now();
       const nonce = randomNonce();
-      transport.broadcast({ t: "swing", nonce, flightId, at });
-      if (relayNeeded()) void transport.coop({ action: "swing", flightId, at, nonce });
+      transport.broadcast({ t: "swing", nonce, flightId, at, shot });
+      if (relayNeeded()) void transport.coop({ action: "swing", flightId, at, shot, nonce });
       return;
     }
     show(s.phase === "flight" ? "Attends la balle…" : "Patience…", "info");
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === " " || event.key === "Enter") swing(event);
+    if (event.key === " " || event.key === "Enter") swing("normal", event);
+    else if (event.key === "l" || event.key === "L") swing("lob", event);
   }
 
   const cameraOn = phase === "starting" || phase === "live";
@@ -638,9 +657,25 @@ export function PingPongGame({ transport, initial, preview = false, onLeave }: P
                     </Button>
                   </div>
                 ) : null}
+                {hud.incoming ? (
+                  <button
+                    type="button"
+                    onPointerDown={(event) => swing("lob", event)}
+                    aria-label="Lob (touche L)"
+                    data-pingpong-lob
+                    className="absolute bottom-8 right-32 flex h-16 w-16 touch-none select-none flex-col items-center justify-center rounded-full bg-cream-200/85 text-ink-950 shadow-lg transition-transform active:scale-95"
+                  >
+                    <span aria-hidden="true" className="text-lg leading-none">
+                      ⤴
+                    </span>
+                    <span aria-hidden="true" className="text-[10px] font-bold uppercase tracking-wide">
+                      Lob
+                    </span>
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  onPointerDown={swing}
+                  onPointerDown={(event) => swing("normal", event)}
                   aria-label={hud.serving ? "Servir" : "Frapper la balle"}
                   data-pingpong-hit
                   className={cn(
@@ -691,7 +726,7 @@ export function PingPongGame({ transport, initial, preview = false, onLeave }: P
             <p className="max-w-xs text-sm leading-relaxed text-cream-100">
               {latest.current.match.status === "playing"
                 ? "La balle est déjà en jeu ! Ouvre la caméra et cadre les deux marqueurs posés sur la table."
-                : `Posez vos deux marqueurs face à face sur la table, à une trentaine de centimètres. La balle vole d'une créature à l'autre : appuie sur le bouton quand l'anneau autour de la tienne devient vert. Plus tu frappes juste, plus la balle repart vite. ${PINGPONG.pointsToWin} points pour gagner.`}
+                : `Posez vos deux marqueurs face à face sur la table, à une trentaine de centimètres. La balle vole d'une créature à l'autre : appuie sur « Frapper » quand l'anneau autour de la tienne devient vert. Une frappe parfaite part en smash, « Lob » la fait monter lentement, et après quelques renvois l'anneau disparaît : à toi de sentir le rythme. ${(latest.current.match.pingpong?.rules ?? DEFAULT_RULES.pingpong).pointsToWin} points pour gagner.`}
             </p>
             <Button onClick={() => void openCamera()} disabled={phase === "starting"} className="w-auto px-8" variant="brass">
               {phase === "starting" ? "Ouverture de la caméra…" : problem ? "Réessayer" : "Lancer la caméra"}

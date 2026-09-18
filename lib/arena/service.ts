@@ -35,7 +35,7 @@ import { coopScore, parseCoopState, type CoopStateMessage } from "@/lib/game/coo
 import { parsePingPongState, pingpongScore, type PingPongStateMessage } from "@/lib/game/pingpong";
 import type { DefenseSummary } from "@/lib/game/defense";
 import { randomSeed } from "@/lib/game/random";
-import type { DefenseRules } from "@/lib/game/rules";
+import type { DefenseRules, PingPongRules } from "@/lib/game/rules";
 import { deriveState } from "@/lib/game/creature-view";
 import { stageForXp } from "@/lib/game/growth";
 import type { PlayEffects } from "@/lib/game/play";
@@ -76,7 +76,7 @@ export type ArenaMatchView = {
   /** Coop only: the host's latest published simulation and, once finished, the team's result. */
   coop: { live: CoopStateMessage | null; liveAt: string | null; result: CoopResultStored | null } | null;
   /** Ping-pong only: the host's latest published state and, once finished, the score (spec § 3.25). */
-  pingpong: { live: PingPongStateMessage | null; liveAt: string | null; result: PingPongResultStored | null } | null;
+  pingpong: { live: PingPongStateMessage | null; liveAt: string | null; result: PingPongResultStored | null; rules: PingPongRules } | null;
   /** The accessories bet on the match (spec § 3.24). */
   stakes: ArenaStakesView;
 };
@@ -179,10 +179,10 @@ function coopView(match: ArenaMatch): ArenaMatchView["coop"] {
   return { live: parseCoopState(stored.live), liveAt: iso(match.stateAt), result: (stored.result as CoopResultStored | undefined) ?? null };
 }
 
-function pingpongView(match: ArenaMatch): ArenaMatchView["pingpong"] {
+function pingpongView(match: ArenaMatch, rules: GameRules): ArenaMatchView["pingpong"] {
   if (match.mode !== "pingpong") return null;
   const stored = (match.state ?? {}) as MatchStored;
-  return { live: parsePingPongState(stored.live), liveAt: iso(match.stateAt), result: (stored.result as PingPongResultStored | undefined) ?? null };
+  return { live: parsePingPongState(stored.live), liveAt: iso(match.stateAt), result: (stored.result as PingPongResultStored | undefined) ?? null, rules: rules.pingpong };
 }
 
 function toMatchView(match: ArenaMatch, userId: string, now: Date, rules: GameRules, mergedInto: string | null, stakes: ArenaStakesView): ArenaMatchView {
@@ -205,7 +205,7 @@ function toMatchView(match: ArenaMatch, userId: string, now: Date, rules: GameRu
     seed: match.seed,
     defense: rules.defense,
     coop: coopView(match),
-    pingpong: pingpongView(match),
+    pingpong: pingpongView(match, rules),
     stakes,
   };
 }

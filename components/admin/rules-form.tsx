@@ -43,6 +43,7 @@ type Draft = {
   maxPlaysPerDay: string;
   arena: Record<ArenaField, string>;
   arenaWebrtc: boolean;
+  pingpong: Record<PingPongField, string>;
 };
 
 const ARENA_FIELDS = ["hp", "eggDamage", "durationSeconds"] as const;
@@ -52,6 +53,21 @@ const ARENA_LABELS: Record<ArenaField, { label: string; help: string }> = {
   hp: { label: "Points de vie de chaque créature", help: "Dans l'arène seulement : rien ne touche la vraie créature." },
   eggDamage: { label: "Dégâts d'un œuf", help: "Points de vie retirés à la créature touchée." },
   durationSeconds: { label: "Durée d'une partie (secondes)", help: "La partie s'arrête à la fin du temps ou quand une seule créature tient encore debout." },
+};
+
+const PINGPONG_FIELDS = ["pointsToWin", "firstFlightMs", "minFlightMs", "paceFactor", "goodWindowPercent", "perfectWindowPercent", "ringHideAfterHits", "lobFactor", "smashFactor"] as const;
+type PingPongField = (typeof PINGPONG_FIELDS)[number];
+
+const PINGPONG_LABELS: Record<PingPongField, { label: string; help: string; integer: boolean }> = {
+  pointsToWin: { label: "Points pour gagner", help: "La partie s'arrête au premier joueur qui les atteint (ou après 5 minutes).", integer: true },
+  firstFlightMs: { label: "Vol de la balle au départ (ms)", help: "Temps de la première traversée d'un échange, avant que la balle n'accélère.", integer: true },
+  minFlightMs: { label: "Vol minimal (ms)", help: "La balle n'accélère plus en dessous. Pas sous 500 ms : temps de réaction et caméra.", integer: true },
+  paceFactor: { label: "Facteur d'accélération", help: "Le vol est multiplié par ce facteur à chaque renvoi (deux fois pour un smash) ; 0,9 = 10 % plus vite à chaque fois.", integer: false },
+  goodWindowPercent: { label: "Fenêtre de frappe (% du vol)", help: "± ce pourcentage du temps de vol autour de l'arrivée ; elle se resserre donc avec la vitesse (jamais sous ± 120 ms).", integer: false },
+  perfectWindowPercent: { label: "Fenêtre parfaite (% du vol)", help: "Frappe parfaite = smash ; jamais sous ± 50 ms.", integer: false },
+  ringHideAfterHits: { label: "Anneau caché après N renvois", help: "Au-delà de ce nombre de renvois dans l'échange, l'anneau de timing disparaît (0 = toujours visible).", integer: true },
+  lobFactor: { label: "Lob : facteur de vol", help: "Un lob vole ce nombre de fois plus longtemps, et l'anneau se cache sur sa fin de course.", integer: false },
+  smashFactor: { label: "Smash : facteur de vol", help: "Un smash (frappe parfaite) vole ce nombre de fois moins longtemps (jamais sous 400 ms).", integer: false },
 };
 
 const DEFENSE_FIELDS = ["hp", "baseSpeed", "speedGrowthPercent", "firstWaveEnemies", "enemiesGrowthPerWave", "fireCooldownMs", "bossEveryWaves", "bossHits"] as const;
@@ -101,6 +117,7 @@ function toDraft(rules: GameRules): Draft {
     maxPlaysPerDay: String(rules.play.maxPerDay),
     arena: Object.fromEntries(ARENA_FIELDS.map((f) => [f, String(rules.arena[f])])) as Draft["arena"],
     arenaWebrtc: rules.arena.webrtc,
+    pingpong: Object.fromEntries(PINGPONG_FIELDS.map((f) => [f, String(rules.pingpong[f])])) as Draft["pingpong"],
   };
 }
 
@@ -119,6 +136,7 @@ function toPatch(draft: Draft): GameRulesPatch {
     defense: Object.fromEntries(DEFENSE_FIELDS.map((f) => [f, num(draft.defense[f])])) as GameRulesPatch["defense"],
     play: { maxPerDay: num(draft.maxPlaysPerDay) },
     arena: { ...(Object.fromEntries(ARENA_FIELDS.map((f) => [f, num(draft.arena[f])])) as Record<ArenaField, number>), webrtc: draft.arenaWebrtc },
+    pingpong: Object.fromEntries(PINGPONG_FIELDS.map((f) => [f, num(draft.pingpong[f])])) as GameRulesPatch["pingpong"],
   };
 }
 
@@ -140,6 +158,7 @@ function safePreview(draft: Draft): GameRules | null {
       ...DEFENSE_FIELDS.map((f) => patch.defense?.[f]),
       patch.play?.maxPerDay,
       ...ARENA_FIELDS.map((f) => patch.arena?.[f]),
+      ...PINGPONG_FIELDS.map((f) => patch.pingpong?.[f]),
     ];
     if (flat.some((v) => v === undefined || Number.isNaN(v))) return null;
     return mergeRules(patch);
@@ -418,6 +437,29 @@ export function RulesForm({ initialRules, storedPatch, updatedAt, updatedBy }: R
             </span>
           </span>
         </label>
+      </section>
+
+      <section className="grid gap-3 rounded-3xl border border-ink-600/80 bg-ink-800/90 p-4 shadow-card sm:grid-cols-2">
+        <h2 className="font-display text-xl text-cream-50 sm:col-span-2">Ping-pong (duel entre amis)</h2>
+        <p className="-mt-2 text-xs text-cream-500 sm:col-span-2">
+          La balle vole d&apos;une créature à l&apos;autre et accélère à chaque renvoi ; les fenêtres de frappe se resserrent avec elle. Une frappe parfaite part en smash, un lob la
+          ralentit et cache l&apos;anneau sur sa fin de course, et l&apos;anneau disparaît dans les longs échanges. S&apos;applique aux parties lancées après l&apos;enregistrement.
+        </p>
+        {PINGPONG_FIELDS.map((field) => (
+          <label key={field} className="space-y-1 text-sm">
+            <span className="text-cream-100">{PINGPONG_LABELS[field].label}</span>
+            <input
+              type="text"
+              inputMode={PINGPONG_LABELS[field].integer ? "numeric" : "decimal"}
+              value={draft.pingpong[field]}
+              onChange={(e) => setDraft((d) => ({ ...d, pingpong: { ...d.pingpong, [field]: e.target.value } }))}
+              className={inputClass}
+            />
+            <span className="block text-[11px] text-cream-700">
+              {PINGPONG_LABELS[field].help} · défaut {DEFAULT_RULES.pingpong[field]}
+            </span>
+          </label>
+        ))}
       </section>
 
       <section className="rounded-3xl border border-sage-700/50 bg-sage-800/20 p-4">

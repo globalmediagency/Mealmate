@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { PINGPONG } from "@/lib/game/config";
-import { ballProgress, inHitWindow, type PingPongEffect, type PingPongState } from "@/lib/game/pingpong";
+import { ballProgress, inHitWindow, timingRingShown, type PingPongEffect, type PingPongState } from "@/lib/game/pingpong";
 import { EffectPool, PropGeometries, type EffectObject } from "./props";
 
 const BALL_COLOR = 0xf7f0dc;
@@ -19,6 +19,8 @@ const PADDLE_HEIGHT = 0.5;
 /** Timing ring radii (marker sides): wide when the ball leaves, tight when it arrives. */
 const RING_FAR = 1.15;
 const RING_NEAR = 0.38;
+/** Height of the arc by kind of shot (× `PINGPONG.arcHeight`): a lob climbs, a smash stays flat. */
+const ARC_BY_KIND = { normal: 1, lob: 1.8, smash: 0.45 } as const;
 
 export type PingPongSceneView = {
   state: PingPongState | null;
@@ -137,6 +139,8 @@ export class PingPongScene {
       layer.swingAt = view.now;
       layer.swingSign = effect.player === view.mine ? 1 : -1;
       if (effect.kind === "hit") this.spawn("hit", layer.group, 0, 0, PADDLE_HEIGHT + 0.1, view.now);
+      // A smash bursts twice as much.
+      if (effect.kind === "hit" && effect.shot === "smash") this.spawn("hit", layer.group, 0.08, -0.08, PADDLE_HEIGHT + 0.3, view.now);
     } else if (effect.kind === "miss") {
       this.spawn("smoke", layer.group, 0, -0.35, 0.05, view.now);
       this.drop = { at: view.now, marker, x: 0.15, y: -0.55 };
@@ -182,7 +186,7 @@ export class PingPongScene {
         view.worldPoint(fromMarker!, 0, 0, 1, up);
         view.worldPoint(fromMarker!, 0, 0, 0, base);
         up.sub(base).normalize();
-        this.ball.position.copy(a).lerp(b, t).addScaledVector(up, PINGPONG.arcHeight * lift);
+        this.ball.position.copy(a).lerp(b, t).addScaledVector(up, PINGPONG.arcHeight * ARC_BY_KIND[flight.kind] * lift);
         this.ball.rotation.y += 0.15;
         this.ball.rotation.x += 0.05;
         // The shadow slides on the table under the ball.
@@ -220,15 +224,16 @@ export class PingPongScene {
     this.ball.visible = ballShown;
     this.shadow.visible = ballShown && state?.phase !== "point";
 
-    // Layers: the timing ring on the receiver's paper, the paddles.
+    // Layers: the timing ring on the receiver's paper (hidden in long rallies and on the way down of a lob), the paddles.
+    const ringHelps = state !== null && flight !== null && timingRingShown(state, now);
     for (const layer of this.layers.values()) {
-      const ringOn = flight !== null && receiverMarker === layer.marker;
+      const ringOn = ringHelps && receiverMarker === layer.marker;
       layer.ring.visible = ringOn;
-      if (ringOn && flight) {
+      if (ringOn && flight && state) {
         const { t } = ballProgress(flight, now);
         const radius = RING_FAR + (RING_NEAR - RING_FAR) * t;
         layer.ring.scale.setScalar(radius);
-        const ready = inHitWindow(flight, now);
+        const ready = inHitWindow(flight, now, state.rules);
         layer.ringMaterial.color.setHex(ready ? RING_READY : RING_COLOR);
         layer.ringMaterial.opacity = ready ? 0.95 : 0.55 + 0.35 * t;
       }

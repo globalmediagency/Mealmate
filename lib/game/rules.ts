@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ARENA, BOARDING, COACHING, DEFENSE, FEEDING, HUNGER_DAMAGE_THRESHOLD, MOOD, PLAY, TICK, TIER_CONFIG, TIERS, type Tier, type TierConfig } from "./config";
+import { ARENA, BOARDING, COACHING, DEFENSE, FEEDING, HUNGER_DAMAGE_THRESHOLD, MOOD, PINGPONG, PLAY, TICK, TIER_CONFIG, TIERS, type Tier, type TierConfig } from "./config";
 
 /** Per-tier demands that the admin can tune (spec § 3.1). */
 export type TierRules = Pick<
@@ -59,6 +59,24 @@ export type GameRules = {
   play: { maxPerDay: number };
   /** "Arène" (spec § 3.22): battle settings and the sync transport toggle. */
   arena: ArenaRules;
+  /** "Ping-pong" (spec § 3.25): pace, timing windows, shots and the timing ring. */
+  pingpong: PingPongRules;
+};
+
+export type PingPongRules = {
+  pointsToWin: number;
+  /** Flight of the ball at the start of a rally, its floor, and the factor applied at every hit. */
+  firstFlightMs: number;
+  minFlightMs: number;
+  paceFactor: number;
+  /** Timing windows as a share of the flight time (they tighten with the pace). */
+  goodWindowPercent: number;
+  perfectWindowPercent: number;
+  /** The timing ring disappears past this many hits in a rally (0 = never). */
+  ringHideAfterHits: number;
+  /** A lob flies this much longer; a smash (perfect hit) this much shorter. */
+  lobFactor: number;
+  smashFactor: number;
 };
 
 export type ArenaRules = {
@@ -104,6 +122,17 @@ export const DEFAULT_RULES: GameRules = {
   },
   play: { maxPerDay: PLAY.maxPerDay },
   arena: { hp: ARENA.hp, eggDamage: ARENA.eggDamage, durationSeconds: ARENA.durationSeconds, webrtc: ARENA.webrtc },
+  pingpong: {
+    pointsToWin: PINGPONG.pointsToWin,
+    firstFlightMs: PINGPONG.firstFlightMs,
+    minFlightMs: PINGPONG.minFlightMs,
+    paceFactor: PINGPONG.paceFactor,
+    goodWindowPercent: PINGPONG.goodWindowPercent,
+    perfectWindowPercent: PINGPONG.perfectWindowPercent,
+    ringHideAfterHits: PINGPONG.ringHideAfterHits,
+    lobFactor: PINGPONG.lobFactor,
+    smashFactor: PINGPONG.smashFactor,
+  },
 };
 
 const tierRulesSchema = z
@@ -163,6 +192,19 @@ export const gameRulesPatchSchema = z
         webrtc: z.boolean(),
       })
       .partial(),
+    pingpong: z
+      .object({
+        pointsToWin: z.coerce.number().int().min(1).max(50),
+        firstFlightMs: z.coerce.number().int().min(500).max(10_000),
+        minFlightMs: z.coerce.number().int().min(300).max(5000),
+        paceFactor: z.coerce.number().min(0.5).max(1),
+        goodWindowPercent: z.coerce.number().min(3).max(50),
+        perfectWindowPercent: z.coerce.number().min(1).max(40),
+        ringHideAfterHits: z.coerce.number().int().min(0).max(100),
+        lobFactor: z.coerce.number().min(1).max(3),
+        smashFactor: z.coerce.number().min(0.3).max(1),
+      })
+      .partial(),
   })
   .partial();
 
@@ -185,6 +227,7 @@ export function mergeRules(patch: GameRulesPatch | null | undefined, base: GameR
     defense: { ...base.defense, ...(patch.defense ?? {}) },
     play: { ...base.play, ...(patch.play ?? {}) },
     arena: { ...base.arena, ...(patch.arena ?? {}) },
+    pingpong: { ...base.pingpong, ...(patch.pingpong ?? {}) },
   };
 }
 

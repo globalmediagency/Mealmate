@@ -78,7 +78,7 @@ export type CoopAction =
   | { action: "finish"; summaries: Record<string, DefenseSummary> }
   // Ping-pong (spec § 3.25).
   | { action: "state"; state: PingPongStateMessage }
-  | { action: "swing"; flightId: number; at: number; nonce: string }
+  | { action: "swing"; flightId: number; at: number; nonce: string; shot: "normal" | "lob" }
   | { action: "serve"; at: number; nonce: string }
   | { action: "finish"; points: Record<string, number>; longestRally: number; hits: Record<string, number>; perfects: Record<string, number> };
 

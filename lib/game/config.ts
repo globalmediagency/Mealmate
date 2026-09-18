@@ -365,11 +365,20 @@ export const PINGPONG = {
   maxSeconds: 300,
   /** Flight of the ball between the two creatures: at the start of a rally, then faster with every hit, down to a floor. */
   firstFlightMs: 2200,
-  minFlightMs: 900,
-  paceFactor: 0.92,
-  /** Timing windows around the ball's arrival: a perfect hit speeds the ball up twice as much. */
-  perfectMs: 130,
-  goodMs: 330,
+  minFlightMs: 550,
+  paceFactor: 0.9,
+  /** Timing windows around the ball's arrival, as a share of the flight time (they tighten as the rally speeds up), never under the floors. */
+  goodWindowPercent: 15,
+  perfectWindowPercent: 6,
+  minGoodMs: 120,
+  minPerfectMs: 50,
+  /** Shots: a lob flies slower and hides the timing ring on its way down; a perfect hit is a smash, faster (never under `smashMinMs`). */
+  lobFactor: 1.5,
+  lobHiddenTail: 0.4,
+  smashFactor: 0.7,
+  smashMinMs: 400,
+  /** Past this many hits in a rally the timing ring disappears (0 = never). */
+  ringHideAfterHits: 6,
   /** The referee waits this long past the window for the receiver's report before calling a miss. */
   graceMs: 1500,
   /** The point is shown this long before the next serve. */

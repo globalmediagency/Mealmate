@@ -27,6 +27,11 @@ describe("rules", () => {
     expect(mergeRules({ play: { maxPerDay: 5 } }).play.maxPerDay).toBe(5);
     expect(gameRulesPatchSchema.safeParse({ play: { maxPerDay: 0 } }).success).toBe(false);
     expect(mergeRules({ arena: { webrtc: true, durationSeconds: 60 } }).arena).toEqual({ hp: 100, eggDamage: 15, durationSeconds: 60, webrtc: true });
+    expect(DEFAULT_RULES.pingpong).toEqual({ pointsToWin: 7, firstFlightMs: 2200, minFlightMs: 550, paceFactor: 0.9, goodWindowPercent: 15, perfectWindowPercent: 6, ringHideAfterHits: 6, lobFactor: 1.5, smashFactor: 0.7 });
+    expect(mergeRules({ pingpong: { pointsToWin: 11, ringHideAfterHits: 0 } }).pingpong).toMatchObject({ pointsToWin: 11, ringHideAfterHits: 0, minFlightMs: 550 });
+    expect(gameRulesPatchSchema.safeParse({ pingpong: { minFlightMs: 100 } }).success).toBe(false);
+    expect(gameRulesPatchSchema.safeParse({ pingpong: { paceFactor: "0,9".replace(",", ".") } }).success).toBe(true);
+    expect(gameRulesPatchSchema.safeParse({ pingpong: { smashFactor: 1.5 } }).success).toBe(false);
     expect(gameRulesPatchSchema.safeParse({ arena: { durationSeconds: 5 } }).success).toBe(false);
   });
 
