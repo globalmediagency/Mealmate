@@ -57,8 +57,10 @@ export type ArenaGameProps = {
 
 /** The marker may flicker: its last pose is kept this long before the creature disappears. */
 const HOLD_MS = 1200;
-/** Longest simulated step, so a hiccup never teleports the eggs. */
+/** Longest simulated sub-step: a slow frame is simulated in several steps, so an egg never skips its landing. */
 const MAX_DT = 0.05;
+/** A frame longer than this (tab hidden, phone busy) is not caught up: the flight simply pauses for the rest. */
+const MAX_FRAME_SECONDS = 0.5;
 /** How fast a creature turns toward its last shot (radians per second, proportional). */
 const YAW_SPEED = 10;
 const TWO_PI = Math.PI * 2;
@@ -412,7 +414,8 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
       lastSeen.current.set(found.id, frame.now);
     }
     const visible = new Set<number>();
-    for (const [id, at] of lastSeen.current) if (frame.now - at < HOLD_MS) visible.add(id);
+    const holdFor = Math.max(HOLD_MS, 3 * frame.period);
+    for (const [id, at] of lastSeen.current) if (frame.now - at < holdFor) visible.add(id);
     s.update(detections, visible);
 
     // Aim: the nearest adversary the crosshair points at; otherwise the own paper, for the tongue.
@@ -427,14 +430,17 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
     const ownPoint = myMarker !== null && visible.has(myMarker) ? s.aimOnMarker(myMarker) : null;
     aim.current = { target, own: ownPoint ? clampAim(ownPoint) : null };
 
-    const dt = lastFrame.current > 0 ? Math.max(0, Math.min(MAX_DT, (frame.now - lastFrame.current) / 1000)) : 0;
+    const elapsed = lastFrame.current > 0 ? Math.max(0, Math.min(MAX_FRAME_SECONDS, (frame.now - lastFrame.current) / 1000)) : 0;
     lastFrame.current = frame.now;
+    const dt = Math.min(MAX_DT, elapsed);
     const playing = snapshot.match.status === "playing";
     replayEvents(s);
     if (playing) {
-      const step = stepArenaLocal(local.current, dt);
-      for (const egg of step.landed) judgeLanding(s, egg);
-      for (const tongue of step.caught) if (tongue.own) resolveTongue(s, tongue);
+      for (let left = elapsed; left > 0; left -= MAX_DT) {
+        const step = stepArenaLocal(local.current, Math.min(MAX_DT, left));
+        for (const egg of step.landed) judgeLanding(s, egg);
+        for (const tongue of step.caught) if (tongue.own) resolveTongue(s, tongue);
+      }
     }
     for (const [marker, yaw] of yaws.current) {
       let diff = yaw.wanted - yaw.current;

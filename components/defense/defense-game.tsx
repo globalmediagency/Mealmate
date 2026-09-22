@@ -59,8 +59,10 @@ export type DefenseGameProps = {
 
 /** The marker may flicker: its last pose is kept this long before the game pauses. */
 const HOLD_MS = 1200;
-/** Longest simulated step, so a hiccup never teleports the foods. */
+/** Longest simulated sub-step: a slow frame is simulated in several steps, so nothing tunnels through the creature. */
 const MAX_DT = 0.05;
+/** A frame longer than this (tab hidden, phone busy) is not caught up: the game simply pauses for the rest. */
+const MAX_FRAME_SECONDS = 0.5;
 /** How fast the creature turns toward its last shot (radians per second, proportional). */
 const YAW_SPEED = 10;
 const TWO_PI = Math.PI * 2;
@@ -208,14 +210,17 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPer
       }
       detections.set(id, found.corners);
     }
-    const seen = lastSeen.current > 0 && frame.now - lastSeen.current < HOLD_MS;
+    const seen = lastSeen.current > 0 && frame.now - lastSeen.current < Math.max(HOLD_MS, 3 * frame.period);
     s.update(detections, seen ? new Set([id]) : new Set());
     const point = seen ? s.aimOnMarker(id) : null;
     aim.current = point ? clampAim(point) : null;
-    const dt = lastFrame.current > 0 ? Math.max(0, Math.min(MAX_DT, (frame.now - lastFrame.current) / 1000)) : 0;
+    const elapsed = lastFrame.current > 0 ? Math.max(0, Math.min(MAX_FRAME_SECONDS, (frame.now - lastFrame.current) / 1000)) : 0;
     lastFrame.current = frame.now;
     const state = game.current;
-    if (state && seen && phaseRef.current === "playing") stepDefense(state, dt);
+    if (state && seen && phaseRef.current === "playing") {
+      for (let left = elapsed; left > 0; left -= MAX_DT) stepDefense(state, Math.min(MAX_DT, left));
+    }
+    const dt = Math.min(MAX_DT, elapsed);
     if (state) {
       let diff = state.yaw - yaw.current;
       while (diff > Math.PI) diff -= TWO_PI;

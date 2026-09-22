@@ -20,8 +20,12 @@ import { describe, DESCRIBE_MARGIN, DESCRIPTOR_WORDS } from "./orb";
 export const REFERENCE_SIZE = 256;
 /** Scales of the reference pyramid (the target may look smaller than the reference)… */
 const SCALES = [1, 0.7, 0.5, 0.35, 0.25] as const;
-/** …and vertical squeezes (the paper seen from an angle). */
-const SQUEEZES = [1, 0.6] as const;
+/** …and squeezes (the paper seen from an angle: foreshortened along its height, or along its width when the sheet is turned by 90°). */
+const SQUEEZES: readonly (readonly [number, number])[] = [
+  [1, 1],
+  [1, 0.6],
+  [0.6, 1],
+];
 const MIN_LEVEL_PX = 48;
 const FAST_THRESHOLD = 20;
 /** References only: a picture with few corners at 20 is retried at this threshold (never a camera frame, where it floods the budget with noise). */
@@ -37,6 +41,16 @@ export const FRAME_LEVELS: readonly { scale: number; max: number }[] = [
   { scale: 0.5, max: 250 },
   { scale: 0.25, max: 120 },
 ];
+/** The same pyramid with smaller budgets for the region around a picture seen lately (a whole-frame budget there costs as much as a whole-frame search). */
+export const REGION_LEVELS: readonly { scale: number; max: number }[] = [
+  { scale: 1, max: 150 },
+  { scale: 0.5, max: 80 },
+  { scale: 0.25, max: 40 },
+];
+/** Descriptors kept per reference level: 120 keeps every scale and squeeze while matching stays affordable on a phone. */
+const REFERENCE_MAX_PER_LEVEL = 120;
+/** A homography supported by fewer inliers than this share of the matches is a coincidence on the clutter, not the picture. */
+const MIN_INLIER_SHARE = 0.15;
 const MIN_FRAME_LEVEL_PX = 48;
 /** Whole-frame searches stop RANSAC earlier than the default: absent pictures still cost every iteration. */
 const SEARCH_MAX_ITERATIONS = 300;
@@ -54,7 +68,7 @@ export type Reference = {
   keypoints: number;
 };
 
-export type ReferenceOptions = { maxPerLevel?: number; threshold?: number; scales?: readonly number[]; squeezes?: readonly number[] };
+export type ReferenceOptions = { maxPerLevel?: number; threshold?: number; scales?: readonly number[]; squeezes?: readonly (readonly [number, number])[] };
 
 function corners(img: GrayImage, threshold: number, max: number, fallback: boolean): Keypoint[] {
   let points = detectFast(img, threshold, DESCRIBE_MARGIN);
@@ -70,27 +84,28 @@ export function referenceImage(img: GrayImage): GrayImage {
 
 /** Describes a photo at every scale and squeeze; ready to be looked for in frames. */
 export function buildReference(img: GrayImage, options: ReferenceOptions = {}): Reference {
-  const maxPerLevel = options.maxPerLevel ?? 200;
+  const maxPerLevel = options.maxPerLevel ?? REFERENCE_MAX_PER_LEVEL;
   const threshold = options.threshold ?? FAST_THRESHOLD;
   const levelScales = options.scales ?? SCALES;
   const squeezes = options.squeezes ?? SQUEEZES;
   const base = referenceImage(img);
   const chunks: { descriptors: Uint32Array; positions: Float32Array; angles: Float32Array; scale: number; count: number }[] = [];
-  let keypoints = 0;
+  // The picture's richness in detail: the corners of the base level itself, border excluded (what the card measures too).
+  const keypoints = detectFast(base, threshold, DESCRIBE_MARGIN).length;
   for (const scale of levelScales) {
-    for (const squeeze of squeezes) {
-      const w = Math.round(REFERENCE_SIZE * scale);
-      const h = Math.round(REFERENCE_SIZE * scale * squeeze);
+    for (const [sx, sy] of squeezes) {
+      const w = Math.round(REFERENCE_SIZE * scale * sx);
+      const h = Math.round(REFERENCE_SIZE * scale * sy);
       if (w < MIN_LEVEL_PX || h < MIN_LEVEL_PX) continue;
-      const level = scale === 1 && squeeze === 1 ? base : resample(base, w, h);
+      const level = w === REFERENCE_SIZE && h === REFERENCE_SIZE ? base : resample(base, w, h);
       // Padded with its own edge pixels so the corners near the border (most of a small level) can be described too.
       const padded = padImage(level, DESCRIBE_MARGIN);
       const described = describe(blur(padded), corners(padded, threshold, maxPerLevel, true));
-      if (scale === 1 && squeeze === 1) keypoints = described.points.length;
       const positions = new Float32Array(described.points.length * 2);
       described.points.forEach((p, i) => {
-        positions[2 * i] = ((p.x - DESCRIBE_MARGIN) * REFERENCE_SIZE) / w;
-        positions[2 * i + 1] = ((p.y - DESCRIBE_MARGIN) * REFERENCE_SIZE) / h;
+        // Pixel centres: a level pixel covers REFERENCE_SIZE / w reference pixels, its centre is what the corner stands for.
+        positions[2 * i] = ((p.x - DESCRIBE_MARGIN + 0.5) * REFERENCE_SIZE) / w - 0.5;
+        positions[2 * i + 1] = ((p.y - DESCRIBE_MARGIN + 0.5) * REFERENCE_SIZE) / h - 0.5;
       });
       chunks.push({ descriptors: described.descriptors, positions, angles: described.angles, scale, count: described.points.length });
     }
@@ -116,8 +131,7 @@ export type ReferenceQuality = { keypoints: number; level: QualityLevel };
 
 /** Whether a picture has enough detail to be recognised (a plain hand rarely has; a contrasted drawing does). */
 export function referenceQuality(img: GrayImage): ReferenceQuality {
-  const base = padImage(referenceImage(img), DESCRIBE_MARGIN);
-  const keypoints = describe(blur(base), detectFast(base, FAST_THRESHOLD, DESCRIBE_MARGIN)).points.length;
+  const keypoints = detectFast(referenceImage(img), FAST_THRESHOLD, DESCRIBE_MARGIN).length;
   return { keypoints, level: keypoints < PHOTO_MARKER.minKeypoints ? "poor" : keypoints < PHOTO_MARKER.goodKeypoints ? "fair" : "good" };
 }
 
@@ -177,8 +191,9 @@ export function extractFeatures(frame: GrayImage, options: DetectOptions = {}): 
     const described = describe(blur(image), corners(image, threshold, level.max, false));
     const positions = new Float32Array(described.points.length * 2);
     const points = described.points.map((p, i) => {
-      const x = p.x / scale + part.x;
-      const y = p.y / scale + part.y;
+      // Pixel centres: a level pixel covers 1 / scale frame pixels.
+      const x = (p.x + 0.5) / scale - 0.5 + part.x;
+      const y = (p.y + 0.5) / scale - 0.5 + part.y;
       positions[2 * i] = x;
       positions[2 * i + 1] = y;
       return { x, y, score: p.score };
@@ -290,7 +305,7 @@ export function findReference(features: FrameFeatures, ref: Reference, options: 
     dst[2 * i + 1] = features.positions[2 * m.query + 1];
   });
   const result = ransacHomography(src, dst, matches.length, { threshold: options.reprojection ?? 4, minInliers, maxIterations: options.maxIterations ?? SEARCH_MAX_ITERATIONS, random: options.random });
-  if (!result) return null;
+  if (!result || result.inliers.length < Math.max(minInliers, MIN_INLIER_SHARE * all.length)) return null;
   const quad = projectedQuad(result.H, ref.size);
   if (!quad || !isSaneQuad(quad)) return null;
   return { corners: quad, H: result.H, inliers: result.inliers.length, matches: all.length };

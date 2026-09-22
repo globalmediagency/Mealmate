@@ -25,7 +25,7 @@ type TexturePromise = ReturnType<StageModule["textureFromSvg"]>;
 const BOX = 200;
 /** Ground line of the creature drawings (viewBox y ≈ 92 / 100). */
 const GROUND = 0.92;
-/** Marker lost for longer than this: hide its creature. */
+/** Marker lost for longer than this (or three detections, on a slow phone): hide its creature. */
 const LOST_MS = 450;
 const SMOOTHING = 0.35;
 /** How often the photo-marker status line is refreshed while the camera runs. */
@@ -92,7 +92,10 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
 
   // The status line of the photo markers, refreshed twice a second while the camera runs.
   useEffect(() => {
-    if (status !== "running" || photoKey === "") return;
+    if (status !== "running" || photoKey === "") {
+      setPhotoStatus([]);
+      return;
+    }
     const timer = window.setInterval(() => {
       const cam = camera.current;
       if (!cam) return;
@@ -204,7 +207,7 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
   }
 
   /** One camera frame: poses for the markers we know, then the 3D scene (or the fallback drawings). */
-  function onFrame({ markers, videoWidth, videoHeight, now }: CameraFrame) {
+  function onFrame({ markers, videoWidth, videoHeight, now, period }: CameraFrame) {
     const container = box.current;
     if (!container) return;
     const scene = ensureStage(videoWidth, videoHeight);
@@ -238,8 +241,9 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
         }
       }
     }
+    const lostAfter = Math.max(LOST_MS, 3 * period);
     for (const [id, seen] of lastSeen.current) {
-      if (now - seen > LOST_MS) {
+      if (now - seen > lostAfter) {
         lastSeen.current.delete(id);
         poses.current.delete(id);
         views.current.delete(id);
@@ -434,7 +438,7 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
       </div>
 
       {running && photoStatus.length > 0 ? (
-        <ul className="space-y-0.5 px-1 text-xs text-cream-500" aria-live="polite" data-photo-status>
+        <ul className="space-y-0.5 px-1 text-xs text-cream-500" data-photo-status>
           {photoStatus.map((s) => (
             <li key={s.id} data-photo-marker-status={s.state} data-marker-id={s.id}>
               Photo de <span className="text-cream-300">{byMarker.current.get(s.id)?.creature.name ?? `n° ${s.id}`}</span> : {s.text}

@@ -109,27 +109,34 @@ export function detectFast(img: GrayImage, threshold: number, margin = 3): Keypo
 }
 
 /**
- * At most `max` corners spread over the image: the strongest of each cell of
- * a `cells × cells` grid first, then the strongest of the rest.
+ * At most `max` corners: half the budget goes to the strongest corners
+ * anywhere (a small contrasted drawing on a textured table keeps its corners
+ * instead of being rationed like the table), the other half is spread over
+ * a `cells × cells` grid (the strongest of each cell first, then the
+ * strongest of the rest).
  */
 export function selectSpread(points: Keypoint[], width: number, height: number, max: number, cells = 8): Keypoint[] {
   if (points.length <= max) return points;
+  const byScore = (a: Keypoint, b: Keypoint) => b.score - a.score;
+  const sorted = [...points].sort(byScore);
+  const strongest = sorted.slice(0, max >> 1);
+  const others = sorted.slice(max >> 1);
+  const budget = max - strongest.length;
   const cell = Math.max(1, Math.ceil(Math.max(width, height) / cells));
   const cols = Math.ceil(width / cell);
   const rows = Math.ceil(height / cell);
   const buckets: Keypoint[][] = Array.from({ length: cols * rows }, () => []);
-  for (const p of points) buckets[Math.floor(p.y / cell) * cols + Math.floor(p.x / cell)].push(p);
+  for (const p of others) buckets[Math.floor(p.y / cell) * cols + Math.floor(p.x / cell)].push(p);
   const filled = buckets.filter((b) => b.length > 0).length;
-  const perCell = Math.max(1, Math.ceil(max / filled));
+  const perCell = Math.max(1, Math.ceil(budget / Math.max(1, filled)));
   const chosen: Keypoint[] = [];
   const rest: Keypoint[] = [];
-  const byScore = (a: Keypoint, b: Keypoint) => b.score - a.score;
   for (const bucket of buckets) {
-    bucket.sort(byScore);
+    // Buckets keep the global order: each one is already sorted by score.
     chosen.push(...bucket.slice(0, perCell));
     rest.push(...bucket.slice(perCell));
   }
-  if (chosen.length >= max) return chosen.sort(byScore).slice(0, max);
+  if (chosen.length >= budget) return strongest.concat(chosen.sort(byScore).slice(0, budget));
   rest.sort(byScore);
-  return chosen.concat(rest.slice(0, max - chosen.length));
+  return strongest.concat(chosen, rest.slice(0, budget - chosen.length));
 }

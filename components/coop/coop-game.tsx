@@ -26,7 +26,6 @@ import {
   fireDefense,
   smashDefense,
   startDefense,
-  stepDefense,
   tongueDefense,
   yawToward,
   type DefenseState,
@@ -80,8 +79,13 @@ export type CoopGameProps = {
   onLeave?: () => void;
 };
 
+/** The marker may flicker: its last pose is kept this long before the creature disappears. */
 const HOLD_MS = 1200;
+/** Longest simulated sub-step: a slow frame is simulated in several steps, so nothing tunnels through a creature. */
 const MAX_DT = 0.05;
+/** A frame longer than this (tab hidden, phone busy) is not caught up: the game simply pauses for the rest. */
+const MAX_FRAME_SECONDS = 0.5;
+/** How fast a creature turns toward its last shot (radians per second, proportional). */
 const YAW_SPEED = 10;
 const TWO_PI = Math.PI * 2;
 /** Latency assumed for a state that came over the direct link. */
@@ -414,7 +418,8 @@ export function CoopGame({ transport, initial, preview = false, onLeave }: CoopG
       lastSeen.current.set(found.id, frame.now);
     }
     const visible = new Set<number>();
-    for (const [id, at] of lastSeen.current) if (frame.now - at < HOLD_MS) visible.add(id);
+    const holdFor = Math.max(HOLD_MS, 3 * frame.period);
+    for (const [id, at] of lastSeen.current) if (frame.now - at < holdFor) visible.add(id);
     s.update(detections, visible);
 
     // Aim: the creature whose paper the crosshair points at, nearest to its centre.
@@ -434,11 +439,12 @@ export function CoopGame({ transport, initial, preview = false, onLeave }: CoopG
     }
     aim.current = { target, point };
 
-    const dt = lastFrame.current > 0 ? Math.max(0, Math.min(MAX_DT, (frame.now - lastFrame.current) / 1000)) : 0;
+    const elapsed = lastFrame.current > 0 ? Math.max(0, Math.min(MAX_FRAME_SECONDS, (frame.now - lastFrame.current) / 1000)) : 0;
     lastFrame.current = frame.now;
+    const dt = Math.min(MAX_DT, elapsed);
     if (playing && phaseRef.current === "live") {
       replayEvents(s);
-      for (const sim of sims.current.values()) stepDefense(sim.state, dt, sim.random.next);
+      for (const sim of sims.current.values()) advanceDefense(sim.state, sim.random.next, elapsed, MAX_DT);
       report();
       publish(frame.now);
     }

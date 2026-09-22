@@ -49,22 +49,39 @@ export function PhotoMarkerCard({ initial, preview = false }: { initial: PhotoMa
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [cropPercent, setCropPercent] = useState(Math.round(PHOTO_MARKER.cropFraction * 100));
+  /** A crop of the kept photo is being computed (the slider stays usable, saving waits). */
+  const [cropping, setCropping] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   /** The decoded photo, kept while the crop is adjusted. */
   const source = useRef<MarkerSource | null>(null);
   const cropTimer = useRef<number | null>(null);
+  const wantedPercent = useRef(cropPercent);
 
   function apply(next: PhotoMarkerStatus) {
     setStatus(next);
     if (!preview) router.refresh();
   }
 
+  function cancelCrop() {
+    if (cropTimer.current !== null) window.clearTimeout(cropTimer.current);
+    cropTimer.current = null;
+  }
+
   function releaseSource() {
+    cancelCrop();
     source.current?.close();
     source.current = null;
   }
 
-  useEffect(() => releaseSource, []);
+  // Unmount: drop the decoded photo and any pending crop (refs only, so the empty dependency list is right).
+  useEffect(() => {
+    return () => {
+      if (cropTimer.current !== null) window.clearTimeout(cropTimer.current);
+      cropTimer.current = null;
+      source.current?.close();
+      source.current = null;
+    };
+  }, []);
 
   /** Crops the kept photo and measures the crop (the part the camera will look for). */
   async function crop(percent: number): Promise<Draft> {
@@ -82,35 +99,49 @@ export function PhotoMarkerCard({ initial, preview = false }: { initial: PhotoMa
     if (!file) return;
     setBusy("reading");
     setError(null);
+    let next: MarkerSource | null = null;
     try {
+      // The previous photo stays until the new one is decoded: a failed "Reprendre" keeps a usable draft.
+      next = await loadMarkerSource(file);
       releaseSource();
-      source.current = await loadMarkerSource(file);
+      source.current = next;
       const percent = Math.round(PHOTO_MARKER.cropFraction * 100);
+      wantedPercent.current = percent;
       setCropPercent(percent);
       setDraft(await crop(percent));
     } catch (err) {
       console.error("[photo-marker] cannot read the picture", err);
-      releaseSource();
+      if (next && source.current === next) releaseSource();
+      else next?.close();
       setError("Impossible de lire cette photo. Réessaie.");
     } finally {
       setBusy(null);
     }
   }
 
-  /** The slider re-crops the kept photo after a short pause. */
+  /** The slider re-crops the kept photo after a short pause; an outdated crop (the slider moved again) is dropped. */
   function onCropChange(percent: number) {
     setCropPercent(percent);
-    if (cropTimer.current !== null) window.clearTimeout(cropTimer.current);
+    wantedPercent.current = percent;
+    cancelCrop();
+    setCropping(true);
     cropTimer.current = window.setTimeout(() => {
       cropTimer.current = null;
       void crop(percent)
-        .then((next) => setDraft((current) => (current && source.current ? next : current)))
-        .catch((err) => console.error("[photo-marker] crop failed", err));
+        .then((next) => {
+          if (wantedPercent.current !== percent || !source.current) return;
+          setDraft((current) => (current ? next : current));
+        })
+        .catch((err) => console.error("[photo-marker] crop failed", err))
+        .finally(() => {
+          if (wantedPercent.current === percent) setCropping(false);
+        });
     }, 120);
   }
 
   function discardDraft() {
     setDraft(null);
+    setCropping(false);
     releaseSource();
   }
 
@@ -202,19 +233,22 @@ export function PhotoMarkerCard({ initial, preview = false }: { initial: PhotoMa
               className="mt-1 h-11 w-full accent-sage-500"
               aria-label="Largeur du carré gardé, en pourcentage de la photo"
             />
-            <span className="block text-xs text-cream-700">Serré sur ton dessin : plus fiable de près et créature à la bonne taille. Plus large si le dessin est grand.</span>
+            <span className="block text-xs text-cream-700">
+              Serré sur ton dessin (50 %) : reconnu de 12 à 60 cm environ, créature à la bonne taille. Plus large (feuille entière) : porte plus loin, moins de près. Évite les angles
+              trop plats : au-delà de 45° de biais, le dessin doit être grand ou proche.
+            </span>
           </label>
           <div className="grid grid-cols-2 gap-2">
-            <Button onClick={save} disabled={busy !== null || draft.quality.level === "poor"} data-photo-marker-save>
+            <Button onClick={save} disabled={busy !== null || cropping || draft.quality.level === "poor"} data-photo-marker-save>
               <Check className="h-5 w-5" aria-hidden="true" />
-              {busy === "saving" ? "Enregistrement…" : "Enregistrer"}
+              {busy === "saving" ? "Enregistrement…" : cropping ? "Recadrage…" : "Enregistrer"}
             </Button>
-            <Button variant="secondary" onClick={pick} disabled={busy !== null}>
+            <Button variant="secondary" onClick={pick} disabled={busy !== null || cropping}>
               <RefreshCw className="h-5 w-5" aria-hidden="true" />
               Reprendre
             </Button>
           </div>
-          <Button variant="ghost" onClick={discardDraft} disabled={busy !== null} className="w-auto px-4">
+          <Button variant="ghost" onClick={discardDraft} disabled={busy !== null || cropping} className="w-auto px-4">
             <X className="h-5 w-5" aria-hidden="true" />
             Annuler
           </Button>

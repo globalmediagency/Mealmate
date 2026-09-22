@@ -406,7 +406,8 @@ export function PingPongGame({ transport, initial, preview = false, onLeave }: P
       lastSeen.current.set(found.id, frame.now);
     }
     const visible = new Set<number>();
-    for (const [id, at] of lastSeen.current) if (frame.now - at < HOLD_MS) visible.add(id);
+    const holdFor = Math.max(HOLD_MS, 3 * frame.period);
+    for (const [id, at] of lastSeen.current) if (frame.now - at < holdFor) visible.add(id);
     st.update(detections, visible);
 
     const now = transport.serverNow();
