@@ -83,7 +83,7 @@ export default async function ArPage() {
         <CardTitle>Créatures reconnues sur ton écran</CardTitle>
         <CardText className="mt-1">
           Les marqueurs de tes amis marchent aussi sur ton téléphone : posez vos feuilles côte à côte et vos créatures apparaissent ensemble. Chacun imprime le sien depuis son
-          application.
+          application. Quand un ami utilise une photo comme marqueur, ta caméra la reconnaît aussi : sa vignette est affichée à côté de son nom.
         </CardText>
         {targets.length > 0 ? (
           <ul className="mt-3 flex flex-wrap gap-2">
@@ -91,9 +91,13 @@ export default async function ArPage() {
               <li className="rounded-full border border-sage-500/50 bg-sage-500/15 px-3 py-1 text-xs font-semibold text-sage-200">{own.creature.name} (toi)</li>
             ) : null}
             {others.map((t) => (
-              <li key={t.markerId} className="rounded-full border border-ink-500 bg-ink-700 px-3 py-1 text-xs text-cream-300">
+              <li key={t.markerId} className="inline-flex items-center gap-2 rounded-full border border-ink-500 bg-ink-700 py-1 pl-3 pr-3 text-xs text-cream-300" data-ar-friend={t.markerId}>
                 {t.creature.name}
                 {t.ownerName ? <span className="text-cream-700"> · {t.ownerName}</span> : null}
+                {t.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={t.image} alt="Utilise une photo comme marqueur" title="Utilise une photo comme marqueur" className="-mr-1.5 h-6 w-6 rounded-md object-cover ring-1 ring-sage-500/60" data-ar-friend-photo />
+                ) : null}
               </li>
             ))}
           </ul>

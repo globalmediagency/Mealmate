@@ -1,3 +1,4 @@
+import { DEV_DOODLE_URL } from "@/lib/ar/dev-doodle";
 import type { ArenaCollectionItem, ArenaEventView, ArenaMode, ArenaPlayerView, ArenaSnapshot, ArenaStakeView, ArenaStakesView, CoopResultStored, PingPongResultStored, ShotInput, ShotOutcome, TongueInput, TongueOutcome } from "@/lib/arena/service";
 import { getAccessory } from "@/lib/accessories/catalog";
 import { coopScore, parseCoopState, type CoopStateMessage } from "@/lib/game/coop";
@@ -63,6 +64,7 @@ function basePlayers(side: PreviewSide = "me"): Player[] {
     creatureId: "c-preview-lea",
     creatureName: "Pipo",
     markerId: 42,
+    markerImage: DEV_DOODLE_URL,
     creature: {
       name: "Pipo",
       speciesId: "facile-cochon-dinde",

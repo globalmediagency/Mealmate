@@ -154,6 +154,10 @@ export function ArenaMatch({ initial, webrtc, preview = false, previewRtc = fals
                   {p.isHost ? <Crown className="h-4 w-4 text-brass-300" aria-label="Hôte" /> : null}
                   <span className="font-semibold">{p.mine ? "Toi" : p.username}</span>
                   <span className="text-cream-500">· {p.creatureName ?? "sa créature"}</span>
+                  {p.markerImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.markerImage} alt="Utilise une photo comme marqueur" title="Utilise une photo comme marqueur" className="h-6 w-6 rounded-md object-cover ring-1 ring-sage-500/60" data-arena-player-photo />
+                  ) : null}
                 </span>
                 <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", p.status === "ready" ? "bg-sage-700/50 text-sage-100" : p.status === "invited" ? "bg-ink-700 text-cream-300" : "bg-ink-700 text-cream-600")}>
                   {STATUS_LABEL[p.status]}
