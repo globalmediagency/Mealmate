@@ -145,16 +145,19 @@ export function ransacHomography(src: Float32Array, dst: Float32Array, count: nu
   let iterations = maxIterations;
   const sample = [0, 0, 0, 0];
   for (let it = 0; it < iterations; it += 1) {
+    let distinct = true;
     for (let k = 0; k < 4; k += 1) {
       let candidate = Math.floor(random() * count);
-      let guard = 0;
-      while (sample.slice(0, k).includes(candidate) && guard < 10) {
+      for (let guard = 0; guard < 10; guard += 1) {
+        let clash = false;
+        for (let j = 0; j < k; j += 1) if (sample[j] === candidate) clash = true;
+        if (!clash) break;
         candidate = Math.floor(random() * count);
-        guard += 1;
       }
+      for (let j = 0; j < k; j += 1) if (sample[j] === candidate) distinct = false;
       sample[k] = candidate;
     }
-    if (new Set(sample).size < 4 || degenerate(src, sample)) continue;
+    if (!distinct || degenerate(src, sample)) continue;
     const H = fitHomography(src, dst, sample);
     if (!H) continue;
     const inl = inliersOf(H);

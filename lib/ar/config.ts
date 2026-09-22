@@ -26,6 +26,15 @@ export function isMarkerId(value: unknown): value is number {
 export const PHOTO_MARKER = {
   /** Side (px) of the square the phone uploads: the centre crop of the photo. */
   uploadSize: 512,
+  /**
+   * Part of the photo's short side kept by default: the centre only, so the
+   * marker is the object and not the table around it (a whole-width square
+   * is 25–40 cm of table, which makes the creature giant and the object a
+   * small part of the reference). The card lets the user widen it; never
+   * below `minCropFraction` (small targets from afar would be lost).
+   */
+  cropFraction: 0.5,
+  minCropFraction: 0.5,
   /** Largest upload the server accepts (bytes). */
   maxBytes: 1_000_000,
   /** Corners found in the picture: under `minKeypoints` it is refused, under `goodKeypoints` a warning is shown. */

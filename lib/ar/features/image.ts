@@ -110,6 +110,22 @@ export function crop(img: GrayImage, x: number, y: number, width: number, height
   return { width: w, height: h, data, x: x0, y: y0 };
 }
 
+/** The image with `pad` replicated edge pixels on every side, so corners near the border can be described. */
+export function padImage(img: GrayImage, pad: number): GrayImage {
+  const width = img.width + 2 * pad;
+  const height = img.height + 2 * pad;
+  const data = new Uint8Array(width * height);
+  for (let y = 0; y < height; y += 1) {
+    const sy = Math.min(img.height - 1, Math.max(0, y - pad));
+    const row = y * width;
+    const srow = sy * img.width;
+    data.set(img.data.subarray(srow, srow + img.width), row + pad);
+    data.fill(img.data[srow], row, row + pad);
+    data.fill(img.data[srow + img.width - 1], row + pad + img.width, row + width);
+  }
+  return { width, height, data };
+}
+
 export function mat3Multiply(a: Mat3, b: Mat3): Mat3 {
   const out = new Float64Array(9);
   for (let r = 0; r < 3; r += 1) for (let c = 0; c < 3; c += 1) out[r * 3 + c] = a[r * 3] * b[c] + a[r * 3 + 1] * b[3 + c] + a[r * 3 + 2] * b[6 + c];

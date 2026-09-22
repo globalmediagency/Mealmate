@@ -2,22 +2,27 @@
 
 import { Camera, Check, ImageOff, RefreshCw, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardText, CardTitle } from "@/components/ui/card";
+import { PHOTO_MARKER } from "@/lib/ar/config";
 import type { ReferenceQuality } from "@/lib/ar/features/tracker";
 import type { PhotoMarkerStatus } from "@/lib/ar/photo-marker";
-import { prepareMarkerImage, type PreparedMarker } from "@/lib/images/resize-client";
+import { cropMarkerImage, loadMarkerSource, type MarkerSource, type PreparedMarker } from "@/lib/images/resize-client";
 import { cn } from "@/lib/utils/cn";
 
 type Draft = { prepared: PreparedMarker; quality: ReferenceQuality };
+/** Crop widths offered by the slider, in percent of the photo's short side. */
+const CROP_MIN = Math.round(PHOTO_MARKER.minCropFraction * 100);
+const CROP_MAX = 100;
+const CROP_STEP = 5;
 type Busy = "reading" | "saving" | "toggling" | "deleting" | null;
 
 const QUALITY_TEXT: Record<ReferenceQuality["level"], (n: number) => string> = {
-  good: (n) => `Beaucoup de détails repérés (${n}) : la caméra la reconnaîtra bien.`,
-  fair: (n) => `Assez de détails (${n}), mais un motif plus contrasté serait plus fiable.`,
-  poor: (n) => `Trop peu de détails (${n}) : la caméra ne pourrait pas la reconnaître. Choisis un motif plus contrasté, un dessin au stylo marche très bien.`,
+  good: (n) => `Beaucoup de détails repérés dans le carré (${n}) : la caméra le reconnaîtra bien.`,
+  fair: (n) => `Assez de détails dans le carré (${n}), mais un motif plus contrasté serait plus fiable.`,
+  poor: (n) => `Trop peu de détails dans le carré (${n}) : la caméra ne pourrait pas le reconnaître. Une main ou un objet uni ne marchent pas ; un dessin contrasté au stylo marche très bien.`,
 };
 
 async function call(method: "PUT" | "PATCH" | "DELETE", body?: BodyInit, json = false): Promise<PhotoMarkerStatus> {
@@ -43,11 +48,32 @@ export function PhotoMarkerCard({ initial, preview = false }: { initial: PhotoMa
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [cropPercent, setCropPercent] = useState(Math.round(PHOTO_MARKER.cropFraction * 100));
   const input = useRef<HTMLInputElement>(null);
+  /** The decoded photo, kept while the crop is adjusted. */
+  const source = useRef<MarkerSource | null>(null);
+  const cropTimer = useRef<number | null>(null);
 
   function apply(next: PhotoMarkerStatus) {
     setStatus(next);
     if (!preview) router.refresh();
+  }
+
+  function releaseSource() {
+    source.current?.close();
+    source.current = null;
+  }
+
+  useEffect(() => releaseSource, []);
+
+  /** Crops the kept photo and measures the crop (the part the camera will look for). */
+  async function crop(percent: number): Promise<Draft> {
+    const src = source.current;
+    if (!src) throw new Error("no source");
+    const prepared = await cropMarkerImage(src, percent / 100);
+    const { grayFromRgba, referenceQuality } = await import("@/lib/ar/features/tracker");
+    const quality = referenceQuality(grayFromRgba(prepared.pixels.data, prepared.pixels.width, prepared.pixels.height));
+    return { prepared, quality };
   }
 
   async function onPick(event: ChangeEvent<HTMLInputElement>) {
@@ -57,16 +83,35 @@ export function PhotoMarkerCard({ initial, preview = false }: { initial: PhotoMa
     setBusy("reading");
     setError(null);
     try {
-      const prepared = await prepareMarkerImage(file);
-      const { grayFromRgba, referenceQuality } = await import("@/lib/ar/features/tracker");
-      const quality = referenceQuality(grayFromRgba(prepared.pixels.data, prepared.pixels.width, prepared.pixels.height));
-      setDraft({ prepared, quality });
+      releaseSource();
+      source.current = await loadMarkerSource(file);
+      const percent = Math.round(PHOTO_MARKER.cropFraction * 100);
+      setCropPercent(percent);
+      setDraft(await crop(percent));
     } catch (err) {
       console.error("[photo-marker] cannot read the picture", err);
+      releaseSource();
       setError("Impossible de lire cette photo. Réessaie.");
     } finally {
       setBusy(null);
     }
+  }
+
+  /** The slider re-crops the kept photo after a short pause. */
+  function onCropChange(percent: number) {
+    setCropPercent(percent);
+    if (cropTimer.current !== null) window.clearTimeout(cropTimer.current);
+    cropTimer.current = window.setTimeout(() => {
+      cropTimer.current = null;
+      void crop(percent)
+        .then((next) => setDraft((current) => (current && source.current ? next : current)))
+        .catch((err) => console.error("[photo-marker] crop failed", err));
+    }, 120);
+  }
+
+  function discardDraft() {
+    setDraft(null);
+    releaseSource();
   }
 
   async function save() {
@@ -81,7 +126,7 @@ export function PhotoMarkerCard({ initial, preview = false }: { initial: PhotoMa
         form.append("image", draft.prepared.blob, "marqueur.jpg");
         next = await call("PUT", form);
       }
-      setDraft(null);
+      discardDraft();
       apply(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Une erreur est survenue. Réessaie.");
@@ -122,8 +167,10 @@ export function PhotoMarkerCard({ initial, preview = false }: { initial: PhotoMa
     <Card data-photo-marker data-enabled={status.enabled} data-has-image={status.hasImage} data-quality={draft?.quality.level ?? ""}>
       <CardTitle>Marqueur photo</CardTitle>
       <CardText className="mt-1">
-        À la place du marqueur imprimé, la caméra peut reconnaître une photo prise par toi : un dessin au stylo sur une feuille, un motif, ta main… Prends-la bien à plat, de
-        dessus, à la lumière, en cadrant un objet d&apos;une dizaine de centimètres. Le bas de la photo sera le devant de ta créature.
+        À la place du marqueur imprimé, la caméra peut reconnaître une photo prise par toi : un dessin contrasté au stylo sur une feuille, un motif, une carte… Prends-la de
+        dessus, à 20 cm environ, à la lumière. <strong className="font-semibold text-cream-100">Seul le centre de la photo est gardé</strong> (le carré de l&apos;aperçu) :
+        place ton dessin au milieu pour qu&apos;il remplisse ce carré. Une main ou un objet uni ne marchent pas. Le bas de la photo sera le devant de ta créature, et sa taille
+        suivra celle du carré : environ deux fois sa hauteur.
       </CardText>
 
       <input ref={input} type="file" accept="image/*" capture="environment" onChange={onPick} className="sr-only" tabIndex={-1} aria-hidden="true" />
@@ -132,12 +179,31 @@ export function PhotoMarkerCard({ initial, preview = false }: { initial: PhotoMa
         <div className="mt-4 space-y-3" data-photo-marker-draft>
           <div className="flex items-start gap-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={draft.prepared.previewUrl} alt="Aperçu de ta photo" className="h-28 w-28 shrink-0 rounded-2xl object-cover" />
+            <img src={draft.prepared.previewUrl} alt="Aperçu du carré gardé" className="h-40 w-40 shrink-0 rounded-2xl object-cover ring-2 ring-sage-500/60" />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-cream-100">Voici ce que la caméra reconnaîtra.</p>
+              <p className="text-sm font-semibold text-cream-100">Ce carré est ton marqueur.</p>
               <p className={cn("mt-1 text-sm", draft.quality.level === "poor" ? "text-brass-300" : "text-cream-300")}>{QUALITY_TEXT[draft.quality.level](draft.quality.keypoints)}</p>
             </div>
           </div>
+          <label className="block">
+            <span className="flex items-center justify-between text-sm text-cream-300">
+              <span>Largeur du carré</span>
+              <span className="text-xs text-cream-500">{cropPercent === CROP_MAX ? "toute la photo" : `${cropPercent} % de la photo`}</span>
+            </span>
+            <input
+              type="range"
+              min={CROP_MIN}
+              max={CROP_MAX}
+              step={CROP_STEP}
+              value={cropPercent}
+              onChange={(event) => onCropChange(Number(event.target.value))}
+              disabled={busy !== null}
+              data-photo-marker-crop
+              className="mt-1 h-11 w-full accent-sage-500"
+              aria-label="Largeur du carré gardé, en pourcentage de la photo"
+            />
+            <span className="block text-xs text-cream-700">Serré sur ton dessin : plus fiable de près et créature à la bonne taille. Plus large si le dessin est grand.</span>
+          </label>
           <div className="grid grid-cols-2 gap-2">
             <Button onClick={save} disabled={busy !== null || draft.quality.level === "poor"} data-photo-marker-save>
               <Check className="h-5 w-5" aria-hidden="true" />
@@ -148,7 +214,7 @@ export function PhotoMarkerCard({ initial, preview = false }: { initial: PhotoMa
               Reprendre
             </Button>
           </div>
-          <Button variant="ghost" onClick={() => setDraft(null)} disabled={busy !== null} className="w-auto px-4">
+          <Button variant="ghost" onClick={discardDraft} disabled={busy !== null} className="w-auto px-4">
             <X className="h-5 w-5" aria-hidden="true" />
             Annuler
           </Button>

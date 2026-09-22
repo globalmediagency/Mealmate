@@ -24,26 +24,74 @@ export async function prepareMealImage(file: File): Promise<Blob> {
   return blob;
 }
 
-export type PreparedMarker = { blob: Blob; previewUrl: string; pixels: ImageData };
+export type PreparedMarker = { blob: Blob; previewUrl: string; pixels: ImageData; fraction: number };
+
+/** A decoded photo kept while the user adjusts the crop; `close()` frees it. */
+export type MarkerSource = { image: ImageBitmap | HTMLImageElement; width: number; height: number; close(): void };
+
+/** Browser-only: decodes a photo once (EXIF orientation applied) so several crops can be tried. */
+export async function loadMarkerSource(file: File): Promise<MarkerSource> {
+  const image = await loadBitmap(file);
+  const width = image instanceof HTMLImageElement ? image.naturalWidth : image.width;
+  const height = image instanceof HTMLImageElement ? image.naturalHeight : image.height;
+  if (width === 0 || height === 0) throw new Error("empty image");
+  return {
+    image,
+    width,
+    height,
+    close: () => {
+      if ("close" in image) image.close();
+    },
+  };
+}
 
 /**
- * Browser-only: the centre square of a photo, `PHOTO_MARKER.uploadSize` px
- * wide, as a JPEG to upload, a data URL to preview and its pixels for the
- * quality check (spec § 3.19).
+ * Browser-only: the centre square of the photo, `fraction` of its short side
+ * (spec § 3.19: the object, not the table around it), resampled to
+ * `PHOTO_MARKER.uploadSize` px in halving steps (one big drawImage aliases
+ * on Safari), as a JPEG to upload, a data URL to preview and its pixels for
+ * the quality check.
  */
-export async function prepareMarkerImage(file: File): Promise<PreparedMarker> {
-  const bitmap = await loadBitmap(file);
-  const side = Math.min(bitmap.width, bitmap.height);
+export async function cropMarkerImage(source: MarkerSource, fraction: number = PHOTO_MARKER.cropFraction): Promise<PreparedMarker> {
+  const f = Math.min(1, Math.max(PHOTO_MARKER.minCropFraction, fraction));
+  const side = Math.max(1, Math.round(Math.min(source.width, source.height) * f));
   const size = PHOTO_MARKER.uploadSize;
+  let src: CanvasImageSource = source.image;
+  let sx = (source.width - side) / 2;
+  let sy = (source.height - side) / 2;
+  let sw = side;
+  let sh = side;
+  while (sw / size > 2) {
+    const half = document.createElement("canvas");
+    half.width = Math.ceil(sw / 2);
+    half.height = Math.ceil(sh / 2);
+    const hctx = half.getContext("2d");
+    if (!hctx) throw new Error("canvas");
+    hctx.drawImage(src, sx, sy, sw, sh, 0, 0, half.width, half.height);
+    src = half;
+    sx = 0;
+    sy = 0;
+    sw = half.width;
+    sh = half.height;
+  }
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) throw new Error("canvas");
-  ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, size, size);
-  if ("close" in bitmap) bitmap.close();
+  ctx.drawImage(src, sx, sy, sw, sh, 0, 0, size, size);
   const blob = await toJpeg(canvas, 0.85);
-  return { blob, previewUrl: canvas.toDataURL("image/jpeg", 0.85), pixels: ctx.getImageData(0, 0, size, size) };
+  return { blob, previewUrl: canvas.toDataURL("image/jpeg", 0.85), pixels: ctx.getImageData(0, 0, size, size), fraction: f };
+}
+
+/** One-shot helper: decode, crop with the default fraction, free the picture. */
+export async function prepareMarkerImage(file: File, fraction?: number): Promise<PreparedMarker> {
+  const source = await loadMarkerSource(file);
+  try {
+    return await cropMarkerImage(source, fraction);
+  } finally {
+    source.close();
+  }
 }
 
 async function loadBitmap(file: File): Promise<ImageBitmap | HTMLImageElement> {

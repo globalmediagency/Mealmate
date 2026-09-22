@@ -26,6 +26,14 @@ const CIRCLE: readonly (readonly [number, number])[] = [
 const ARC = 9;
 const CARDINALS = [0, 4, 8, 12];
 
+/** One score map reused across calls (a fresh Float32Array per frame would churn megabytes on a phone). */
+let scratch: Float32Array | null = null;
+function scoreBuffer(length: number): Float32Array {
+  if (!scratch || scratch.length < length) scratch = new Float32Array(length);
+  scratch.fill(0, 0, length);
+  return scratch;
+}
+
 /**
  * FAST-9 corners (Rosten & Drummond) with 3 × 3 non-maximum suppression on
  * the score (sum of the contrast of the arc beyond the threshold). Pixels
@@ -37,7 +45,7 @@ export function detectFast(img: GrayImage, threshold: number, margin = 3): Keypo
   const m = Math.max(3, margin);
   if (width <= 2 * m || height <= 2 * m) return [];
   const offsets = CIRCLE.map(([dx, dy]) => dy * width + dx);
-  const scores = new Float32Array(width * height);
+  const scores = scoreBuffer(width * height);
   const states = new Int8Array(16);
   for (let y = m; y < height - m; y += 1) {
     for (let x = m; x < width - m; x += 1) {

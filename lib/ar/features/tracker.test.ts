@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { detectFast } from "./fast";
 import { fitHomography, isSaneQuad, ransacHomography, type Quad } from "./homography";
 import { blur, grayFromRgba, halve, mat3Invert, project, warpOnto, type GrayImage, type Mat3 } from "./image";
-import { hamming, popcount32 } from "./match";
-import { buildReference, detectReferences, findReference, extractFeatures, homographyToQuad, REFERENCE_SIZE, referenceQuality } from "./tracker";
+import { hamming, matchDescriptors, popcount32 } from "./match";
+import { buildReference, consistentMatches, detectReferences, extractFeatures, findReference, homographyToQuad, REFERENCE_SIZE, referenceQuality, regionAround } from "./tracker";
 
 function mulberry32(seed: number): () => number {
   let s = seed | 0;
@@ -196,6 +196,53 @@ describe("photo-marker features", () => {
     expect(near(foundB!.corners, right, 3)).toBe(true);
     expect(foundOther).toBeNull();
     expect(detectReferences(flat(320, 240, 128), refs)).toEqual([null, null, null]);
+  });
+
+  it("finds a drawing seen larger than its photo (phone closer) through the frame pyramid, then follows it in a region", () => {
+    const drawing = synthDrawing(31);
+    const reference = buildReference(drawing);
+    // 1.8 × the reference: a 460 px square in a 640 × 480 frame.
+    const big: Quad = [
+      { x: 90, y: 10 },
+      { x: 550, y: 20 },
+      { x: 560, y: 470 },
+      { x: 80, y: 460 },
+    ];
+    const { frame } = synthFrame(drawing, big, 14, 640, 480);
+    const [found] = detectReferences(frame, [reference], { random: mulberry32(4) });
+    expect(found).not.toBeNull();
+    expect(near(found!.corners, big, 4)).toBe(true);
+    // Without the smaller levels the same frame is lost: the pyramid is what covers it.
+    const flat = extractFeatures(frame, { levels: [{ scale: 1, max: 400 }] });
+    expect(findReference(flat, reference, { random: mulberry32(4) })).toBeNull();
+    // Region tracking around the last quad finds it again with fewer corners to describe.
+    const region = regionAround(found!.corners);
+    const tracked = extractFeatures(frame, { region });
+    expect(tracked.count).toBeGreaterThan(0);
+    expect(tracked.points.every((pt) => pt.x >= region.x - 1 && pt.y >= region.y - 1)).toBe(true);
+    const again = findReference(tracked, reference, { random: mulberry32(5) });
+    expect(again).not.toBeNull();
+    expect(near(again!.corners, big, 4)).toBe(true);
+  });
+
+  it("keeps a small drawing on a cluttered table (no low-threshold flood of noise corners)", () => {
+    const drawing = synthDrawing(41);
+    const reference = buildReference(drawing);
+    const table = synthDrawing(77, 640);
+    const frame: GrayImage = { width: 640, height: 480, data: table.data.slice(0, 640 * 480) };
+    const small = square(320, 250, 110, 12);
+    const H = homographyToQuad(drawing.width, small)!;
+    warpOnto(drawing, H, frame);
+    const [found] = detectReferences(frame, [reference], { random: mulberry32(6) });
+    expect(found).not.toBeNull();
+    expect(found!.inliers).toBeGreaterThanOrEqual(20);
+    expect(near(found!.corners, small, 6)).toBe(true);
+    // The agreement filter is what saves it: the clutter matches the drawing's own kind of strokes.
+    const features = extractFeatures(frame);
+    const all = matchDescriptors(features.descriptors, features.count, reference.descriptors, reference.count, reference.positions, { sameSpot: reference.size * 0.04 });
+    const agreeing = consistentMatches(all, features, reference);
+    expect(agreeing.length).toBeLessThan(all.length * 0.6);
+    expect(agreeing.length).toBeGreaterThanOrEqual(30);
   });
 
   it("converts and halves pixel buffers", () => {
