@@ -336,6 +336,18 @@ ALTER TABLE arena_players ADD COLUMN IF NOT EXISTS points integer NOT NULL DEFAU
 ALTER TABLE play_sessions DROP CONSTRAINT IF EXISTS play_sessions_kind_check;
 ALTER TABLE play_sessions ADD CONSTRAINT play_sessions_kind_check CHECK (kind IN ('catch', 'defense', 'arena', 'coop', 'pingpong'));`,
   },
+  {
+    id: "019",
+    file: "019_photo_marker.sql",
+    title: "Marqueur photo : une photo par joueur reconnue à la place du marqueur imprimé",
+    checks: [
+      { table: "profiles", column: "photo_marker_key" },
+      { table: "profiles", column: "photo_marker_enabled" },
+    ],
+    sql: `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS photo_marker_key text;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS photo_marker_enabled boolean NOT NULL DEFAULT false;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS photo_marker_updated_at timestamptz;`,
+  },
 ];
 
 /** Migrations whose checks fail against the given set of existing `table` / `table.column` keys. */

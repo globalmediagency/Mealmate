@@ -102,7 +102,10 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
     const v = video.current;
     if (!v) return;
     setStatus("starting");
-    const cam = new MarkerCamera(v);
+    const cam = new MarkerCamera(
+      v,
+      targets.flatMap((t) => (t.image ? [{ id: t.markerId, url: t.image }] : [])),
+    );
     cam.onFrame = onFrame;
     camera.current = cam;
     try {
@@ -371,7 +374,7 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
             })}
             {!found ? (
               <p className="pointer-events-none absolute inset-x-4 bottom-4 rounded-2xl bg-ink-950/70 px-4 py-2 text-center text-sm text-cream-100 backdrop-blur">
-                {status === "starting" ? "Ouverture de la caméra…" : "Cadre un marqueur imprimé, bien à plat et éclairé."}
+                {status === "starting" ? "Ouverture de la caméra…" : targets.some((t) => t.image) ? "Cadre un marqueur, imprimé ou photo, bien à plat et éclairé." : "Cadre un marqueur imprimé, bien à plat et éclairé."}
               </p>
             ) : null}
           </>

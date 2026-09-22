@@ -1,4 +1,4 @@
-import { FileDown, Printer } from "lucide-react";
+import { FileDown, Image as ImageIcon, Printer } from "lucide-react";
 import { Card, CardText, CardTitle } from "@/components/ui/card";
 import { AR_MARKER } from "@/lib/ar/config";
 import { markerSvg } from "@/lib/ar/marker";
@@ -9,10 +9,12 @@ type MarkerCardProps = {
   /** The viewer's own creature: offers the PDF (the route only serves one's own markers). */
   creatureId?: string;
   ownerName?: string | null;
+  /** The owner's photo marker, when they use one (spec § 3.19): shown next to the printed square. */
+  photoUrl?: string | null;
 };
 
 /** A creature's printed marker: preview with the name under it and, for one's own creature, the PDF to print (spec § 3.19). */
-export function MarkerCard({ name, markerId, creatureId, ownerName }: MarkerCardProps) {
+export function MarkerCard({ name, markerId, creatureId, ownerName, photoUrl }: MarkerCardProps) {
   return (
     <Card>
       <CardTitle>Le marqueur de {name}</CardTitle>
@@ -43,6 +45,20 @@ export function MarkerCard({ name, markerId, creatureId, ownerName }: MarkerCard
           </p>
         </div>
       </div>
+      {photoUrl ? (
+        <div className="mt-4 flex items-center gap-4 rounded-2xl border border-sage-500/40 bg-sage-500/10 p-3" data-photo-marker-active>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photoUrl} alt="" className="h-16 w-16 shrink-0 rounded-xl object-cover" />
+          <p className="text-sm text-cream-200">
+            <ImageIcon className="mr-1 inline h-4 w-4 align-text-bottom text-sage-300" aria-hidden="true" />
+            {creatureId ? (
+              <>Ton marqueur photo est actif : cet objet fait aussi apparaître {name}, chez toi et chez tes amis.</>
+            ) : (
+              <>{ownerName ?? "Son propriétaire"} utilise aussi cette photo comme marqueur : elle fait apparaître {name} sur ton écran.</>
+            )}
+          </p>
+        </div>
+      ) : null}
     </Card>
   );
 }

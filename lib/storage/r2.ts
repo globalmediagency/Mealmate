@@ -12,6 +12,8 @@ import { requireEnv } from "@/lib/env";
 /** Minimal object storage contract (lets tests inject an in-memory fake). */
 export type ObjectStorage = {
   put(key: string, bytes: Uint8Array, contentType: string): Promise<void>;
+  /** The stored object, or null when the key does not exist. */
+  get(key: string): Promise<{ bytes: Uint8Array; contentType: string | null } | null>;
   signedUrl(key: string, expiresInSeconds?: number): Promise<string>;
   remove(key: string): Promise<void>;
   removePrefix(prefix: string): Promise<number>;
@@ -51,6 +53,17 @@ export const r2Storage: ObjectStorage = {
     const { client, bucket } = getR2();
     await client.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: bytes, ContentType: contentType }));
   },
+  async get(key) {
+    const { client, bucket } = getR2();
+    try {
+      const out = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+      const bytes = await out.Body?.transformToByteArray();
+      return bytes ? { bytes, contentType: out.ContentType ?? null } : null;
+    } catch (error) {
+      if (typeof error === "object" && error !== null && "name" in error && (error as { name?: string }).name === "NoSuchKey") return null;
+      throw error;
+    }
+  },
   async signedUrl(key, expiresInSeconds = PRESIGNED_GET_TTL_SECONDS) {
     const { client, bucket } = getR2();
     return getSignedUrl(client, new GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn: expiresInSeconds });
@@ -75,6 +88,11 @@ export const r2Storage: ObjectStorage = {
     return removed;
   },
 };
+
+/** Object key of a user's photo marker (spec § 3.19): one folder per user, purged with the account. */
+export function photoMarkerKey(userId: string, id: string): string {
+  return `markers/${userId}/${id}.jpg`;
+}
 
 /** Object key of a meal photo: everything of a user lives under one prefix. */
 export function mealImageKey(userId: string, mealId: string): string {

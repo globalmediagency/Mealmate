@@ -268,7 +268,7 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPer
       setResult(null);
       setSummary(null);
     }
-    const cam = new MarkerCamera(v);
+    const cam = new MarkerCamera(v, target.image ? [{ id: target.markerId, url: target.image }] : []);
     cam.onFrame = onFrame;
     camera.current = cam;
     try {
@@ -431,7 +431,7 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPer
                 </div>
               ) : (
                 <p className="pointer-events-none absolute inset-x-4 bottom-4 rounded-2xl bg-ink-950/70 px-4 py-2 text-center text-sm text-cream-100 backdrop-blur">
-                  Cadre le marqueur de {name}, bien à plat et éclairé.
+                  Cadre le marqueur de {name}{target.image ? ", imprimé ou photo," : ""} bien à plat et éclairé.
                 </p>
               )
             ) : null}

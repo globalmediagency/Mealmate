@@ -20,6 +20,8 @@ export type ArTarget = {
   mine: boolean;
   /** Owner's username when the creature is someone else's (a friend's, or boarded with the viewer). */
   ownerName: string | null;
+  /** Same-origin URL of the owner's photo marker when they use one: the camera recognises that picture as the same marker number (spec § 3.19). */
+  image?: string | null;
 };
 
 /**

@@ -7,6 +7,7 @@ import { DefenseGame } from "@/components/defense/defense-game";
 import { Card, CardText, CardTitle } from "@/components/ui/card";
 import { getOutfit, outfitToEquipped } from "@/lib/accessories/service";
 import { isMarkerId } from "@/lib/ar/config";
+import { photoMarkerUrls } from "@/lib/ar/photo-marker";
 import { ensureCreatureMarker } from "@/lib/ar/service";
 import { requireViewer } from "@/lib/auth/session";
 import { getHeldCreature } from "@/lib/boarding/service";
@@ -48,11 +49,12 @@ export default async function DefensePage({ searchParams }: { searchParams: Sear
       </Card>
     );
   }
-  const [plays, outfit] = await Promise.all([countPlaysToday(creature.id), getOutfit(creature.id)]);
+  const [plays, outfit, photos] = await Promise.all([countPlaysToday(creature.id), getOutfit(creature.id), photoMarkerUrls([creature.userId])]);
   const target: ArTarget = {
     markerId,
     mine: !boarded,
     ownerName: boarded ? (held.owner?.username ?? null) : null,
+    image: photos.get(creature.userId) ?? null,
     creature: { name: creature.name, speciesId: creature.speciesId, stage: stageForXp(creature.xp).id, state: deriveState(creature), accessories: outfitToEquipped(outfit) },
   };
   return (
@@ -65,7 +67,7 @@ export default async function DefensePage({ searchParams }: { searchParams: Sear
         creatureId={boarded ? creature.id : undefined}
         homeHref={homeHref}
       />
-      <MarkerCard name={creature.name} markerId={markerId} creatureId={boarded ? undefined : creature.id} ownerName={target.ownerName} />
+      <MarkerCard name={creature.name} markerId={markerId} creatureId={boarded ? undefined : creature.id} ownerName={target.ownerName} photoUrl={target.image} />
     </div>
   );
 }

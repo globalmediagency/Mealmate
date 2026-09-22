@@ -17,7 +17,10 @@ import { StepsHistory } from "@/components/game/steps-history";
 import { PlayerCard } from "@/components/admin/player-card";
 import { Creature, type EquippedAccessory } from "@/components/creatures/creature";
 import type { StageId } from "@/lib/game/config";
+import { MarkerCard } from "@/components/ar/marker-card";
 import { ArViewer } from "@/components/ar/ar-viewer";
+import { PhotoMarkerCard } from "@/components/ar/photo-marker-card";
+import { DEV_DOODLE_URL } from "@/lib/ar/dev-doodle";
 import { Creature3dView } from "@/components/ar/three/creature-3d-view";
 import { FoodGallery } from "@/components/ar/three/food-gallery";
 import { ArenaMatch } from "@/components/arena/arena-match";
@@ -59,7 +62,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "turnaround", "creature-3d", "defense", "defense-boss", "arena", "arena-rtc", "arena-invite", "coop", "pingpong", "food-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "photo-marker", "turnaround", "creature-3d", "defense", "defense-boss", "arena", "arena-rtc", "arena-invite", "coop", "pingpong", "food-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -333,12 +336,27 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
       );
       break;
     }
+    case "photo-marker":
+      content = (
+        <div className="space-y-4">
+          <PhotoMarkerCard initial={{ enabled: false, hasImage: false, updatedAt: null, imageUrl: null }} preview />
+          <PhotoMarkerCard initial={{ enabled: true, hasImage: true, updatedAt: "2026-09-18T10:00:00.000Z", imageUrl: DEV_DOODLE_URL }} preview />
+          <MarkerCard name="Miso" markerId={17} creatureId="00000000-0000-0000-0000-000000000000" photoUrl={DEV_DOODLE_URL} />
+        </div>
+      );
+      break;
     case "ar":
       content = (
         <div className="space-y-4">
           <ArViewer
             targets={[
-              { markerId: 17, mine: true, ownerName: null, creature: { name: "Miso", speciesId: "facile-panda-roux", stage: "enfant", state: "healthy", accessories: [{ slot: "head", id: "beret" }, { slot: "eyes", id: "round_glasses" }] } },
+              {
+                markerId: 17,
+                mine: true,
+                ownerName: null,
+                image: DEV_DOODLE_URL,
+                creature: { name: "Miso", speciesId: "facile-panda-roux", stage: "enfant", state: "healthy", accessories: [{ slot: "head", id: "beret" }, { slot: "eyes", id: "round_glasses" }] },
+              },
               {
                 markerId: 42,
                 mine: false,

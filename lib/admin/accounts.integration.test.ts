@@ -21,6 +21,9 @@ let auth: Auth;
 
 const storage: ObjectStorage = {
   async put() {},
+  async get() {
+    return null;
+  },
   async signedUrl(key) {
     return `https://signed.example/${key}`;
   },

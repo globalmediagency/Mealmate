@@ -107,6 +107,7 @@ Si tu avais déjà exécuté `db/init.sql` avant une phase, colle ses migrations
 - défendre à deux (mode coopératif) : [`db/migrations/016_coop_defense.sql`](./db/migrations/016_coop_defense.sql)
 - mises de l'arène (accessoires pariés) : [`db/migrations/017_arena_stakes.sql`](./db/migrations/017_arena_stakes.sql)
 - ping-pong (duel) : [`db/migrations/018_pingpong.sql`](./db/migrations/018_pingpong.sql)
+- marqueur photo : [`db/migrations/019_photo_marker.sql`](./db/migrations/019_photo_marker.sql)
 
 Si une migration manque, l'application l'indique elle-même : au lieu de planter, elle affiche « La base de données doit être mise à jour » avec le SQL exact à copier dans Neon → SQL Editor (bouton « Copier le SQL »). Recharge la page une fois le SQL exécuté.
 
@@ -370,6 +371,10 @@ apparaissent alors, sans connexion nécessaire :
 15. **Ping-pong** (migration `018`) : dans Arène, choisis « Ping-pong » et invite un seul ami. Marqueurs face à face,
     la balle vole d'une créature à l'autre : appuie sur « Frapper » quand l'anneau autour de la tienne devient vert
     (frappe parfaite = balle plus rapide), 7 points pour gagner. Le téléphone de l'hôte arbitre et garde l'écran allumé. Depuis l'admin (section « Ping-pong »), tu règles la vitesse, les fenêtres de frappe, le moment où l'anneau disparaît et la force du lob et du smash.
+16. **Marqueur photo** (migration `019`) : sur « Voir en vrai », la carte « Marqueur photo » te laisse photographier un objet à toi
+    (un dessin au stylo sur une feuille, un motif, ta main) que la caméra reconnaîtra à la place du marqueur imprimé, chez toi comme
+    chez tes amis (Voir en vrai, Défendre, Arène, Défendre à deux, Ping-pong). Le téléphone vérifie avant l'envoi que la photo a assez
+    de détails ; tu peux la mettre de côté (interrupteur), la remplacer ou la supprimer. Le marqueur imprimé continue de marcher.
 
 ## 5. Limites connues
 

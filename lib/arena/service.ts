@@ -10,6 +10,7 @@ import type { ArCreature } from "@/components/ar/types";
 import { getAccessory, type Slot } from "@/lib/accessories/catalog";
 import { addAccessoryCopies, decrementAccessoryCopy, dropEmptyAccessory, getOutfit, getOwnedAccessories, outfitToEquipped } from "@/lib/accessories/service";
 import { DomainError } from "@/lib/api/errors";
+import { photoMarkerUrls } from "@/lib/ar/photo-marker";
 import { ensureCreatureMarker } from "@/lib/ar/service";
 import { getHeldCreature } from "@/lib/boarding/service";
 import { tickCreature } from "@/lib/creatures/tick-service";
@@ -118,6 +119,8 @@ export type ArenaPlayerView = {
   markerId: number;
   /** Present in full snapshots only (first read, lobby). */
   creature?: ArCreature | null;
+  /** Full snapshots only: the player's photo marker, when they use one (spec § 3.19); the other phones recognise it as `markerId`. */
+  markerImage?: string | null;
   status: ArenaPlayer["status"];
   hp: number;
   hitsDealt: number;
@@ -842,9 +845,11 @@ async function settle(match: ArenaMatch, players: ArenaPlayer[], now: Date, rand
 async function playerViews(match: ArenaMatch, players: ArenaPlayer[], userId: string, full: boolean, stakes: ArenaStake[]): Promise<ArenaPlayerView[]> {
   const names = await publicProfiles(players.map((p) => p.userId));
   let byCreature = new Map<string, Creature>();
+  let photos = new Map<string, string>();
   if (full && players.length > 0) {
     const rows = await getDb().select().from(creatures).where(inArray(creatures.id, players.map((p) => p.creatureId)));
     byCreature = new Map(rows.map((c) => [c.id, c]));
+    photos = await photoMarkerUrls(players.map((p) => p.userId));
   }
   const views: ArenaPlayerView[] = [];
   for (const p of players) {
@@ -872,6 +877,7 @@ async function playerViews(match: ArenaMatch, players: ArenaPlayer[], userId: st
     if (full) {
       const creature = byCreature.get(p.creatureId);
       view.creature = creatureFor(creature, creature ? outfitToEquipped(await getOutfit(creature.id)) : []);
+      view.markerImage = photos.get(p.userId) ?? null;
     }
     if (p.userId === userId && match.status === "finished") view.reward = (p.reward as ArenaReward | null) ?? null;
     views.push(view);

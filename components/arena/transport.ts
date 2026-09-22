@@ -89,7 +89,7 @@ export function completeSnapshot(incoming: ArenaSnapshot, previous: ArenaSnapsho
   const players: ArenaPlayerView[] = incoming.players.map((p) => {
     const before = known.get(p.userId);
     if (p.creature !== undefined || !before) return p;
-    return { ...p, creature: before.creature, creatureName: p.creatureName ?? before.creatureName };
+    return { ...p, creature: before.creature, creatureName: p.creatureName ?? before.creatureName, markerImage: before.markerImage };
   });
   const me = players.find((p) => p.mine) ?? incoming.me;
   const collection = incoming.collection ?? previous.collection;

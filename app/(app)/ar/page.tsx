@@ -3,7 +3,9 @@ import { Crosshair, Swords } from "lucide-react";
 import Link from "next/link";
 import { ArViewer } from "@/components/ar/ar-viewer";
 import { MarkerCard } from "@/components/ar/marker-card";
+import { PhotoMarkerCard } from "@/components/ar/photo-marker-card";
 import { Card, CardText, CardTitle } from "@/components/ui/card";
+import { getPhotoMarker } from "@/lib/ar/photo-marker";
 import { listArTargets } from "@/lib/ar/service";
 import { requireViewer } from "@/lib/auth/session";
 import { getGameRules } from "@/lib/game/rules-service";
@@ -15,7 +17,7 @@ export const dynamic = "force-dynamic";
 export default async function ArPage() {
   const { session } = await requireViewer();
   const rules = await getGameRules();
-  const { targets, own, conflicts } = await listArTargets(session.user.id, new Date(), rules);
+  const [{ targets, own, conflicts }, photoMarker] = await Promise.all([listArTargets(session.user.id, new Date(), rules), getPhotoMarker(session.user.id)]);
   const others = targets.filter((t) => !t.mine);
 
   return (
@@ -23,7 +25,8 @@ export default async function ArPage() {
       <header>
         <h1 className="font-display text-3xl font-semibold tracking-tight text-cream-50">Voir en vrai</h1>
         <p className="mt-1 text-sm text-cream-500">
-          Chaque créature a son propre marqueur imprimé. Pose-en un ou plusieurs sur la table : les créatures apparaissent dessus, dans l&apos;image de ta caméra.
+          Chaque créature a son propre marqueur imprimé, ou une photo que tu choisis. Pose-en un ou plusieurs sur la table : les créatures apparaissent dessus, dans l&apos;image de ta
+          caméra.
         </p>
       </header>
 
@@ -72,7 +75,9 @@ export default async function ArPage() {
         </Card>
       ) : null}
 
-      {own ? <MarkerCard name={own.creature.name ?? "ta créature"} markerId={own.markerId} creatureId={own.creatureId} /> : null}
+      {own ? <MarkerCard name={own.creature.name ?? "ta créature"} markerId={own.markerId} creatureId={own.creatureId} photoUrl={own.image ?? null} /> : null}
+
+      <PhotoMarkerCard initial={photoMarker} />
 
       <Card>
         <CardTitle>Créatures reconnues sur ton écran</CardTitle>
@@ -108,6 +113,7 @@ export default async function ArPage() {
           <li>Lance la caméra et cadre le carré.</li>
           <li>Ta créature se tient dessus, avec ses accessoires. Approche-toi, éloigne-toi, déplace la feuille : elle suit. Fais tourner la feuille : tu la vois de profil, puis de dos.</li>
           <li>Ajoute les marqueurs de tes amis pour voir plusieurs créatures à la fois, puis prends une photo.</li>
+          <li>Tu préfères un objet à toi ? Active le marqueur photo ci-dessus : un dessin au stylo sur une feuille, un motif, ta main.</li>
         </ol>
         <p className="mt-3 text-xs text-cream-700">Les images de la caméra sont analysées sur ton téléphone et n&apos;en sortent jamais.</p>
       </Card>

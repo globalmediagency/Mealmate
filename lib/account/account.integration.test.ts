@@ -24,6 +24,10 @@ const storage: ObjectStorage = {
   async put(key, bytes) {
     stored.set(key, bytes);
   },
+  async get(key) {
+    const bytes = stored.get(key);
+    return bytes ? { bytes, contentType: "image/jpeg" } : null;
+  },
   async signedUrl(key) {
     return `https://signed.example/${key}`;
   },
@@ -129,7 +133,7 @@ describe("deletion", () => {
     expect(before).toMatchObject({ profiles: 1, creatures: 1, meals: 1, friendships: 1, gifts: 1, trades: 1, inventory: 1, purchases: 1 });
 
     const report = await deleteAccount(alice, { storage, stravaApi });
-    expect(report).toEqual({ photosRemoved: 1, stravaRevoked: true, deleted: true });
+    expect(report).toEqual({ photosRemoved: 1, markersRemoved: 0, stravaRevoked: true, deleted: true });
     expect(stravaCalls.deauthorized).toBe(1);
     expect([...stored.keys()].some((k) => k.startsWith(`meals/${alice}/`))).toBe(false);
 
@@ -142,9 +146,9 @@ describe("deletion", () => {
 
   it("is a no-op on a missing user and tolerates an unconfigured storage", async () => {
     const report = await deleteAccount("nobody", { storage, stravaApi });
-    expect(report).toEqual({ photosRemoved: 0, stravaRevoked: false, deleted: false });
+    expect(report).toEqual({ photosRemoved: 0, markersRemoved: 0, stravaRevoked: false, deleted: false });
     const { ConfigError } = await import("@/lib/env");
     const broken: ObjectStorage = { ...storage, removePrefix: async () => { throw new ConfigError(["R2_BUCKET"]); } };
-    expect(await purgeExternalData(bob, { storage: broken, stravaApi })).toEqual({ photosRemoved: 0, stravaRevoked: false });
+    expect(await purgeExternalData(bob, { storage: broken, stravaApi })).toEqual({ photosRemoved: 0, markersRemoved: 0, stravaRevoked: false });
   });
 });
