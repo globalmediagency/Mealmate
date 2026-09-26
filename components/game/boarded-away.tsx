@@ -2,7 +2,7 @@
 
 import { Heart, Smile, Tent, Utensils } from "lucide-react";
 import { Creature, type EquippedAccessory } from "@/components/creatures/creature";
-import { Environment } from "@/components/creatures/environment";
+import { SceneBackdrop } from "@/components/backdrops/scene-backdrop";
 import { RarityBadge } from "@/components/creatures/rarity-badge";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -48,7 +48,7 @@ export function BoardedAway({ creature, accessories, boarding, host }: { creatur
 
       <section className="relative overflow-hidden rounded-3xl border border-ink-600/80 shadow-card" style={{ height: "min(48vh, 400px)" }}>
         <div className="absolute inset-0">
-          <Environment tier={creature.tier} />
+          <SceneBackdrop choice={creature.backdrop} tier={creature.tier} />
         </div>
         <div className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full border border-cream-100/10 bg-ink-900/80 px-3 py-1.5 text-xs font-semibold text-cream-100 backdrop-blur">
           <Tent className="h-4 w-4 text-sage-300" aria-hidden="true" />

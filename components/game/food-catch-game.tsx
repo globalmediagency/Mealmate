@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Creature, type EquippedAccessory, type Reaction } from "@/components/creatures/creature";
-import { Environment } from "@/components/creatures/environment";
+import { SceneBackdrop } from "@/components/backdrops/scene-backdrop";
 import { Alert } from "@/components/ui/alert";
 import { Button, LinkButton } from "@/components/ui/button";
 import { getSpecies } from "@/lib/creatures";
@@ -252,7 +252,7 @@ export function FoodCatchGame({ creature, accessories, playsLeft: initialPlaysLe
         aria-label="Zone de jeu"
       >
         <div className="absolute inset-0">
-          <Environment tier={creature.tier} />
+          <SceneBackdrop choice={creature.backdrop} tier={creature.tier} />
         </div>
 
         {Array.from({ length: POOL }).map((_, i) => (

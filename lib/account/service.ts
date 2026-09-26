@@ -17,6 +17,7 @@ import {
   trades,
   user,
   userAccessories,
+  userBackdrops,
   arenaMatches,
   arenaPlayers,
   arenaStakes,
@@ -42,7 +43,7 @@ function omit<T extends object, K extends keyof T>(row: T, keys: readonly K[]): 
 /** Everything MealMate holds about a user, as plain JSON (photos are listed by date only, never by key). */
 export async function exportAccount(userId: string, now: Date = new Date()) {
   const db = getDb();
-  const [users, profileRows, creatureRows, mealRows, stepRows, playRows, accessoryRows, friendshipRows, purchaseRows, inventoryRows, giftRows, tradeRows, boardingRows, coachingRows, strava] =
+  const [users, profileRows, creatureRows, mealRows, stepRows, playRows, accessoryRows, backdropRows, friendshipRows, purchaseRows, inventoryRows, giftRows, tradeRows, boardingRows, coachingRows, strava] =
     await Promise.all([
       db.select({ email: user.email, name: user.name, createdAt: user.createdAt }).from(user).where(eq(user.id, userId)),
       db.select({ username: profiles.username, friendCode: profiles.friendCode, createdAt: profiles.createdAt, theme: profiles.theme }).from(profiles).where(eq(profiles.userId, userId)),
@@ -51,6 +52,7 @@ export async function exportAccount(userId: string, now: Date = new Date()) {
       db.select().from(stepEntries).where(eq(stepEntries.userId, userId)).orderBy(desc(stepEntries.date)),
       db.select().from(playSessions).where(eq(playSessions.userId, userId)).orderBy(desc(playSessions.createdAt)),
       db.select().from(userAccessories).where(eq(userAccessories.userId, userId)),
+      db.select().from(userBackdrops).where(eq(userBackdrops.userId, userId)),
       db.select().from(friendships).where(or(eq(friendships.requesterId, userId), eq(friendships.addresseeId, userId))),
       db.select().from(purchases).where(eq(purchases.userId, userId)).orderBy(desc(purchases.createdAt)),
       db.select().from(inventory).where(eq(inventory.userId, userId)),
@@ -85,6 +87,7 @@ export async function exportAccount(userId: string, now: Date = new Date()) {
     steps: stepRows.map((row) => omit(row, ["userId"])),
     playSessions: playRows.map((row) => omit(row, ["userId"])),
     accessories: accessoryRows.map(({ accessoryId, obtainedAt, qty }) => ({ accessoryId, obtainedAt, qty })),
+    backdrops: backdropRows.map(({ backdropId, obtainedAt }) => ({ backdropId, obtainedAt })),
     friends: friendshipRows.map((f) => ({ username: other(f.requesterId === userId ? f.addresseeId : f.requesterId), status: f.status, direction: f.requesterId === userId ? "sent" : "received", since: f.createdAt })),
     purchases: purchaseRows.map((row) => omit(row, ["userId"])),
     inventory: inventoryRows.map(({ item, qty }) => ({ item, qty })),
@@ -139,6 +142,7 @@ export async function countUserFootprint(userId: string): Promise<Record<string,
     meals: await count(db.select().from(meals).where(eq(meals.userId, userId))),
     steps: await count(db.select().from(stepEntries).where(eq(stepEntries.userId, userId))),
     accessories: await count(db.select().from(userAccessories).where(eq(userAccessories.userId, userId))),
+    backdrops: await count(db.select().from(userBackdrops).where(eq(userBackdrops.userId, userId))),
     friendships: await count(db.select().from(friendships).where(or(eq(friendships.requesterId, userId), eq(friendships.addresseeId, userId)))),
     purchases: await count(db.select().from(purchases).where(eq(purchases.userId, userId))),
     inventory: await count(db.select().from(inventory).where(eq(inventory.userId, userId))),

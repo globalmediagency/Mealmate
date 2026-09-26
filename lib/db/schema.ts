@@ -152,6 +152,8 @@ export const creatures = pgTable(
     chestBonusSteps: integer("chest_bonus_steps").notNull().default(0),
     /** AprilTag number of the creature's printed marker for "Voir en vrai" (spec § 3.19, migration 013), assigned on first use. */
     arMarker: integer("ar_marker"),
+    /** Backdrop picked in the wardrobe (spec § 3.28, migration 021); NULL = the scene of the design in force. */
+    backdrop: text("backdrop"),
   },
   (table) => [
     index("creatures_user_status_idx").on(table.userId, table.status),
@@ -269,6 +271,19 @@ export const userAccessories = pgTable(
     qty: integer("qty").notNull().default(1),
   },
   (table) => [primaryKey({ columns: [table.userId, table.accessoryId] })],
+);
+
+/** Backdrops found in step chests (spec § 3.28, migration 021); the five design scenes are always available and never stored. */
+export const userBackdrops = pgTable(
+  "user_backdrops",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    backdropId: text("backdrop_id").notNull(),
+    obtainedAt: timestamptz("obtained_at").notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.backdropId] })],
 );
 
 export const creatureOutfits = pgTable(

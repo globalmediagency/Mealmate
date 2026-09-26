@@ -234,7 +234,9 @@ describe("the host takes care of the creature", () => {
     const miso = (await getHeldCreature(bob, misoId, T1)).creature;
     expect((await getChestStatus(miso)).earned).toBe(4);
     await expect(openChest(bob, miso, () => 0)).rejects.toMatchObject({ code: "forbidden" });
-    const reward = await openChest(bob, miso, () => 0, { boarded: true });
+    // First roll 0.9: no backdrop in this chest; the accessory draw takes the next rolls.
+    const reward = await openChest(bob, miso, () => 0.9, { boarded: true });
+    if (reward.kind !== "accessory") throw new Error("Expected an accessory.");
     expect((await getOwnedAccessories(bob)).some((o) => o.accessory.id === reward.accessory.id)).toBe(true);
     expect((await getOwnedAccessories(alice)).some((o) => o.accessory.id === reward.accessory.id)).toBe(false);
   });

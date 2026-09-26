@@ -245,6 +245,11 @@ public/sw.js, icons/    Service worker et icônes
 - **Joueur** : « Plus » → Apparence montre les designs proposés en cartes peintes avec leurs propres couleurs et polices ; toucher une carte change la page aussitôt, enregistre le choix sur le compte (`profiles.theme`, migration 020) et sur l'appareil (cookie `mm_theme`, un an) ; « Suivre le design par défaut » remet `NULL`. Le layout racine rend le design du cookie (toutes les pages, connexion comprise, sans flash) ; dans l'app, le design du compte l'emporte et corrige le cookie si besoin.
 - **Admin** : onglet « Apparence » (`/admin/apparence`) : chaque design avec sa miniature, un interrupteur « Proposé / Désactivé » et « Définir par défaut » ; le défaut est toujours proposé (promouvoir un design désactivé le réactive, désactiver le défaut est refusé). Un design désactivé disparaît du sélecteur et les joueurs qui l'avaient reviennent au défaut (leur choix est conservé au cas où il revient). Réglages dans `game_settings` id `themes`, cache 60 s.
 
+### 3.28 Fonds de scène (décor derrière la créature)
+- **Un fond par design** : chaque design du site a sa propre scène derrière la créature, peinte avec ses couleurs (Forêt = la clairière nocturne d'origine, Sable = dunes, Plage = bord de mer, Rose poudré = jardin de roses, Velours noir = salon à rideaux et lustre). Par défaut (`creatures.backdrop = NULL`), la scène suit le design en vigueur, et change à l'instant où le joueur change de design.
+- **Dix fonds à trouver dans les coffres** (`lib/backdrops/catalog.ts`) : Prairie d'été, Lagon turquoise, Nuit de neige, Savane dorée (communs), Cerisiers en fleurs, Aurore boréale, Orage lointain (rares), Volcan endormi, Toits de la ville (très rares), Voie lactée (légendaire). Un coffre de pas a 25 % de chances (`BACKDROP_DROPS.chestChance`) de contenir un fond que le joueur n'a pas encore, pondéré par rareté comme les accessoires ; jamais de doublon, et plus aucun fond une fois les dix trouvés (le coffre redonne alors un accessoire). L'ouvreur garde le fond (l'hôte d'une pension aussi) ; l'écran du coffre propose « Mettre ce décor ».
+- **Garde-robe** : onglet « Fond » avec « Selon le design », les cinq fonds de design (toujours disponibles) et les dix fonds de coffre (les non trouvés grisés, verrouillés, « à trouver dans un coffre »). Le choix est par créature (`POST /api/backdrops { backdropId | null }`), réservé au propriétaire d'une créature vivante ; il s'affiche sur l'écran Créature, en pension chez un ami, dans Attrape-repas et dans la garde-robe. Table `user_backdrops` (migration 021), export et suppression du compte inclus.
+
 ## 4. Schéma de données
 
 Source de vérité : `db/init.sql` (idempotent) ⇄ `lib/db/schema.ts`. Colonnes en `snake_case`, horodatages en `timestamptz`.
@@ -253,12 +258,13 @@ Source de vérité : `db/init.sql` (idempotent) ⇄ `lib/db/schema.ts`. Colonnes
 |---|---|---|
 | `user`, `session`, `account`, `verification` | Better Auth | Index sur `session.user_id`, `account.user_id`, `verification.identifier` |
 | `profiles` | Pseudo + code ami | PK `user_id`, `friend_code` unique, index unique `lower(username)`, `theme` (design choisi, migration 020) |
-| `creatures` | Œuf → vivante → morte | `status ∈ {egg, alive, dead}`, `tier`, `species_id`, `rarity`, stats (`health`, `hunger`, `mood` en double precision, `xp` entier), `sick_since`, `protected_until`, `last_tick_at`, mort (`died_at`, `death_cause`, `lifespan_days`), `mourned_at` (migration 002), `accessory_drops` (migration 004), `chest_bonus_steps` (migration 012), `ar_marker` (migration 013). Index `(user_id, status)` + **index unique partiel** `user_id WHERE status IN ('egg','alive')` (une seule créature active) |
+| `creatures` | Œuf → vivante → morte | `status ∈ {egg, alive, dead}`, `tier`, `species_id`, `rarity`, stats (`health`, `hunger`, `mood` en double precision, `xp` entier), `sick_since`, `protected_until`, `last_tick_at`, mort (`died_at`, `death_cause`, `lifespan_days`), `mourned_at` (migration 002), `accessory_drops` (migration 004), `chest_bonus_steps` (migration 012), `ar_marker` (migration 013), `backdrop` (fond choisi, migration 021). Index `(user_id, status)` + **index unique partiel** `user_id WHERE status IN ('egg','alive')` (une seule créature active) |
 | `meals` | Repas analysés | `image_key`, `image_hash` (SHA-256, anti-doublon 24 h), `score`, `verdict`, `foods` jsonb, `macros` jsonb, `portion`, `comment`, `creature_line`, `health_delta` |
 | `step_entries` | Pas | `date`, `steps`, `source ∈ {manual, strava, pedometer}`, `strava_activity_id` unique, `credited_steps` (pas déjà convertis en effets, migration 001) ; index unique partiel `(user_id, date, source) WHERE source='manual'` |
 | `play_sessions` | Mini-jeux | `creature_id`, `user_id`, `score`, `kind ∈ {catch, defense, arena, coop, pingpong}` (migrations 014, 015, 016, 018) |
 | `user_accessories` (avec `qty`, migration 008) | Accessoires possédés | PK `(user_id, accessory_id)` |
 | `creature_outfits` | Tenue équipée | PK `(creature_id, slot)`, `slot ∈ {head, eyes, neck, body}` |
+| `user_backdrops` (migration 021) | Fonds de scène trouvés dans les coffres | PK `(user_id, backdrop_id)` |
 | `friendships` | Amis | `requester_id`, `addressee_id`, `status ∈ {pending, accepted}`, unique sur la paire, `requester ≠ addressee` |
 | `purchases` | Achats Stripe | `stripe_session_id` unique (idempotence webhook), `item`, `amount_cents`, `status` (`pending` / `paid` / `cancelled`) |
 | `gifts` | Soins envoyés à un ami (phase 7) | `from_user_id`, `to_user_id`, `creature_id` (nullable), `item`, `seen_at` |
@@ -315,7 +321,8 @@ Phase 5 :
 - `GET /api/arena/:id/ice` — `{ iceServers, ttl }` : serveurs ICE du relais TURN Cloudflare avec identifiants temporaires (vide sans configuration), pour un joueur d'une partie ouverte.
 - `GET /api/arena/:id/signals?since=` — signaux WebRTC adressés au joueur (`{ signals: [{ id, from, payload }], cursor }`) ; `POST /api/arena/:id/signals { to, type: hello | offer | answer, session, target?, sdp? }` — relaie un signal à un autre joueur de la partie (salle ou bataille).
 - `GET /api/accessories` — `{ owned, outfit, chest }` ; `POST /api/accessories { slot, accessoryId | null }` — équiper / retirer.
-- `POST /api/accessories/open` — ouvre un coffre gagné.
+- `POST /api/accessories/open` — ouvre un coffre gagné : `{ kind: "accessory", accessory, duplicate, copies, equipped, status }` ou `{ kind: "backdrop", backdrop, equipped, status }` (§ 3.28).
+- `GET /api/backdrops` → `{ owned, current }` ; `POST /api/backdrops { backdropId | null }` — le fond derrière sa créature vivante (`unknown_backdrop` 404, `not_owned` 403 ; `null` = suivre le design).
 
 Phase 6 :
 - `GET /api/friends` — `{ me, friends, incoming, outgoing }` ; `POST /api/friends { query }` — demande par code ou pseudo.

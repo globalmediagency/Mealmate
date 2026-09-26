@@ -344,6 +344,19 @@ ALTER TABLE play_sessions ADD CONSTRAINT play_sessions_kind_check CHECK (kind IN
     checks: [{ table: "profiles", column: "theme" }],
     sql: `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS theme text;`,
   },
+  {
+    id: "021",
+    file: "021_backdrops.sql",
+    title: "Fonds de scène : choix par créature et fonds trouvés dans les coffres",
+    checks: [{ table: "creatures", column: "backdrop" }, { table: "user_backdrops" }],
+    sql: `ALTER TABLE creatures ADD COLUMN IF NOT EXISTS backdrop text;
+CREATE TABLE IF NOT EXISTS user_backdrops (
+  user_id     text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  backdrop_id text NOT NULL,
+  obtained_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, backdrop_id)
+);`,
+  },
 ];
 
 /** Migrations whose checks fail against the given set of existing `table` / `table.column` keys. */

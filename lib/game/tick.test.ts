@@ -31,6 +31,7 @@ function creature(overrides: Partial<Creature> = {}): Creature {
     accessoryDrops: 0,
     chestBonusSteps: 0,
     arMarker: null,
+    backdrop: null,
     ...overrides,
   };
 }

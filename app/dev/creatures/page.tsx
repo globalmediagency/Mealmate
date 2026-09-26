@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Creature } from "@/components/creatures/creature";
 import { Egg } from "@/components/creatures/egg";
-import { Environment } from "@/components/creatures/environment";
+import { Backdrop } from "@/components/backdrops";
+import { BACKDROPS } from "@/lib/backdrops/catalog";
 import { RarityBadge } from "@/components/creatures/rarity-badge";
 import { ALL_SPECIES, getSpecies } from "@/lib/creatures";
 import { ACCESSORIES } from "@/lib/accessories/catalog";
@@ -120,8 +121,23 @@ export default async function DevCreaturesPage({ searchParams }: { searchParams:
                 ))}
               </div>
               <div className="mt-3 h-24 overflow-hidden rounded-2xl">
-                <Environment tier={tier} />
+                <Backdrop id="foret" tier={tier} />
               </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mb-10">
+        <h2 className="mb-3 font-display text-xl text-cream-50">Fonds de scène ({BACKDROPS.length})</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {BACKDROPS.map((b) => (
+            <div key={b.id} className="rounded-3xl border border-ink-600/80 bg-ink-800/80 p-2 text-center" data-backdrop-card={b.id}>
+              <div className="h-28 overflow-hidden rounded-2xl">
+                <Backdrop id={b.id} tier="facile" />
+              </div>
+              <p className="mt-2 text-xs font-semibold text-cream-100">{b.name}</p>
+              <p className="text-[10px] text-cream-500">{b.theme ? `design ${b.theme}` : b.rarity}</p>
             </div>
           ))}
         </div>

@@ -4,8 +4,10 @@ import { createEgg, getActiveCreature, hatchEgg, nameCreature } from "@/lib/crea
 import { countPlaysToday, recordPlay } from "@/lib/play/service";
 import { saveManualSteps } from "@/lib/steps/service";
 import { createTestDatabase, insertTestUser, type TestDatabase } from "@/lib/test/pglite";
+import { CHEST_BACKDROPS, backdropsByRarity } from "@/lib/backdrops/catalog";
+import { addBackdrop, getOwnedBackdrops, setCreatureBackdrop } from "@/lib/backdrops/service";
 import { accessoriesByRarity } from "./catalog";
-import { addAccessoryCopies, equipAccessory, getChestStatus, getOutfit, getOwnedAccessories, openChest, takeAccessoryCopy } from "./service";
+import { addAccessoryCopies, equipAccessory, getChestStatus, getOutfit, getOwnedAccessories, openChest, takeAccessoryCopy, type AccessoryReward, type BackdropReward, type ChestReward } from "./service";
 
 let tdb: TestDatabase;
 let userId: string;
@@ -28,6 +30,19 @@ function sequence(values: number[]): () => number {
   return () => values[Math.min(i++, values.length - 1)];
 }
 
+/** A chest whose first roll (≥ the backdrop chance) skips the backdrop, then draws the accessory with the next rolls. */
+const NO_BACKDROP = 0.99;
+
+function accessoryOf(reward: ChestReward): AccessoryReward {
+  if (reward.kind !== "accessory") throw new Error(`Expected an accessory, got ${reward.kind}.`);
+  return reward;
+}
+
+function backdropOf(reward: ChestReward): BackdropReward {
+  if (reward.kind !== "backdrop") throw new Error(`Expected a backdrop, got ${reward.kind}.`);
+  return reward;
+}
+
 describe("chests", () => {
   it("earns one chest per 5 000 steps since the hatch day", async () => {
     const creature = (await getActiveCreature(userId))!;
@@ -40,7 +55,7 @@ describe("chests", () => {
   it("opens a chest, grants the accessory, then turns duplicates into xp", async () => {
     const groups = accessoriesByRarity();
     let creature = (await getActiveCreature(userId))!;
-    const first = await openChest(userId, creature, sequence([0, 0]));
+    const first = accessoryOf(await openChest(userId, creature, sequence([NO_BACKDROP, 0, 0])));
     expect(first.accessory.id).toBe(groups.commun[0].id);
     expect(first.duplicate).toBe(false);
     expect(first.equipped).toBe(false);
@@ -50,7 +65,7 @@ describe("chests", () => {
     creature = (await getActiveCreature(userId))!;
     await equipAccessory(userId, creature, groups.commun[0].slot, groups.commun[0].id);
     const xpBefore = creature.xp;
-    const second = await openChest(userId, creature, sequence([0, 0]));
+    const second = accessoryOf(await openChest(userId, creature, sequence([NO_BACKDROP, 0, 0])));
     expect(second.duplicate).toBe(true);
     expect(second.copies).toBe(2);
     expect(second.equipped).toBe(true); // already worn: the reveal shows "Déjà porté" instead of "Équiper"
@@ -73,10 +88,37 @@ describe("chests", () => {
     expect(await addAccessoryCopies(userId, id)).toBe(1);
   });
 
+  it("hands out a backdrop the opener is missing, never twice, then accessories only once the set is complete", async () => {
+    // Give one more chest: 5 000 steps the day after hatching.
+    const tomorrow = new Date(Date.now() + 24 * 3600 * 1000).toISOString().slice(0, 10);
+    await saveManualSteps(userId, 5_000, await getActiveCreature(userId), tomorrow);
+    let creature = (await getActiveCreature(userId))!;
+    expect((await getChestStatus(creature)).available).toBe(2);
+    // A low first roll = a backdrop; the second roll (0) lands on the first common scene.
+    const found = backdropOf(await openChest(userId, creature, sequence([0, 0])));
+    expect(found.backdrop.id).toBe(backdropsByRarity().commun[0].id);
+    expect(found.equipped).toBe(false);
+    expect(found.status.available).toBe(1);
+    expect((await getOwnedBackdrops(userId)).map((o) => o.backdrop.id)).toEqual([found.backdrop.id]);
+    // The wardrobe: a found scene or a design scene can be picked, an unknown or missing one cannot.
+    creature = (await getActiveCreature(userId))!;
+    expect(await setCreatureBackdrop(userId, creature, found.backdrop.id)).toBe(found.backdrop.id);
+    expect((await getActiveCreature(userId))!.backdrop).toBe(found.backdrop.id);
+    expect(await setCreatureBackdrop(userId, creature, "velours")).toBe("velours");
+    await expect(setCreatureBackdrop(userId, creature, "galaxie")).rejects.toMatchObject({ code: "not_owned" });
+    await expect(setCreatureBackdrop(userId, creature, "nope")).rejects.toMatchObject({ code: "unknown_backdrop" });
+    expect(await setCreatureBackdrop(userId, creature, null)).toBeNull();
+    // Once every chest scene is found, the low roll gives an accessory again.
+    for (const b of CHEST_BACKDROPS) await addBackdrop(userId, b.id);
+    expect(await addBackdrop(userId, CHEST_BACKDROPS[0].id)).toBe(false);
+    expect((await getOwnedBackdrops(userId)).length).toBe(CHEST_BACKDROPS.length);
+    creature = (await getActiveCreature(userId))!;
+    expect((await openChest(userId, creature, sequence([0, 0]))).kind).toBe("accessory");
+  });
+
   it("refuses to open the same chest twice concurrently", async () => {
     const creature = (await getActiveCreature(userId))!;
-    await openChest(userId, creature, sequence([0.7, 0]));
-    await expect(openChest(userId, creature, sequence([0.7, 0]))).rejects.toMatchObject({ code: "no_chest" });
+    await expect(openChest(userId, creature, sequence([NO_BACKDROP, 0.7, 0]))).rejects.toMatchObject({ code: "no_chest" });
     const fresh = (await getActiveCreature(userId))!;
     await expect(openChest(userId, fresh)).rejects.toMatchObject({ code: "no_chest" });
   });

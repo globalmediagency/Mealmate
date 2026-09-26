@@ -104,6 +104,7 @@ CREATE TABLE IF NOT EXISTS creatures (
   accessory_drops integer NOT NULL DEFAULT 0,
   chest_bonus_steps integer NOT NULL DEFAULT 0,
   ar_marker integer,
+  backdrop text,
   CONSTRAINT creatures_tier_check   CHECK (tier IN ('facile', 'moyen', 'difficile')),
   CONSTRAINT creatures_status_check CHECK (status IN ('egg', 'alive', 'dead'))
 );
@@ -181,6 +182,13 @@ CREATE TABLE IF NOT EXISTS user_accessories (
   obtained_at  timestamptz NOT NULL DEFAULT now(),
   qty          integer NOT NULL DEFAULT 1,
   PRIMARY KEY (user_id, accessory_id)
+);
+
+CREATE TABLE IF NOT EXISTS user_backdrops (
+  user_id     text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  backdrop_id text NOT NULL,
+  obtained_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, backdrop_id)
 );
 
 CREATE TABLE IF NOT EXISTS creature_outfits (

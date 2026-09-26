@@ -46,6 +46,7 @@ import { RulesForm } from "@/components/admin/rules-form";
 import { FoodCatchGame } from "@/components/game/food-catch-game";
 import { Wardrobe } from "@/components/game/wardrobe";
 import { ChestOpener } from "@/components/game/chest-reveal";
+import { getBackdrop } from "@/lib/backdrops/catalog";
 import { ACCESSORIES, getAccessory } from "@/lib/accessories/catalog";
 import { CollectionGrid } from "@/components/game/collection-grid";
 import { FriendsPanel } from "@/components/game/friends-panel";
@@ -100,6 +101,7 @@ function mockCreature(overrides: Partial<CreatureView>): CreatureView {
     healthyScoreThreshold: 40,
     moodBand: "happy",
     moodEffects: moodEffectsFor({ status: "alive", mood: 72 }),
+    backdrop: null,
     ...overrides,
   };
 }
@@ -600,6 +602,8 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
           owned={ACCESSORIES.filter((a) => ["straw_hat", "beret", "round_glasses", "scarf", "bow_tie", "cape", "top_hat"].includes(a.id))}
           outfit={{ head: "straw_hat", neck: "scarf" }}
           counts={{ straw_hat: 2, beret: 3 }}
+          ownedBackdrops={["prairie", "aurore", "galaxie"]}
+          preview
         />
       );
       break;
@@ -733,6 +737,11 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
       content = (
         <div className="space-y-4">
           <ChestOpener status={{ totalSteps: 12_300, earned: 2, opened: 0, available: 2, stepsToNext: 2_700, stepsPerChest: 5_000 }} canEquip />
+          <ChestOpener
+            status={{ totalSteps: 12_300, earned: 2, opened: 1, available: 1, stepsToNext: 2_700, stepsPerChest: 5_000 }}
+            canEquip
+            preview={{ kind: "backdrop", backdrop: getBackdrop("aurore")!, equipped: false, status: { totalSteps: 12_300, earned: 2, opened: 1, available: 1, stepsToNext: 2_700, stepsPerChest: 5_000 } }}
+          />
           <ChestOpener status={{ totalSteps: 3_200, earned: 0, opened: 0, available: 0, stepsToNext: 1_800, stepsPerChest: 5_000 }} canEquip />
         </div>
       );

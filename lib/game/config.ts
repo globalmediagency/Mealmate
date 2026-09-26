@@ -123,6 +123,11 @@ export const ACCESSORY_RARITY_WEIGHTS: Record<Rarity, number> = {
   legendaire: 0.02,
 };
 
+/** Backdrops found in step chests (spec § 3.28): the chance a chest holds one instead of an accessory while some are still missing. */
+export const BACKDROP_DROPS = {
+  chestChance: 0.25,
+} as const;
+
 /** Visual state thresholds derived from health. */
 export const HEALTH_STATE = {
   healthyMin: 60,

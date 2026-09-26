@@ -34,6 +34,7 @@ function view(overrides: Partial<CreatureView> = {}): CreatureView {
     healthyScoreThreshold: 40,
     moodBand: "happy",
     moodEffects: moodEffectsFor({ status: "alive", mood: 72 }),
+    backdrop: null,
     ...overrides,
   };
 }

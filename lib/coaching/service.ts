@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { rewardPool } from "@/lib/accessories/catalog";
-import { addAccessoryCopies, getOwnedAccessories, type ChestReward } from "@/lib/accessories/service";
+import { addAccessoryCopies, getOwnedAccessories, type AccessoryReward } from "@/lib/accessories/service";
 import { DomainError } from "@/lib/api/errors";
 import { getDb } from "@/lib/db";
 import { coachings, mealReviews, meals, profiles, type Coaching } from "@/lib/db/schema";
@@ -268,7 +268,7 @@ export async function rewardStatuses(userId: string, rules?: GameRules): Promise
   };
 }
 
-export type CoachingReward = Omit<ChestReward, "status" | "equipped"> & { reward: RewardStatus };
+export type CoachingReward = Omit<AccessoryReward, "kind" | "status" | "equipped"> & { reward: RewardStatus };
 
 /** Opens one earned surprise accessory: the pool is every chest accessory plus the ones reserved to the role. */
 export async function openCoachingReward(userId: string, role: CoachingRole, rules?: GameRules, random?: () => number): Promise<CoachingReward> {

@@ -108,6 +108,7 @@ Si tu avais déjà exécuté `db/init.sql` avant une phase, colle ses migrations
 - mises de l'arène (accessoires pariés) : [`db/migrations/017_arena_stakes.sql`](./db/migrations/017_arena_stakes.sql)
 - ping-pong (duel) : [`db/migrations/018_pingpong.sql`](./db/migrations/018_pingpong.sql)
 - designs du site : [`db/migrations/020_profile_theme.sql`](./db/migrations/020_profile_theme.sql)
+- fonds de scène (garde-robe et coffres) : [`db/migrations/021_backdrops.sql`](./db/migrations/021_backdrops.sql)
 
 Si une migration manque, l'application l'indique elle-même : au lieu de planter, elle affiche « La base de données doit être mise à jour » avec le SQL exact à copier dans Neon → SQL Editor (bouton « Copier le SQL »). Recharge la page une fois le SQL exécuté.
 
@@ -378,6 +379,9 @@ apparaissent alors, sans connexion nécessaire :
 18. **Designs du site** (migration `020`) : dans « Plus » → Apparence, choisis parmi cinq designs (Forêt, Sable, Plage, Rose poudré,
     Velours noir : couleurs, polices, formes) ; le choix te suit sur tous tes appareils. Dans l'admin, onglet Apparence, tu proposes
     ou retires chaque design et tu définis celui par défaut.
+19. **Fonds de scène** (migration `021`) : chaque design a son propre décor derrière la créature, et dix autres décors se cachent
+    dans les coffres de pas (un coffre sur quatre environ, jamais deux fois le même). Dans « Habiller » → onglet Fond, tu choisis
+    « Selon le design », un décor de design ou un décor trouvé ; les décors manquants restent affichés, verrouillés.
 
 ## 5. Limites connues
 

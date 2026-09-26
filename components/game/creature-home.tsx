@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useLiveArena } from "@/components/arena/live-arena";
 import { type EquippedAccessory, type Reaction } from "@/components/creatures/creature";
-import { Environment } from "@/components/creatures/environment";
+import { SceneBackdrop } from "@/components/backdrops/scene-backdrop";
 import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/button";
 import { getSpecies } from "@/lib/creatures";
@@ -135,7 +135,7 @@ export function CreatureHome({ creature, line, accessories = [], chest = null, t
 
       <section className="relative overflow-hidden rounded-3xl border border-ink-600/80 shadow-card" style={{ height: "min(44vh, 360px)" }}>
         <div className="absolute inset-0">
-          <Environment tier={creature.tier} />
+          <SceneBackdrop choice={creature.backdrop} tier={creature.tier} />
         </div>
         <div className="absolute left-3 right-32 top-3 flex justify-start">
           <p
@@ -252,7 +252,7 @@ export function CreatureHome({ creature, line, accessories = [], chest = null, t
           <ChevronRight className="h-4 w-4 shrink-0 text-cream-700" aria-hidden="true" />
         </Link>
       )}
-      {chestOpen && chest ? <ChestOpener status={chest} canEquip={Boolean(creature.name)} /> : null}
+      {chestOpen && chest ? <ChestOpener status={chest} canEquip={Boolean(creature.name)} tier={creature.tier} /> : null}
 
       <section className="space-y-1 rounded-3xl border border-ink-600/80 bg-ink-800/90 px-4 py-3 shadow-card" data-home-stats>
         <Gauge compact icon={Heart} label="Santé" value={creature.health} barClass="bg-health" />

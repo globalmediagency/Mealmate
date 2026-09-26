@@ -4,7 +4,7 @@ import { ChevronLeft, Gamepad2, Gift, Heart, HeartPulse, Smile, Tent, Utensils }
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Creature, type EquippedAccessory, type Reaction } from "@/components/creatures/creature";
-import { Environment } from "@/components/creatures/environment";
+import { SceneBackdrop } from "@/components/backdrops/scene-backdrop";
 import { RarityBadge } from "@/components/creatures/rarity-badge";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -93,7 +93,7 @@ export function PensionHome({ creature: initial, accessories, boarding, owner, i
 
       <section className="relative overflow-hidden rounded-3xl border border-ink-600/80 shadow-card" style={{ height: "min(44vh, 360px)" }}>
         <div className="absolute inset-0">
-          <Environment tier={creature.tier} />
+          <SceneBackdrop choice={creature.backdrop} tier={creature.tier} />
         </div>
         <div className="absolute left-3 right-28 top-3 flex justify-start">
           <p key={bubble} className="max-w-full rounded-2xl rounded-bl-sm border border-cream-100/10 bg-ink-900/80 px-3.5 py-2 text-sm text-cream-100 backdrop-blur animate-rise" aria-live="polite">
@@ -156,7 +156,7 @@ export function PensionHome({ creature: initial, accessories, boarding, owner, i
             <Gift className="h-4 w-4 text-brass-300" aria-hidden="true" />
             Les coffres de {creature.name} pendant la pension sont pour toi.
           </p>
-          <ChestOpener status={chest} canEquip={false} creatureId={creature.id} />
+          <ChestOpener status={chest} canEquip={false} creatureId={creature.id} tier={creature.tier} />
         </div>
       ) : null}
 

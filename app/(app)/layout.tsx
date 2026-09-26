@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { LiveArena } from "@/components/arena/live-arena";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { ConfigMissingScreen } from "@/components/system/config-missing-screen";
+import { ThemeProvider } from "@/components/theme/theme-context";
 import { ThemeSync } from "@/components/theme/theme-sync";
 import { SchemaOutdatedScreen } from "@/components/system/schema-outdated-screen";
 import { requireViewer, safeGetSession } from "@/lib/auth/session";
@@ -38,10 +39,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     getThemeSettings(),
   ]);
 
+  const theme = resolveTheme(profile.theme, themeSettings).id;
   return (
+    <ThemeProvider theme={theme}>
     <div className="min-h-dvh pb-nav">
       {/* The design of the account (« Plus » → Apparence), applied over the device's cookie when they differ. */}
-      <ThemeSync theme={resolveTheme(profile.theme, themeSettings).id} />
+      <ThemeSync theme={theme} />
       <a href="#main" className="skip-link">
         Aller au contenu
       </a>
@@ -51,5 +54,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <BottomNav badges={{ "/friends": pendingRequests + pendingTrades + coaching, "/home": unseenGifts + unseenBoardings + ownerNotices }} />
       </LiveArena>
     </div>
+    </ThemeProvider>
   );
 }
