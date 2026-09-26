@@ -4,22 +4,25 @@ import { Camera, ChevronDown, ChevronRight, Footprints, Gamepad2, Gift, Heart, H
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useLiveArena } from "@/components/arena/live-arena";
-import { Creature, type EquippedAccessory, type Reaction } from "@/components/creatures/creature";
-import { Environment } from "@/components/creatures/environment";
+import { type EquippedAccessory, type Reaction } from "@/components/creatures/creature";
+import { SceneBackdrop } from "@/components/backdrops/scene-backdrop";
 import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/button";
 import { getSpecies } from "@/lib/creatures";
 import { RARITY_LABELS } from "@/lib/game/config";
 import type { CreatureView } from "@/lib/game/creature-view";
+import { DEFAULT_RULES, type HomeRules } from "@/lib/game/rules";
 import { ageLabel, careAction, creatureLine, hungerLabel, moodHelp, moodLabel } from "@/lib/game/dialogue";
 import { SHOP_ITEM_IDS } from "@/lib/game/medicine";
 import type { GiftView, Inventory } from "@/lib/shop/service";
+import type { TossEvent } from "@/lib/game/toss";
 import { cn } from "@/lib/utils/cn";
 import { CareAlert } from "./care-alert";
 import { ChestOpener } from "./chest-reveal";
 import { Gauge } from "./gauge";
 import { GiftsNotice } from "./gifts-notice";
 import { HealPanel } from "./heal-panel";
+import { ThrowableCreature } from "./throwable-creature";
 
 export type HomeChest = { available: number; stepsToNext: number; stepsPerChest: number; opened: number; earned: number; totalSteps: number };
 
@@ -31,6 +34,8 @@ type CreatureHomeProps = {
   chest?: HomeChest | null;
   /** Steps entered today (all sources), for the "Aujourd'hui" line; null = unknown. */
   todaySteps?: number | null;
+  /** Size of the creature and how much it bounces (`rules.home`). */
+  home?: HomeRules;
   /** The player's medicine cupboard: "Soigner" opens it in place. */
   inventory?: Inventory;
   /** Medicine or accessories received from friends and not acknowledged yet. */
@@ -51,7 +56,7 @@ const EMPTY_INVENTORY: Inventory = { sirop: 0, antibiotique: 0, talisman: 0 };
  * Soigner when a dose or an illness makes it useful — then the day's steps and
  * chests, then the compact gauges. The games live behind "Jouer" (the hub).
  */
-export function CreatureHome({ creature, line, accessories = [], chest = null, todaySteps = null, inventory = EMPTY_INVENTORY, gifts = [], playsLeft = null, mealsToday = null, maxMeals }: CreatureHomeProps) {
+export function CreatureHome({ creature, line, accessories = [], chest = null, todaySteps = null, inventory = EMPTY_INVENTORY, gifts = [], playsLeft = null, mealsToday = null, maxMeals, home = DEFAULT_RULES.home }: CreatureHomeProps) {
   const species = creature.species ? getSpecies(creature.species.id) : undefined;
   const live = useLiveArena();
   const [reaction, setReaction] = useState<Reaction | null>(null);
@@ -65,14 +70,40 @@ export function CreatureHome({ creature, line, accessories = [], chest = null, t
     if (timer.current) window.clearTimeout(timer.current);
   }, []);
 
-  function tap() {
-    if (reaction) return;
-    setReaction("tap");
-    setBubble(creature.state === "sick" ? "Doucement…" : "Hihi !");
+  /** One line in the bubble, then back to the creature's own line. */
+  function say(text: string, ms = 1600) {
+    if (timer.current) window.clearTimeout(timer.current);
+    setBubble(text);
     timer.current = window.setTimeout(() => {
       setReaction(null);
       setBubble(creatureLine(creature));
-    }, 1300);
+    }, ms);
+  }
+
+  function tap() {
+    if (reaction) return;
+    setReaction("tap");
+    say(creature.state === "sick" ? "Doucement…" : "Hihi !", 1300);
+  }
+
+  /** What the creature says while it is thrown, loses its things and fetches them back (`ThrowableCreature`). */
+  function onToss(event: TossEvent) {
+    switch (event.kind) {
+      case "throw":
+        say(creature.state === "sick" ? "Ouh… pas si fort…" : "Wouuuh !");
+        break;
+      case "drop":
+        say("Hé ! Mes affaires !");
+        break;
+      case "land":
+        if (event.thrown) say(event.loose > 0 ? "Bon… je ramasse tout ça." : "Encore !");
+        break;
+      case "home":
+        if (event.collected > 0) say("Et voilà, tout est remis en place.");
+        break;
+      default:
+        break;
+    }
   }
 
   if (!species) return null;
@@ -107,7 +138,7 @@ export function CreatureHome({ creature, line, accessories = [], chest = null, t
 
       <section className="relative overflow-hidden rounded-3xl border border-ink-600/80 shadow-card" style={{ height: "min(44vh, 360px)" }}>
         <div className="absolute inset-0">
-          <Environment tier={creature.tier} />
+          <SceneBackdrop choice={creature.backdrop} tier={creature.tier} />
         </div>
         <div className="absolute left-3 right-32 top-3 flex justify-start">
           <p
@@ -126,14 +157,20 @@ export function CreatureHome({ creature, line, accessories = [], chest = null, t
           <ScanLine className="h-4 w-4 text-sage-300" aria-hidden="true" />
           Voir en vrai
         </Link>
-        <button
-          type="button"
-          onClick={tap}
-          aria-label={`Caresser ${creature.name}`}
-          className="absolute inset-x-0 bottom-1 flex justify-center focus-visible:outline-none"
-        >
-          <Creature species={species} stage={creature.stage.id} state={creature.state} size={220} reaction={reaction} accessories={accessories} />
-        </button>
+        <ThrowableCreature
+          species={species}
+          stage={creature.stage.id}
+          state={creature.state}
+          accessories={accessories}
+          size={home.creatureSize}
+          bounce={home.bounce}
+          floorBounce={home.floorBounce}
+          reaction={reaction}
+          label={`Caresser ${creature.name}`}
+          throwable={creature.state !== "dead"}
+          onTap={tap}
+          onToss={onToss}
+        />
       </section>
 
       <nav aria-label="Actions" className={cn("grid gap-2", showHeal ? "grid-cols-4" : "grid-cols-3")} data-home-actions={showHeal ? 4 : 3}>
@@ -220,7 +257,7 @@ export function CreatureHome({ creature, line, accessories = [], chest = null, t
           <ChevronRight className="h-4 w-4 shrink-0 text-cream-700" aria-hidden="true" />
         </Link>
       )}
-      {chestOpen && chest ? <ChestOpener status={chest} canEquip={Boolean(creature.name)} /> : null}
+      {chestOpen && chest ? <ChestOpener status={chest} canEquip={Boolean(creature.name)} tier={creature.tier} /> : null}
 
       <section className="space-y-1 rounded-3xl border border-ink-600/80 bg-ink-800/90 px-4 py-3 shadow-card" data-home-stats>
         <Gauge compact icon={Heart} label="Santé" value={creature.health} barClass="bg-health" />

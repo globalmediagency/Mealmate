@@ -34,6 +34,8 @@ export type CreatureRenderProps = {
   silhouette?: boolean;
   /** Turn of the creature in degrees (spec § 3.19, level 2): 0 faces the camera, 90 shows its left side to the viewer's left, 180 its back. */
   yaw?: number;
+  /** False = no ground shadow in the drawing (the scene paints one that stays on the floor, `ThrowableCreature`). */
+  shadow?: boolean;
   className?: string;
   style?: CSSProperties;
   title?: string;
@@ -60,6 +62,7 @@ const DrawnCreature: CreatureRenderer = ({
   reaction = null,
   silhouette = false,
   yaw = 0,
+  shadow = true,
   className,
   style,
   title,
@@ -157,7 +160,7 @@ const DrawnCreature: CreatureRenderer = ({
         </filter>
       </defs>
 
-      {isAlive && !silhouette ? (
+      {isAlive && !silhouette && shadow ? (
         <ellipse cx="50" cy="93.5" rx={20 * scales.overall * scales.body} ry="2.6" fill="#000" opacity="0.28" />
       ) : null}
 

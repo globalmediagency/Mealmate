@@ -52,6 +52,8 @@ export type CreatureView = {
   /** Mood effects currently in force (spec § 3.18), for the gauge caption and help text. */
   moodBand: MoodBand;
   moodEffects: MoodEffects;
+  /** Backdrop picked in the wardrobe (spec § 3.28); null = the scene of the design in force. */
+  backdrop: string | null;
 };
 
 export type MoodEffects = {
@@ -132,5 +134,6 @@ export function toCreatureView(creature: Creature, now: Date = new Date(), rules
     healthyScoreThreshold: tierRules.healthyScoreThreshold,
     moodBand: moodBand(creature.mood, rules.mood),
     moodEffects: moodEffectsFor(creature, rules),
+    backdrop: creature.backdrop,
   };
 }

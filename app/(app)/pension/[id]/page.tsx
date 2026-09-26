@@ -32,6 +32,7 @@ export default async function PensionPage({ params }: { params: Promise<{ id: st
       owner={held.owner}
       inventory={inventory}
       chest={chest}
+      creatureSize={rules.home.creatureSize}
     />
   );
 }

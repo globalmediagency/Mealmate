@@ -4,7 +4,10 @@ import { notFound } from "next/navigation";
 import { BoardedAway } from "@/components/game/boarded-away";
 import { BoardingProposals, OwnerBoardingNotices } from "@/components/game/boarding-notices";
 import { CreatureHome } from "@/components/game/creature-home";
-import { PlayHub } from "@/components/game/play-hub";
+import { GameList, PlayHub } from "@/components/game/play-hub";
+import { ThemeAdmin } from "@/components/admin/theme-admin";
+import { ThemePicker } from "@/components/theme/theme-picker";
+import { DEFAULT_THEME_SETTINGS, selectableThemes, THEMES } from "@/lib/themes/catalog";
 import { PageHeader } from "@/components/layout/page-header";
 import { HostedCreatures } from "@/components/game/hosted-creatures";
 import { HostedDeathNotice } from "@/components/game/hosted-death-notice";
@@ -19,10 +22,7 @@ import { StepsHistory } from "@/components/game/steps-history";
 import { PlayerCard } from "@/components/admin/player-card";
 import { Creature, type EquippedAccessory } from "@/components/creatures/creature";
 import type { StageId } from "@/lib/game/config";
-import { MarkerCard } from "@/components/ar/marker-card";
 import { ArViewer } from "@/components/ar/ar-viewer";
-import { PhotoMarkerCard } from "@/components/ar/photo-marker-card";
-import { DEV_DOODLE_URL } from "@/lib/ar/dev-doodle";
 import { Creature3dView } from "@/components/ar/three/creature-3d-view";
 import { FoodGallery } from "@/components/ar/three/food-gallery";
 import { ArenaMatch } from "@/components/arena/arena-match";
@@ -46,6 +46,8 @@ import { RulesForm } from "@/components/admin/rules-form";
 import { FoodCatchGame } from "@/components/game/food-catch-game";
 import { Wardrobe } from "@/components/game/wardrobe";
 import { ChestOpener } from "@/components/game/chest-reveal";
+import { BackdropAdmin } from "@/components/admin/backdrop-admin";
+import { getBackdrop } from "@/lib/backdrops/catalog";
 import { ACCESSORIES, getAccessory } from "@/lib/accessories/catalog";
 import { CollectionGrid } from "@/components/game/collection-grid";
 import { FriendsPanel } from "@/components/game/friends-panel";
@@ -64,7 +66,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "photo-marker", "turnaround", "creature-3d", "defense", "defense-boss", "arena", "arena-rtc", "arena-invite", "coop", "pingpong", "food-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "play-catch", "play-empty", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "themes", "turnaround", "creature-3d", "defense", "defense-boss", "arena", "arena-rtc", "arena-invite", "coop", "pingpong", "food-3d", "admin-players", "admin-fonds", "meal-result", "meals", "mourning", "admin", "play", "play-catch", "play-empty", "play-solo", "play-friends", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -100,6 +102,7 @@ function mockCreature(overrides: Partial<CreatureView>): CreatureView {
     healthyScoreThreshold: 40,
     moodBand: "happy",
     moodEffects: moodEffectsFor({ status: "alive", mood: 72 }),
+    backdrop: null,
     ...overrides,
   };
 }
@@ -338,15 +341,6 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
       );
       break;
     }
-    case "photo-marker":
-      content = (
-        <div className="space-y-4">
-          <PhotoMarkerCard initial={{ enabled: false, hasImage: false, updatedAt: null, imageUrl: null }} preview />
-          <PhotoMarkerCard initial={{ enabled: true, hasImage: true, updatedAt: "2026-09-18T10:00:00.000Z", imageUrl: DEV_DOODLE_URL }} preview />
-          <MarkerCard name="Miso" markerId={17} creatureId="00000000-0000-0000-0000-000000000000" photoUrl={DEV_DOODLE_URL} />
-        </div>
-      );
-      break;
     case "ar":
       content = (
         <div className="space-y-4">
@@ -356,7 +350,6 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
                 markerId: 17,
                 mine: true,
                 ownerName: null,
-                image: DEV_DOODLE_URL,
                 creature: { name: "Miso", speciesId: "facile-panda-roux", stage: "enfant", state: "healthy", accessories: [{ slot: "head", id: "beret" }, { slot: "eyes", id: "round_glasses" }] },
               },
               {
@@ -383,6 +376,9 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
           </div>
         </div>
       );
+      break;
+    case "admin-fonds":
+      content = <BackdropAdmin stats={{ found: { prairie: 4, aurore: 2, galaxie: 1 }, inUse: { prairie: 2, galaxie: 1, velours: 1 }, followingDesign: 5 }} />;
       break;
     case "admin-players":
       content = (
@@ -561,6 +557,16 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
     case "admin":
       content = <RulesForm initialRules={DEFAULT_RULES} storedPatch={{}} updatedAt={null} updatedBy={null} />;
       break;
+    case "themes":
+      content = (
+        <div className="space-y-4">
+          <PageHeader title="Apparence" subtitle="Les designs du site : touche une carte pour changer la page (rien n'est enregistré ici)." />
+          <ThemePicker themes={selectableThemes(DEFAULT_THEME_SETTINGS)} defaultId={DEFAULT_THEME_SETTINGS.defaultId} chosen={null} preview />
+          <h2 className="pt-4 font-display text-2xl text-cream-50">Vue admin (Apparence)</h2>
+          <ThemeAdmin themes={THEMES} defaultId="foret" disabled={["velours"]} choices={{ sable: 3, plage: 1 }} />
+        </div>
+      );
+      break;
     case "play":
     case "play-empty": {
       const left = screen === "play" ? 2 : 0;
@@ -571,12 +577,21 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
             creatureName="Miso"
             playsLeft={left}
             maxPerDay={3}
-            friendsAvailable={screen === "play" ? 2 : 0}
+            friendsCount={screen === "play" ? 2 : 0}
             invitations={screen === "play" ? [{ matchId: "00000000-0000-4000-8000-000000000042", hostName: "Sam", mode: "arena", players: ["Léa"] }] : []}
-            marker={{ id: 17, creatureId: "demo", photoUrl: screen === "play" ? DEV_DOODLE_URL : null }}
-            maxPlayers={4}
-            pingpongPoints={DEFAULT_RULES.pingpong.pointsToWin}
+            marker={{ id: 17, creatureId: "demo" }}
           />
+        </div>
+      );
+      break;
+    }
+    case "play-solo":
+    case "play-friends": {
+      const kind = screen === "play-solo" ? "solo" : "friends";
+      content = (
+        <div className="space-y-4">
+          <PageHeader title={kind === "solo" ? "Jeux solo" : "Jeux entre amis"} back={{ href: "/dev/screens?screen=play", label: "Retour aux jeux" }} />
+          <GameList kind={kind} creatureName="Miso" playsLeft={2} maxPerDay={3} friendsAvailable={0} maxPlayers={4} pingpongPoints={DEFAULT_RULES.pingpong.pointsToWin} />
         </div>
       );
       break;
@@ -591,6 +606,8 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
           owned={ACCESSORIES.filter((a) => ["straw_hat", "beret", "round_glasses", "scarf", "bow_tie", "cape", "top_hat"].includes(a.id))}
           outfit={{ head: "straw_hat", neck: "scarf" }}
           counts={{ straw_hat: 2, beret: 3 }}
+          ownedBackdrops={["prairie", "aurore", "galaxie"]}
+          preview
         />
       );
       break;
@@ -724,6 +741,11 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
       content = (
         <div className="space-y-4">
           <ChestOpener status={{ totalSteps: 12_300, earned: 2, opened: 0, available: 2, stepsToNext: 2_700, stepsPerChest: 5_000 }} canEquip />
+          <ChestOpener
+            status={{ totalSteps: 12_300, earned: 2, opened: 1, available: 1, stepsToNext: 2_700, stepsPerChest: 5_000 }}
+            canEquip
+            preview={{ kind: "backdrop", backdrop: getBackdrop("aurore")!, equipped: false, status: { totalSteps: 12_300, earned: 2, opened: 1, available: 1, stepsToNext: 2_700, stepsPerChest: 5_000 } }}
+          />
           <ChestOpener status={{ totalSteps: 3_200, earned: 0, opened: 0, available: 0, stepsToNext: 1_800, stepsPerChest: 5_000 }} canEquip />
         </div>
       );
@@ -788,7 +810,7 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
         <CreatureHome
           creature={c}
           line={creatureLine(c)}
-          accessories={[{ slot: "head", id: "beret" }, { slot: "neck", id: "bow_tie" }]}
+          accessories={[{ slot: "head", id: "beret" }, { slot: "eyes", id: "round_glasses" }, { slot: "neck", id: "bow_tie" }, { slot: "body", id: "cape" }]}
           chest={{ available: 1, stepsToNext: 4100, stepsPerChest: 5000, opened: 1, earned: 2, totalSteps: 10900 }}
           todaySteps={3200}
           playsLeft={3}

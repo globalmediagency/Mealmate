@@ -4,7 +4,7 @@ import { ChevronLeft, Gamepad2, Gift, Heart, HeartPulse, Smile, Tent, Utensils }
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Creature, type EquippedAccessory, type Reaction } from "@/components/creatures/creature";
-import { Environment } from "@/components/creatures/environment";
+import { SceneBackdrop } from "@/components/backdrops/scene-backdrop";
 import { RarityBadge } from "@/components/creatures/rarity-badge";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import type { BoardingView } from "@/lib/boarding/service";
 import { getSpecies } from "@/lib/creatures";
 import type { PublicProfile } from "@/lib/friends/service";
 import type { ChestStatus } from "@/lib/game/accessories";
+import { HOME } from "@/lib/game/config";
 import type { CreatureView } from "@/lib/game/creature-view";
 import { ageLabel, creatureLine, hungerLabel, moodHelp, moodLabel } from "@/lib/game/dialogue";
 import { SHOP_ITEM_IDS } from "@/lib/game/medicine";
@@ -26,6 +27,8 @@ import { HealPanel } from "./heal-panel";
 
 type Props = {
   creature: CreatureView;
+  /** Size of the creature drawing (`rules.home.creatureSize`). */
+  creatureSize?: number;
   accessories: EquippedAccessory[];
   boarding: BoardingView;
   owner: PublicProfile;
@@ -35,7 +38,7 @@ type Props = {
 };
 
 /** The host's screen for a creature a friend entrusted to them: play, heal, open its chests, send it home. */
-export function PensionHome({ creature: initial, accessories, boarding, owner, inventory: initialInventory, chest }: Props) {
+export function PensionHome({ creature: initial, accessories, boarding, owner, inventory: initialInventory, chest, creatureSize = HOME.creatureSize }: Props) {
   const [creature, setCreature] = useState(initial);
   const [inventory, setInventory] = useState(initialInventory);
   const [healOpen, setHealOpen] = useState(false);
@@ -93,7 +96,7 @@ export function PensionHome({ creature: initial, accessories, boarding, owner, i
 
       <section className="relative overflow-hidden rounded-3xl border border-ink-600/80 shadow-card" style={{ height: "min(44vh, 360px)" }}>
         <div className="absolute inset-0">
-          <Environment tier={creature.tier} />
+          <SceneBackdrop choice={creature.backdrop} tier={creature.tier} />
         </div>
         <div className="absolute left-3 right-28 top-3 flex justify-start">
           <p key={bubble} className="max-w-full rounded-2xl rounded-bl-sm border border-cream-100/10 bg-ink-900/80 px-3.5 py-2 text-sm text-cream-100 backdrop-blur animate-rise" aria-live="polite">
@@ -101,7 +104,7 @@ export function PensionHome({ creature: initial, accessories, boarding, owner, i
           </p>
         </div>
         <button type="button" onClick={tap} aria-label={`Caresser ${creature.name}`} className="absolute inset-x-0 bottom-2 flex justify-center focus-visible:outline-none">
-          <Creature species={species} stage={creature.stage.id} state={creature.state} size={220} reaction={reaction} accessories={accessories} />
+          <Creature species={species} stage={creature.stage.id} state={creature.state} size={creatureSize} reaction={reaction} accessories={accessories} />
         </button>
         <div className="absolute right-3 top-3 inline-flex min-h-11 items-center gap-1.5 rounded-full border border-cream-100/10 bg-ink-900/80 px-3.5 text-xs font-semibold text-cream-100 backdrop-blur">
           <Tent className="h-4 w-4 text-sage-300" aria-hidden="true" />
@@ -156,7 +159,7 @@ export function PensionHome({ creature: initial, accessories, boarding, owner, i
             <Gift className="h-4 w-4 text-brass-300" aria-hidden="true" />
             Les coffres de {creature.name} pendant la pension sont pour toi.
           </p>
-          <ChestOpener status={chest} canEquip={false} creatureId={creature.id} />
+          <ChestOpener status={chest} canEquip={false} creatureId={creature.id} tier={creature.tier} />
         </div>
       ) : null}
 

@@ -9,8 +9,6 @@ import { ARENA } from "@/lib/game/config";
 import { DEFAULT_RULES, type GameRules } from "@/lib/game/rules";
 import { recordPlay } from "@/lib/play/service";
 import { saveManualSteps } from "@/lib/steps/service";
-import { deletePhotoMarker, savePhotoMarker } from "@/lib/ar/photo-marker";
-import type { ObjectStorage } from "@/lib/storage/r2";
 import { createTestDatabase, insertTestUser, type TestDatabase } from "@/lib/test/pglite";
 import {
   agreeStakes,
@@ -44,26 +42,6 @@ let carol: string;
 let dave: string;
 const T0 = new Date("2026-09-16T10:00:00Z");
 const at = (seconds: number) => new Date(T0.getTime() + seconds * 1000);
-const photoStore = new Map<string, Uint8Array>();
-const photoStorage: ObjectStorage = {
-  async put(key, bytes) {
-    photoStore.set(key, bytes);
-  },
-  async get(key) {
-    const bytes = photoStore.get(key);
-    return bytes ? { bytes, contentType: "image/jpeg" } : null;
-  },
-  async signedUrl(key) {
-    return `https://signed.example/${key}`;
-  },
-  async remove(key) {
-    photoStore.delete(key);
-  },
-  async removePrefix() {
-    return 0;
-  },
-};
-
 const RULES: GameRules = { ...DEFAULT_RULES, arena: { hp: 30, eggDamage: 10, durationSeconds: 120, webrtc: false } };
 
 async function befriend(a: string, b: string) {
@@ -133,16 +111,6 @@ describe("lobby", () => {
     expect(notices).toEqual([{ matchId: match.id, hostId: alice, hostName: "Alice", createdAt: T0.toISOString(), players: [], mode: "arena" }]);
     expect(await listArenaInvites(alice, T0)).toEqual([]);
     expect(await listArenaInvites(bob, at(ARENA.lobbyTtlMinutes * 60 + 1))).toEqual([]);
-    // A player's photo marker travels in full snapshots only: the other phones recognise it as that player's number.
-    const photo = await savePhotoMarker(bob, { bytes: Uint8Array.of(7), mimeType: "image/jpeg" }, photoStorage, T0, "bob-photo");
-    const withPhoto = await snapshot(alice, match.id, at(1), RULES);
-    expect(withPhoto.players.map((p) => [p.userId, p.markerImage])).toEqual([
-      [alice, null],
-      [bob, photo.imageUrl],
-    ]);
-    const sincePhoto = await snapshot(alice, match.id, at(2), RULES, { since: withPhoto.cursor });
-    expect(sincePhoto.players.every((p) => p.markerImage === undefined)).toBe(true);
-    await deletePhotoMarker(bob, photoStorage);
 
     await expect(createMatch(alice, [bob], T0, RULES)).rejects.toMatchObject({ code: "arena_busy" });
     await expect(startMatch(alice, match.id, T0, RULES)).rejects.toMatchObject({ code: "not_enough_players" });

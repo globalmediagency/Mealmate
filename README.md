@@ -107,7 +107,8 @@ Si tu avais déjà exécuté `db/init.sql` avant une phase, colle ses migrations
 - défendre à deux (mode coopératif) : [`db/migrations/016_coop_defense.sql`](./db/migrations/016_coop_defense.sql)
 - mises de l'arène (accessoires pariés) : [`db/migrations/017_arena_stakes.sql`](./db/migrations/017_arena_stakes.sql)
 - ping-pong (duel) : [`db/migrations/018_pingpong.sql`](./db/migrations/018_pingpong.sql)
-- marqueur photo : [`db/migrations/019_photo_marker.sql`](./db/migrations/019_photo_marker.sql)
+- designs du site : [`db/migrations/020_profile_theme.sql`](./db/migrations/020_profile_theme.sql)
+- fonds de scène (garde-robe et coffres) : [`db/migrations/021_backdrops.sql`](./db/migrations/021_backdrops.sql)
 
 Si une migration manque, l'application l'indique elle-même : au lieu de planter, elle affiche « La base de données doit être mise à jour » avec le SQL exact à copier dans Neon → SQL Editor (bouton « Copier le SQL »). Recharge la page une fois le SQL exécuté.
 
@@ -371,10 +372,16 @@ apparaissent alors, sans connexion nécessaire :
 15. **Ping-pong** (migration `018`) : dans Arène, choisis « Ping-pong » et invite un seul ami. Marqueurs face à face,
     la balle vole d'une créature à l'autre : appuie sur « Frapper » quand l'anneau autour de la tienne devient vert
     (frappe parfaite = balle plus rapide), 7 points pour gagner. Le téléphone de l'hôte arbitre et garde l'écran allumé. Depuis l'admin (section « Ping-pong »), tu règles la vitesse, les fenêtres de frappe, le moment où l'anneau disparaît et la force du lob et du smash.
-16. **Marqueur photo** (migration `019`) : sur « Voir en vrai », la carte « Marqueur photo » te laisse photographier un objet à toi
-    (un dessin au stylo sur une feuille, un motif, ta main) que la caméra reconnaîtra à la place du marqueur imprimé, chez toi comme
-    chez tes amis (Voir en vrai, Défendre, Arène, Défendre à deux, Ping-pong). Le téléphone vérifie avant l'envoi que la photo a assez
-    de détails ; tu peux la mettre de côté (interrupteur), la remplacer ou la supprimer. Le marqueur imprimé continue de marcher.
+16. **Espèces désactivables** : dans l'admin, onglet Créatures, l'interrupteur de chaque espèce la retire des tirages
+    d'éclosion (les joueurs qui l'ont déjà la gardent) ; la dernière espèce active d'un niveau ne peut pas être désactivée.
+17. **Lancer la créature** : sur l'écran Créature, attrape-la au doigt et lance-la : elle rebondit sur les bords en perdant
+    ses accessoires, se relève, court les ramasser un par un et les remet en place. Une simple pression continue de la caresser.
+18. **Designs du site** (migration `020`) : dans « Plus » → Apparence, choisis parmi cinq designs (Forêt, Sable, Plage, Rose poudré,
+    Velours noir : couleurs, polices, formes) ; le choix te suit sur tous tes appareils. Dans l'admin, onglet Apparence, tu proposes
+    ou retires chaque design et tu définis celui par défaut.
+19. **Fonds de scène** (migration `021`) : chaque design a son propre décor derrière la créature, et dix autres décors se cachent
+    dans les coffres de pas (un coffre sur quatre environ, jamais deux fois le même). Dans « Habiller » → onglet Fond, tu choisis
+    « Selon le design », un décor de design ou un décor trouvé ; les décors manquants restent affichés, verrouillés.
 
 ## 5. Limites connues
 

@@ -63,6 +63,23 @@ describe("drawSpecies", () => {
     for (const roll of [0, 0.5, 0.999]) expect(drawSpecies("facile", sequence([roll]), only).id).toBe(legendary.id);
   });
 
+  it("never draws a species switched off from the admin, whatever the roll or the overrides", () => {
+    const pool = speciesForTier("facile");
+    const legendary = pool.find((s) => s.rarity === "legendaire")!;
+    const disabled = new Set([legendary.id, pool[0].id]);
+    for (const roll of [0, 0.3, 0.6, 0.985, 0.999999]) {
+      const drawn = drawSpecies("facile", sequence([roll]), {}, disabled);
+      expect(disabled.has(drawn.id)).toBe(false);
+    }
+    // A boosted disabled species stays out; the all-zero fallback ignores it too.
+    const only = Object.fromEntries(pool.map((s) => [s.id, s.id === legendary.id ? 100 : 0]));
+    for (const roll of [0, 0.5, 0.999]) expect(drawSpecies("facile", sequence([roll]), only, disabled).id).not.toBe(legendary.id);
+    expect(speciesProbability(legendary, {}, disabled)).toBe(0);
+    expect(speciesProbability(pool[1], {}, disabled)).toBeGreaterThan(speciesProbability(pool[1]));
+    // Everything disabled: nothing can hatch.
+    expect(() => drawSpecies("facile", sequence([0.5]), {}, new Set(pool.map((s) => s.id)))).toThrow();
+  });
+
   it("roughly follows the rarity distribution over many draws", () => {
     let seed = 7;
     const random = () => {

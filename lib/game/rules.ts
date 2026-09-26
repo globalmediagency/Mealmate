@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ARENA, BOARDING, COACHING, DEFENSE, FEEDING, HUNGER_DAMAGE_THRESHOLD, MOOD, PINGPONG, PLAY, TICK, TIER_CONFIG, TIERS, type Tier, type TierConfig } from "./config";
+import { AR_SCENE, ARENA, BOARDING, COACHING, DEFENSE, FEEDING, HOME, HUNGER_DAMAGE_THRESHOLD, MOOD, PINGPONG, PLAY, TICK, TIER_CONFIG, TIERS, TOSS, type Tier, type TierConfig } from "./config";
 
 /** Per-tier demands that the admin can tune (spec § 3.1). */
 export type TierRules = Pick<
@@ -43,6 +43,14 @@ export type DefenseRules = {
   bossEveryWaves: number;
   /** Eggs needed for the first boss; one more at each following boss. */
   bossHits: number;
+  /** How far foods appear from the creature at most (marker sides); they surge between 75 % of it and it. */
+  spawnDistance: number;
+};
+
+/** The 3D creature on its marker (spec § 3.19), in « Voir en vrai » and every AR game. */
+export type ArSceneRules = {
+  /** Height of the creature in marker sides (the printed square is 1). */
+  creatureHeight: number;
 };
 
 export type GameRules = {
@@ -61,6 +69,18 @@ export type GameRules = {
   arena: ArenaRules;
   /** "Ping-pong" (spec § 3.25): pace, timing windows, shots and the timing ring. */
   pingpong: PingPongRules;
+  /** The home screen scene (spec § 3.26): size of the creature and how much it bounces when thrown. */
+  home: HomeRules;
+  ar: ArSceneRules;
+};
+
+export type HomeRules = {
+  /** Side of the creature drawing (px). */
+  creatureSize: number;
+  /** Share of the speed kept after a wall or ceiling bounce (0–0.98). */
+  bounce: number;
+  /** Share of the speed kept after a floor bounce (0–0.98). */
+  floorBounce: number;
 };
 
 export type PingPongRules = {
@@ -119,6 +139,7 @@ export const DEFAULT_RULES: GameRules = {
     fireCooldownMs: DEFENSE.fireCooldownMs,
     bossEveryWaves: DEFENSE.bossEveryWaves,
     bossHits: DEFENSE.bossHits,
+    spawnDistance: DEFENSE.arenaRadius,
   },
   play: { maxPerDay: PLAY.maxPerDay },
   arena: { hp: ARENA.hp, eggDamage: ARENA.eggDamage, durationSeconds: ARENA.durationSeconds, webrtc: ARENA.webrtc },
@@ -133,6 +154,8 @@ export const DEFAULT_RULES: GameRules = {
     lobFactor: PINGPONG.lobFactor,
     smashFactor: PINGPONG.smashFactor,
   },
+  home: { creatureSize: HOME.creatureSize, bounce: TOSS.restitution, floorBounce: TOSS.floorRestitution },
+  ar: { creatureHeight: AR_SCENE.creatureHeight },
 };
 
 const tierRulesSchema = z
@@ -181,6 +204,7 @@ export const gameRulesPatchSchema = z
         fireCooldownMs: z.coerce.number().int().min(0).max(5000),
         bossEveryWaves: z.coerce.number().int().min(0).max(50),
         bossHits: z.coerce.number().int().min(1).max(50),
+        spawnDistance: z.coerce.number().min(1).max(8),
       })
       .partial(),
     play: z.object({ maxPerDay: z.coerce.number().int().min(1).max(50) }).partial(),
@@ -205,6 +229,14 @@ export const gameRulesPatchSchema = z
         smashFactor: z.coerce.number().min(0.3).max(1),
       })
       .partial(),
+    home: z
+      .object({
+        creatureSize: z.coerce.number().int().min(120).max(340),
+        bounce: z.coerce.number().min(0).max(0.98),
+        floorBounce: z.coerce.number().min(0).max(0.98),
+      })
+      .partial(),
+    ar: z.object({ creatureHeight: z.coerce.number().min(0.5).max(6) }).partial(),
   })
   .partial();
 
@@ -228,6 +260,8 @@ export function mergeRules(patch: GameRulesPatch | null | undefined, base: GameR
     play: { ...base.play, ...(patch.play ?? {}) },
     arena: { ...base.arena, ...(patch.arena ?? {}) },
     pingpong: { ...base.pingpong, ...(patch.pingpong ?? {}) },
+    home: { ...base.home, ...(patch.home ?? {}) },
+    ar: { ...base.ar, ...(patch.ar ?? {}) },
   };
 }
 

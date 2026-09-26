@@ -22,15 +22,16 @@ export function drawRarity(random: () => number = secureRandom): Rarity {
 /**
  * Draws a species of the tier with one weighted roll over the whole tier
  * (default weights = the rarity shares split evenly, overrides from /admin).
+ * Species switched off from /admin (`disabled`) are never drawn.
  */
-export function drawSpecies(tier: Tier, random: () => number = secureRandom, overrides: Record<string, number> = {}): Species {
-  const rows = speciesWeights(tier, overrides);
+export function drawSpecies(tier: Tier, random: () => number = secureRandom, overrides: Record<string, number> = {}, disabled: ReadonlySet<string> = new Set()): Species {
+  const rows = speciesWeights(tier, overrides, disabled).filter((row) => !row.disabled);
   if (rows.length === 0) throw new Error(`No species available for tier "${tier}".`);
   return pickWeighted(rows, random);
 }
 
 /** Probability (0–1) of hatching a given species under the current weights. */
-export function speciesProbability(species: Species, overrides: Record<string, number> = {}): number {
-  const row = speciesWeights(species.tier, overrides).find((r) => r.item.id === species.id);
+export function speciesProbability(species: Species, overrides: Record<string, number> = {}, disabled: ReadonlySet<string> = new Set()): number {
+  const row = speciesWeights(species.tier, overrides, disabled).find((r) => r.item.id === species.id);
   return row ? row.percent / PERCENT : 0;
 }

@@ -22,9 +22,15 @@ export function RarityBadge({ rarity, className }: { rarity: Rarity; className?:
   );
 }
 
+/** The rarity colours of the current design (`--color-rarity-*`, set per theme): use them as CSS values, never concatenate a hex alpha. */
 export const RARITY_COLORS: Record<Rarity, string> = {
-  commun: "#9aa396",
-  rare: "#7da7d9",
-  tres_rare: "#b48ae0",
-  legendaire: "#e8c36a",
+  commun: "var(--color-rarity-common)",
+  rare: "var(--color-rarity-rare)",
+  tres_rare: "var(--color-rarity-epic)",
+  legendaire: "var(--color-rarity-legendary)",
 };
+
+/** A rarity colour at some opacity (0–1), as a CSS colour. */
+export function rarityTint(rarity: Rarity, alpha: number): string {
+  return `color-mix(in srgb, ${RARITY_COLORS[rarity]} ${Math.round(alpha * 100)}%, transparent)`;
+}

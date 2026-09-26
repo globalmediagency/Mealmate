@@ -44,6 +44,22 @@ type Draft = {
   arena: Record<ArenaField, string>;
   arenaWebrtc: boolean;
   pingpong: Record<PingPongField, string>;
+  home: Record<HomeField, string>;
+  arCreatureHeight: string;
+};
+
+const HOME_FIELDS = ["creatureSize", "bouncePercent", "floorBouncePercent"] as const;
+type HomeField = (typeof HOME_FIELDS)[number];
+
+const HOME_LABELS: Record<HomeField, { label: string; help: string; integer: boolean }> = {
+  creatureSize: { label: "Taille de la créature (px)", help: "Côté du dessin sur l'écran Créature, en pension et chez l'ami qui héberge (120 à 340).", integer: true },
+  bouncePercent: { label: "Rebond sur les parois (%)", help: "Part de la vitesse gardée quand la créature lancée touche un bord ou le plafond de la scène (0 = elle s'arrête net, 98 = elle rebondit presque sans fin).", integer: true },
+  floorBouncePercent: { label: "Rebond sur le sol (%)", help: "Part de la vitesse gardée à chaque rebond au sol ; plus c'est haut, plus elle rebondit longtemps avant de se relever.", integer: true },
+};
+const HOME_DEFAULTS: Record<HomeField, number> = {
+  creatureSize: DEFAULT_RULES.home.creatureSize,
+  bouncePercent: Math.round(DEFAULT_RULES.home.bounce * 100),
+  floorBouncePercent: Math.round(DEFAULT_RULES.home.floorBounce * 100),
 };
 
 const ARENA_FIELDS = ["hp", "eggDamage", "durationSeconds"] as const;
@@ -70,18 +86,23 @@ const PINGPONG_LABELS: Record<PingPongField, { label: string; help: string; inte
   smashFactor: { label: "Smash : facteur de vol", help: "Un smash (frappe parfaite) vole ce nombre de fois moins longtemps (jamais sous 400 ms).", integer: false },
 };
 
-const DEFENSE_FIELDS = ["hp", "baseSpeed", "speedGrowthPercent", "firstWaveEnemies", "enemiesGrowthPerWave", "fireCooldownMs", "bossEveryWaves", "bossHits"] as const;
+const DEFENSE_FIELDS = ["hp", "baseSpeed", "speedGrowthPercent", "firstWaveEnemies", "enemiesGrowthPerWave", "fireCooldownMs", "bossEveryWaves", "bossHits", "spawnDistance"] as const;
 type DefenseField = (typeof DEFENSE_FIELDS)[number];
 
 const DEFENSE_LABELS: Record<DefenseField, { label: string; help: string; integer: boolean }> = {
   hp: { label: "Points de vie de la créature", help: "Dans le jeu seulement : rien ne touche la vraie créature.", integer: true },
-  baseSpeed: { label: "Vitesse des aliments à la vague 1", help: "En côtés de marqueur par seconde (le carré imprimé fait 1). Les aliments partent à 2,8 côtés.", integer: false },
+  baseSpeed: { label: "Vitesse des aliments à la vague 1", help: "En côtés de marqueur par seconde (le carré imprimé fait 1).", integer: false },
   speedGrowthPercent: { label: "Accélération par vague (%)", help: "Ajouté à la vitesse de base à chaque nouvelle vague.", integer: false },
   firstWaveEnemies: { label: "Aliments à la vague 1", help: "Nombre d'aliments de la première vague.", integer: true },
   enemiesGrowthPerWave: { label: "Aliments en plus par vague", help: "Chaque vague en envoie autant de plus que la précédente.", integer: true },
   fireCooldownMs: { label: "Rechargement entre deux œufs (ms)", help: "0 = tir libre.", integer: true },
   bossEveryWaves: { label: "Un boss toutes les N vagues", help: "Un aliment géant, deux fois plus lent et plus dangereux, surgit à un moment aléatoire de ces vagues. 0 = jamais.", integer: true },
   bossHits: { label: "Œufs pour abattre le premier boss", help: "Chaque boss suivant demande un œuf de plus ; sa barre de vie s'affiche au-dessus de lui.", integer: true },
+  spawnDistance: {
+    label: "Distance maximale d'apparition des ennemis",
+    help: "En côtés de marqueur : les aliments surgissent entre les trois quarts de cette distance et cette distance, dans « Défendre » et « Défendre ensemble » ; la visée porte toujours un peu plus loin.",
+    integer: false,
+  },
 };
 
 const MOOD_FIELDS = ["happyMin", "xpBonusPercent", "lowMax", "xpMalusPercent", "gloomyMax", "healthLossPerHourWhenGloomy", "chestStepsBonusPercent"] as const;
@@ -118,6 +139,8 @@ function toDraft(rules: GameRules): Draft {
     arena: Object.fromEntries(ARENA_FIELDS.map((f) => [f, String(rules.arena[f])])) as Draft["arena"],
     arenaWebrtc: rules.arena.webrtc,
     pingpong: Object.fromEntries(PINGPONG_FIELDS.map((f) => [f, String(rules.pingpong[f])])) as Draft["pingpong"],
+    home: { creatureSize: String(rules.home.creatureSize), bouncePercent: String(Math.round(rules.home.bounce * 100)), floorBouncePercent: String(Math.round(rules.home.floorBounce * 100)) },
+    arCreatureHeight: String(rules.ar.creatureHeight),
   };
 }
 
@@ -137,6 +160,8 @@ function toPatch(draft: Draft): GameRulesPatch {
     play: { maxPerDay: num(draft.maxPlaysPerDay) },
     arena: { ...(Object.fromEntries(ARENA_FIELDS.map((f) => [f, num(draft.arena[f])])) as Record<ArenaField, number>), webrtc: draft.arenaWebrtc },
     pingpong: Object.fromEntries(PINGPONG_FIELDS.map((f) => [f, num(draft.pingpong[f])])) as GameRulesPatch["pingpong"],
+    home: { creatureSize: num(draft.home.creatureSize), bounce: num(draft.home.bouncePercent) / 100, floorBounce: num(draft.home.floorBouncePercent) / 100 },
+    ar: { creatureHeight: num(draft.arCreatureHeight) },
   };
 }
 
@@ -159,6 +184,10 @@ function safePreview(draft: Draft): GameRules | null {
       patch.play?.maxPerDay,
       ...ARENA_FIELDS.map((f) => patch.arena?.[f]),
       ...PINGPONG_FIELDS.map((f) => patch.pingpong?.[f]),
+      patch.home?.creatureSize,
+      patch.home?.bounce,
+      patch.home?.floorBounce,
+      patch.ar?.creatureHeight,
     ];
     if (flat.some((v) => v === undefined || Number.isNaN(v))) return null;
     return mergeRules(patch);
@@ -368,12 +397,51 @@ export function RulesForm({ initialRules, storedPatch, updatedAt, updatedBy }: R
         ))}
       </section>
 
+      <section className="grid gap-3 rounded-3xl border border-ink-600/80 bg-ink-800/90 p-4 shadow-card sm:grid-cols-2" data-rules-home>
+        <h2 className="font-display text-xl text-cream-50 sm:col-span-2">Écran Créature</h2>
+        <p className="-mt-2 text-xs text-cream-500 sm:col-span-2">
+          La taille du dessin dans la scène, et ce que la créature garde de sa vitesse à chaque rebond quand on la lance : plus le pourcentage est haut, plus elle
+          rebondit. S&apos;applique au prochain chargement de l&apos;écran.
+        </p>
+        {HOME_FIELDS.map((field) => (
+          <label key={field} className="space-y-1 text-sm">
+            <span className="text-cream-100">{HOME_LABELS[field].label}</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={draft.home[field]}
+              onChange={(e) => setDraft((d) => ({ ...d, home: { ...d.home, [field]: e.target.value } }))}
+              className={inputClass}
+            />
+            <span className="block text-[11px] text-cream-700">
+              {HOME_LABELS[field].help} · défaut {HOME_DEFAULTS[field]}
+            </span>
+          </label>
+        ))}
+      </section>
+
       <section className="grid gap-3 rounded-3xl border border-ink-600/80 bg-ink-800/90 p-4 shadow-card sm:grid-cols-2">
         <h2 className="font-display text-xl text-cream-50 sm:col-span-2">Parties par jour</h2>
         <label className="space-y-1 text-sm">
           <span className="text-cream-100">Parties maximales par jour et par créature</span>
           <input type="text" inputMode="numeric" value={draft.maxPlaysPerDay} onChange={(e) => setDraft((d) => ({ ...d, maxPlaysPerDay: e.target.value }))} className={inputClass} />
           <span className="block text-[11px] text-cream-700">« Jouer », « Défendre » et « Arène » confondus ; chaque partie donne +15 humeur et +5 XP · défaut {DEFAULT_RULES.play.maxPerDay}</span>
+        </label>
+      </section>
+
+      <section className="grid gap-3 rounded-3xl border border-ink-600/80 bg-ink-800/90 p-4 shadow-card sm:grid-cols-2" data-rules-ar>
+        <h2 className="font-display text-xl text-cream-50 sm:col-span-2">Réalité augmentée (créature sur le marqueur)</h2>
+        <p className="-mt-2 text-xs text-cream-500 sm:col-span-2">
+          La créature en 3D posée sur son marqueur imprimé, dans « Voir en vrai » et dans tous les jeux en réalité augmentée (Défendre, Défendre ensemble, Arène,
+          Ping-pong). S&apos;applique au prochain lancement d&apos;un écran caméra.
+        </p>
+        <label className="space-y-1 text-sm">
+          <span className="text-cream-100">Hauteur de la créature (côtés de marqueur)</span>
+          <input type="text" inputMode="decimal" value={draft.arCreatureHeight} onChange={(e) => setDraft((d) => ({ ...d, arCreatureHeight: e.target.value }))} className={inputClass} />
+          <span className="block text-[11px] text-cream-700">
+            Le carré imprimé fait 1 ; 2,2 = un peu plus de deux carrés de haut (0,5 à 6). L&apos;ombre au sol et la bouche (départ des œufs et de la langue) suivent. · défaut{" "}
+            {DEFAULT_RULES.ar.creatureHeight}
+          </span>
         </label>
       </section>
 

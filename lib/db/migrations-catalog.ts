@@ -336,17 +336,26 @@ ALTER TABLE arena_players ADD COLUMN IF NOT EXISTS points integer NOT NULL DEFAU
 ALTER TABLE play_sessions DROP CONSTRAINT IF EXISTS play_sessions_kind_check;
 ALTER TABLE play_sessions ADD CONSTRAINT play_sessions_kind_check CHECK (kind IN ('catch', 'defense', 'arena', 'coop', 'pingpong'));`,
   },
+  // 019 was the photo marker, removed since: its columns stay unread and unchecked.
   {
-    id: "019",
-    file: "019_photo_marker.sql",
-    title: "Marqueur photo : une photo par joueur reconnue à la place du marqueur imprimé",
-    checks: [
-      { table: "profiles", column: "photo_marker_key" },
-      { table: "profiles", column: "photo_marker_enabled" },
-    ],
-    sql: `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS photo_marker_key text;
-ALTER TABLE profiles ADD COLUMN IF NOT EXISTS photo_marker_enabled boolean NOT NULL DEFAULT false;
-ALTER TABLE profiles ADD COLUMN IF NOT EXISTS photo_marker_updated_at timestamptz;`,
+    id: "020",
+    file: "020_profile_theme.sql",
+    title: "Design du site choisi par le joueur",
+    checks: [{ table: "profiles", column: "theme" }],
+    sql: `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS theme text;`,
+  },
+  {
+    id: "021",
+    file: "021_backdrops.sql",
+    title: "Fonds de scène : choix par créature et fonds trouvés dans les coffres",
+    checks: [{ table: "creatures", column: "backdrop" }, { table: "user_backdrops" }],
+    sql: `ALTER TABLE creatures ADD COLUMN IF NOT EXISTS backdrop text;
+CREATE TABLE IF NOT EXISTS user_backdrops (
+  user_id     text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  backdrop_id text NOT NULL,
+  obtained_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, backdrop_id)
+);`,
   },
 ];
 
