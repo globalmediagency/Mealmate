@@ -140,7 +140,7 @@ export function ArenaList({ listing, friends, blocked, maxPlayers, initialMode =
         ) : null}
         {chosen ? (
           <p className="mt-2 text-xs text-cream-500">
-            <Link href="/play" className="font-semibold text-sage-300 underline" data-arena-change-mode>
+            <Link href="/play/amis" className="font-semibold text-sage-300 underline" data-arena-change-mode>
               Changer de jeu
             </Link>
           </p>

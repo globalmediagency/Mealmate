@@ -33,7 +33,7 @@ export default async function DefensePage({ searchParams }: { searchParams: Sear
   const creature = held?.creature;
   if (!held || !creature || creature.status !== "alive" || !creature.name || !creature.speciesId) redirect("/home");
   const boarded = held.boarding !== null;
-  const homeHref = boarded ? `/play?creature=${creature.id}` : "/play";
+  const homeHref = boarded ? `/play/solo?creature=${creature.id}` : "/play/solo";
   const markerId = boarded ? creature.arMarker : await ensureCreatureMarker(creature);
   if (!isMarkerId(markerId)) {
     return (

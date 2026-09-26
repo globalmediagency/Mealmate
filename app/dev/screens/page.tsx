@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { BoardedAway } from "@/components/game/boarded-away";
 import { BoardingProposals, OwnerBoardingNotices } from "@/components/game/boarding-notices";
 import { CreatureHome } from "@/components/game/creature-home";
-import { PlayHub } from "@/components/game/play-hub";
+import { GameList, PlayHub } from "@/components/game/play-hub";
 import { PageHeader } from "@/components/layout/page-header";
 import { HostedCreatures } from "@/components/game/hosted-creatures";
 import { HostedDeathNotice } from "@/components/game/hosted-death-notice";
@@ -61,7 +61,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "turnaround", "creature-3d", "defense", "defense-boss", "arena", "arena-rtc", "arena-invite", "coop", "pingpong", "food-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "play-catch", "play-empty", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "turnaround", "creature-3d", "defense", "defense-boss", "arena", "arena-rtc", "arena-invite", "coop", "pingpong", "food-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "play-catch", "play-empty", "play-solo", "play-friends", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -558,12 +558,21 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
             creatureName="Miso"
             playsLeft={left}
             maxPerDay={3}
-            friendsAvailable={screen === "play" ? 2 : 0}
+            friendsCount={screen === "play" ? 2 : 0}
             invitations={screen === "play" ? [{ matchId: "00000000-0000-4000-8000-000000000042", hostName: "Sam", mode: "arena", players: ["Léa"] }] : []}
             marker={{ id: 17, creatureId: "demo" }}
-            maxPlayers={4}
-            pingpongPoints={DEFAULT_RULES.pingpong.pointsToWin}
           />
+        </div>
+      );
+      break;
+    }
+    case "play-solo":
+    case "play-friends": {
+      const kind = screen === "play-solo" ? "solo" : "friends";
+      content = (
+        <div className="space-y-4">
+          <PageHeader title={kind === "solo" ? "Jeux solo" : "Jeux entre amis"} back={{ href: "/dev/screens?screen=play", label: "Retour aux jeux" }} />
+          <GameList kind={kind} creatureName="Miso" playsLeft={2} maxPerDay={3} friendsAvailable={0} maxPlayers={4} pingpongPoints={DEFAULT_RULES.pingpong.pointsToWin} />
         </div>
       );
       break;

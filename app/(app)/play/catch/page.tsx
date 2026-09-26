@@ -34,7 +34,7 @@ export default async function CatchPage({ searchParams }: { searchParams: Search
       playsLeft={Math.max(0, rules.play.maxPerDay - plays)}
       maxPerDay={rules.play.maxPerDay}
       creatureId={boarded ? creature.id : undefined}
-      homeHref={boarded ? `/play?creature=${creature.id}` : "/play"}
+      homeHref={boarded ? `/play/solo?creature=${creature.id}` : "/play/solo"}
     />
   );
 }

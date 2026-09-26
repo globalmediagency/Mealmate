@@ -257,7 +257,7 @@ export function ArenaMatch({ initial, webrtc, preview = false, previewRtc = fals
             <LinkButton href="/arena" variant="brass" className="w-auto px-5">
               Nouvelle partie
             </LinkButton>
-            <LinkButton href="/play" variant="secondary" className="w-auto px-5">
+            <LinkButton href="/play/amis" variant="secondary" className="w-auto px-5">
               Autres jeux
             </LinkButton>
           </div>
@@ -322,7 +322,7 @@ export function ArenaMatch({ initial, webrtc, preview = false, previewRtc = fals
             <LinkButton href="/arena" variant="brass" className="w-auto px-5">
               Nouvelle partie
             </LinkButton>
-            <LinkButton href="/play" variant="secondary" className="w-auto px-5">
+            <LinkButton href="/play/amis" variant="secondary" className="w-auto px-5">
               Autres jeux
             </LinkButton>
           </div>
@@ -374,7 +374,7 @@ export function ArenaMatch({ initial, webrtc, preview = false, previewRtc = fals
             <LinkButton href="/arena" variant="brass" className="w-auto px-5">
               Nouvelle partie
             </LinkButton>
-            <LinkButton href="/play" variant="secondary" className="w-auto px-5">
+            <LinkButton href="/play/amis" variant="secondary" className="w-auto px-5">
               Autres jeux
             </LinkButton>
           </div>
@@ -393,7 +393,7 @@ export function ArenaMatch({ initial, webrtc, preview = false, previewRtc = fals
         <Card>
           <CardTitle>Partie annulée</CardTitle>
           <CardText className="mt-1">L&apos;hôte a fermé la partie, ou personne ne l&apos;a lancée à temps.</CardText>
-          <Link href="/play" className="mt-3 inline-block text-sm font-semibold text-sage-300 underline">
+          <Link href="/play/amis" className="mt-3 inline-block text-sm font-semibold text-sage-300 underline">
             Retour aux jeux
           </Link>
         </Card>
