@@ -28,6 +28,38 @@ export type LooseAccessory = TossAccessory & {
 
 export type TossBounds = { width: number; height: number };
 
+/**
+ * The solid silhouette of the drawing, as ellipses in pixels from its centre
+ * (unrotated, y down): the head circle and the body ellipse, ears and tail
+ * left out. Bounces happen where this shape meets the walls and the floor,
+ * whatever the angle, so the creature really touches them.
+ */
+export type TossPart = { cx: number; cy: number; rx: number; ry: number };
+export type TossShape = readonly TossPart[];
+export type TossExtents = { left: number; right: number; top: number; bottom: number };
+
+/** A stand-in silhouette (one ellipse) from the `TOSS.box` fractions: the tests and any caller without a drawing. */
+export function defaultShape(size: number): TossShape {
+  return [{ cx: 0, cy: (size * (TOSS.box.bottom - TOSS.box.top)) / 2, rx: size * TOSS.box.side, ry: (size * (TOSS.box.bottom + TOSS.box.top)) / 2 }];
+}
+
+/** How far the rotated shape reaches from the centre on each side (px). */
+export function shapeExtents(shape: TossShape, angleDeg: number): TossExtents {
+  const rad = (angleDeg * Math.PI) / 180;
+  const c = Math.cos(rad);
+  const s = Math.sin(rad);
+  const reach = (dx: number, dy: number) => {
+    let best = 0;
+    for (const part of shape) {
+      const centre = (part.cx * c - part.cy * s) * dx + (part.cx * s + part.cy * c) * dy;
+      const half = Math.hypot(part.rx * (c * dx + s * dy), part.ry * (-s * dx + c * dy));
+      best = Math.max(best, centre + half);
+    }
+    return best;
+  };
+  return { left: reach(-1, 0), right: reach(1, 0), top: reach(0, -1), bottom: reach(0, 1) };
+}
+
 /** How much of its speed the creature keeps on a wall / ceiling bounce and on a floor bounce (`rules.home`, defaults `TOSS`). */
 export type TossPhysics = { restitution: number; floorRestitution: number };
 export const DEFAULT_TOSS_PHYSICS: TossPhysics = { restitution: TOSS.restitution, floorRestitution: TOSS.floorRestitution };
@@ -38,6 +70,9 @@ export type TossState = {
   /** Side of the creature drawing (px). */
   size: number;
   physics: TossPhysics;
+  shape: TossShape;
+  /** The floor line (px): where the bottom of the shape rests. */
+  floorY: number;
   /** Where the creature stands when nothing happens (its centre). */
   rest: { x: number; y: number };
   x: number;
@@ -91,7 +126,7 @@ function restOf(bounds: TossBounds, size: number): { x: number; y: number } {
   return { x: bounds.width / 2, y: bounds.height - TOSS.restBottom - size / 2 };
 }
 
-export function createToss(bounds: TossBounds, size: number, outfit: readonly TossAccessory[], physics: TossPhysics = DEFAULT_TOSS_PHYSICS): TossState {
+export function createToss(bounds: TossBounds, size: number, outfit: readonly TossAccessory[], physics: TossPhysics = DEFAULT_TOSS_PHYSICS, shape: TossShape = defaultShape(size)): TossState {
   const rest = restOf(bounds, size);
   const worn = sortOutfit([...outfit]);
   return {
@@ -99,6 +134,9 @@ export function createToss(bounds: TossBounds, size: number, outfit: readonly To
     height: bounds.height,
     size,
     physics: { restitution: clamp(physics.restitution, 0, 0.98), floorRestitution: clamp(physics.floorRestitution, 0, 0.98) },
+    shape,
+    // Standing upright, the bottom of the shape is on the floor: the same spot as the drawing's ground line.
+    floorY: rest.y + shapeExtents(shape, 0).bottom,
     rest,
     x: rest.x,
     y: rest.y,
@@ -129,12 +167,14 @@ export function resizeToss(state: TossState, bounds: TossBounds): void {
   state.width = bounds.width;
   state.height = bounds.height;
   state.rest = restOf(bounds, state.size);
+  state.floorY = state.rest.y + shapeExtents(state.shape, 0).bottom;
   if (state.phase === "idle") {
     state.x = state.rest.x;
     state.y = state.rest.y;
   } else {
-    state.x = clamp(state.x, halfWidth(state), state.width - halfWidth(state));
-    state.y = clamp(state.y, halfHeight(state), state.rest.y);
+    const ext = shapeExtents(state.shape, state.angle);
+    state.x = clamp(state.x, ext.left, state.width - ext.right);
+    state.y = clamp(state.y, ext.top, state.floorY - ext.bottom);
   }
   for (const item of state.loose) {
     item.x = clamp(item.x, itemHalf(state), state.width - itemHalf(state));
@@ -149,8 +189,6 @@ export function dressToss(state: TossState, outfit: readonly TossAccessory[]): v
   state.loose = [];
 }
 
-const halfWidth = (s: TossState) => s.size * TOSS.halfWidth;
-const halfHeight = (s: TossState) => s.size * TOSS.halfHeight;
 const itemHalf = (s: TossState) => s.size * TOSS.item.half;
 const itemFloor = (s: TossState) => s.rest.y + s.size * TOSS.item.floor;
 
@@ -205,7 +243,8 @@ export function grabToss(state: TossState, px: number, py: number): void {
 /** The finger moves: the pin follows it (kept inside the scene), the creature swings after it. */
 export function moveToss(state: TossState, px: number, py: number): void {
   if (state.phase !== "held") return;
-  state.pivotTarget = { x: clamp(px, halfWidth(state), state.width - halfWidth(state)), y: clamp(py, halfHeight(state), state.rest.y) };
+  const ext = shapeExtents(state.shape, 0);
+  state.pivotTarget = { x: clamp(px, ext.left, state.width - ext.right), y: clamp(py, ext.top, state.rest.y) };
 }
 
 /**
@@ -305,8 +344,7 @@ function stepHeld(state: TossState, dt: number): void {
   let y = y0 + state.vy * dt;
   let rad = rad0 + omega * dt;
   const inertia = (state.size * TOSS.gyration) ** 2;
-  const hw = halfWidth(state);
-  const hh = halfHeight(state);
+  const ext = shapeExtents(state.shape, state.angle);
   for (let i = 0; i < TOSS.pinIterations; i += 1) {
     // The grabbed point, where it is now, and how far it sits from the finger.
     const cos = Math.cos(rad);
@@ -326,8 +364,8 @@ function stepHeld(state: TossState, dt: number): void {
       y += ny * lambda;
       rad += (lambda * cross) / inertia;
     }
-    x = clamp(x, hw, state.width - hw);
-    y = clamp(y, hh, state.rest.y);
+    x = clamp(x, ext.left, state.width - ext.right);
+    y = clamp(y, ext.top, state.floorY - ext.bottom);
   }
   state.vx = (x - x0) / dt;
   state.vy = (y - y0) / dt;
@@ -338,31 +376,31 @@ function stepHeld(state: TossState, dt: number): void {
 }
 
 function stepFlying(state: TossState, dt: number, random: () => number, anchorOf: AnchorOf, events: TossEvent[]): void {
-  const hw = halfWidth(state);
-  const hh = halfHeight(state);
-  const onFloorBefore = state.y >= state.rest.y - 0.01;
+  const onFloorBefore = state.y + shapeExtents(state.shape, state.angle).bottom >= state.floorY - 0.01;
   state.vy += TOSS.gravity * dt;
   state.x += state.vx * dt;
   state.y += state.vy * dt;
   state.angle += state.spin * dt;
-  if (state.x < hw) {
-    state.x = hw;
+  // The silhouette turns with the creature: it touches a wall or the floor with whatever part is closest.
+  const ext = shapeExtents(state.shape, state.angle);
+  if (state.x < ext.left) {
+    state.x = ext.left;
     bounce(state, state.vx, random, anchorOf, events);
     state.vx = -state.vx * state.physics.restitution;
     state.spin = -state.spin * state.physics.restitution;
-  } else if (state.x > state.width - hw) {
-    state.x = state.width - hw;
+  } else if (state.x > state.width - ext.right) {
+    state.x = state.width - ext.right;
     bounce(state, state.vx, random, anchorOf, events);
     state.vx = -state.vx * state.physics.restitution;
     state.spin = -state.spin * state.physics.restitution;
   }
-  if (state.y < hh) {
-    state.y = hh;
+  if (state.y < ext.top) {
+    state.y = ext.top;
     bounce(state, state.vy, random, anchorOf, events);
     state.vy = -state.vy * state.physics.restitution;
   }
-  if (state.y >= state.rest.y) {
-    state.y = state.rest.y;
+  if (state.y + ext.bottom >= state.floorY) {
+    state.y = state.floorY - ext.bottom;
     const impact = state.vy;
     if (impact > TOSS.bounceStop) {
       bounce(state, impact, random, anchorOf, events);
@@ -394,8 +432,11 @@ function stepLanding(state: TossState, dt: number, events: TossEvent[]): void {
   state.phaseAt += dt;
   const t = Math.min(1, state.phaseAt / TOSS.landingSeconds);
   state.angle = state.landFrom * (1 - easeOut(t));
+  // Rolling back upright, the silhouette stays on the floor (no gap under a creature getting up from its side).
+  state.y = state.floorY - shapeExtents(state.shape, state.angle).bottom;
   if (t < 1) return;
   state.angle = 0;
+  state.y = state.rest.y;
   state.phaseAt = 0;
   if (state.loose.length > 0) state.phase = "fetching";
   else if (Math.abs(state.x - state.rest.x) > 1) state.phase = "returning";
@@ -417,7 +458,8 @@ function runTo(state: TossState, targetX: number, reach: number, dt: number): bo
   const step = Math.min(Math.abs(dx), TOSS.runSpeed * dt);
   state.facing = dx < 0 ? -1 : 1;
   const wanted = state.x + Math.sign(dx) * step;
-  state.x = clamp(wanted, halfWidth(state), state.width - halfWidth(state));
+  const ext = shapeExtents(state.shape, 0);
+  state.x = clamp(wanted, ext.left, state.width - ext.right);
   const blocked = state.x !== wanted;
   if (blocked || Math.abs(targetX - state.x) <= reach) {
     state.facing = 0;

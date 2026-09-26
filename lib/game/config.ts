@@ -289,9 +289,8 @@ export const TOSS = {
   shadowLine: 0.435,
   shadowOpacity: 0.28,
   shadowMinScale: 0.35,
-  /** Collision box of the creature, as fractions of its drawing size, and the gap kept under its feet. */
-  halfWidth: 0.28,
-  halfHeight: 0.3,
+  /** Stand-in silhouette when no drawing is known (`defaultShape`): half width, reach above and below the centre, as fractions of the size; and the gap kept under its feet. */
+  box: { side: 0.28, top: 0.3, bottom: 0.42 },
   restBottom: 4,
   /** A press shorter than this and moving less than this is a pat, not a throw; pointer samples used for the release speed. */
   tapMs: 350,

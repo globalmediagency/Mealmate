@@ -8,7 +8,7 @@ import type { Slot } from "@/lib/accessories/catalog";
 import type { Species } from "@/lib/creatures/types";
 import { TOSS, type StageId } from "@/lib/game/config";
 import type { CreatureState } from "@/lib/game/creature-view";
-import { createToss, dressToss, grabToss, isTossActive, moveToss, releaseToss, resizeToss, stepToss, tossShadow, type AnchorOf, type LooseAccessory, type TossEvent, type TossPhase, type TossState } from "@/lib/game/toss";
+import { createToss, dressToss, grabToss, isTossActive, moveToss, releaseToss, resizeToss, stepToss, tossShadow, type AnchorOf, type LooseAccessory, type TossEvent, type TossPhase, type TossShape, type TossState } from "@/lib/game/toss";
 import { cn } from "@/lib/utils/cn";
 
 export type ThrowableCreatureProps = {
@@ -55,6 +55,27 @@ function anchorsFor(species: Species, stage: StageId, size: number): AnchorOf {
     const sy = 92 + (y - 92) * scales.overall;
     return { dx: ((sx - 50) / 100) * size, dy: ((sy - 50) / 100) * size };
   };
+}
+
+/** The solid silhouette of the drawing (head circle + body ellipse, scaled like the SVG), in px from its centre: what touches the walls and the floor. */
+function shapeFor(species: Species, stage: StageId, size: number): TossShape {
+  const layout = LAYOUTS[species.parts.body];
+  const scales = stageScales(stage, layout.hasDistinctHead);
+  const px = (v: number) => (v / 100) * size;
+  // Overall stage scale about the ground line (50, 92), like `overallTransform` in the SVG.
+  const sx = (x: number) => 50 + (x - 50) * scales.overall;
+  const sy = (y: number) => 92 + (y - 92) * scales.overall;
+  // The head grows about its own centre on babies; the body about the ground line.
+  const head = { cx: sx(layout.head.cx), cy: sy(layout.head.cy), r: layout.head.r * scales.head * scales.overall };
+  const body = {
+    cx: sx(50 + (layout.body.cx - 50) * scales.body),
+    cy: sy(92 + (layout.body.cy - 92) * scales.body),
+    rx: layout.body.rx * scales.body * scales.overall,
+    ry: layout.body.ry * scales.body * scales.overall,
+  };
+  const parts: { cx: number; cy: number; rx: number; ry: number }[] = [{ cx: px(body.cx - 50), cy: px(body.cy - 50), rx: px(body.rx), ry: px(body.ry) }];
+  if (layout.hasDistinctHead) parts.push({ cx: px(head.cx - 50), cy: px(head.cy - 50), rx: px(head.r), ry: px(head.r) });
+  return parts;
 }
 
 const creatureTransform = (s: TossState) => `translate(${(s.x - s.size / 2).toFixed(1)}px, ${(s.y - s.size / 2).toFixed(1)}px) rotate(${s.angle.toFixed(1)}deg)`;
@@ -162,7 +183,7 @@ export function ThrowableCreature({ species, stage, state, accessories, size = 2
     const el = box.current;
     if (!el) return;
     const bounds = () => ({ width: el.clientWidth, height: el.clientHeight });
-    const s = createToss(bounds(), size, accessories, { restitution: bounce, floorRestitution: floorBounce });
+    const s = createToss(bounds(), size, accessories, { restitution: bounce, floorRestitution: floorBounce }, shapeFor(species, stage, size));
     toss.current = s;
     paint();
     const observer = new ResizeObserver(() => {
@@ -175,9 +196,9 @@ export function ThrowableCreature({ species, stage, state, accessories, size = 2
       stop();
       toss.current = null;
     };
-    // The outfit is followed by the effect below; the size and bounces never change on a screen.
+    // The outfit is followed by the effect below; the size, bounces and silhouette never change on a screen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [size, bounce, floorBounce, paint, stop]);
+  }, [size, bounce, floorBounce, species, stage, paint, stop]);
 
   // A new outfit (wardrobe, server refresh): worn in full, nothing on the floor.
   const outfitKey = accessories.map((a) => `${a.slot}:${a.id}`).join("|");

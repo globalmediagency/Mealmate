@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TOSS } from "./config";
-import { createToss, dressToss, grabToss, isTossActive, moveToss, pinPoint, releaseToss, resizeToss, stepToss, tossShadow, type AnchorOf, type TossEvent, type TossState } from "./toss";
+import { createToss, dressToss, grabToss, isTossActive, moveToss, pinPoint, releaseToss, resizeToss, shapeExtents, stepToss, tossShadow, type AnchorOf, type TossEvent, type TossShape, type TossState } from "./toss";
 
 const BOUNDS = { width: 360, height: 320 };
 const SIZE = 220;
@@ -49,10 +49,10 @@ describe("createToss / grab / move", () => {
     // The finger never leaves the scene: the pin is kept inside, the creature with it.
     moveToss(state, -500, 900);
     run(state, 1);
-    expect(state.pivotTarget.x).toBe(SIZE * TOSS.halfWidth);
+    expect(state.pivotTarget.x).toBe(SIZE * TOSS.box.side);
     expect(state.pivotTarget.y).toBe(state.rest.y);
-    expect(state.x).toBeGreaterThanOrEqual(SIZE * TOSS.halfWidth);
-    expect(state.y).toBeLessThanOrEqual(state.rest.y);
+    expect(state.x).toBeGreaterThanOrEqual(shapeExtents(state.shape, state.angle).left - 0.01);
+    expect(state.y + shapeExtents(state.shape, state.angle).bottom).toBeLessThanOrEqual(state.floorY + 0.01);
   });
 
   it("swings around the finger: held by the side it ends up sideways, held by the feet upside down", () => {
@@ -138,9 +138,10 @@ describe("a throw", () => {
       expect(item.y).toBeLessThanOrEqual(state.rest.y + SIZE * TOSS.item.floor);
     }
     // The creature itself never leaves the scene.
-    expect(state.x).toBeGreaterThanOrEqual(SIZE * TOSS.halfWidth);
-    expect(state.x).toBeLessThanOrEqual(BOUNDS.width - SIZE * TOSS.halfWidth);
-    expect(state.y).toBeLessThanOrEqual(state.rest.y);
+    const ext = shapeExtents(state.shape, state.angle);
+    expect(state.x).toBeGreaterThanOrEqual(ext.left - 0.01);
+    expect(state.x).toBeLessThanOrEqual(BOUNDS.width - ext.right + 0.01);
+    expect(state.y + ext.bottom).toBeLessThanOrEqual(state.floorY + 0.01);
   });
 
   it("lands, gets back on its feet, runs to every accessory nearest first, puts them back on and walks home", () => {
@@ -191,7 +192,7 @@ describe("a throw", () => {
     expect(events.some((e) => e.kind === "drop")).toBe(false);
     expect(events.filter((e) => e.kind === "bounce").length).toBeGreaterThan(0);
     resizeToss(state, { width: 200, height: 260 });
-    expect(state.x).toBeLessThanOrEqual(200 - SIZE * TOSS.halfWidth);
+    expect(state.x).toBeLessThanOrEqual(200 - shapeExtents(state.shape, state.angle).right + 0.01);
     expect(state.rest.y).toBe(260 - TOSS.restBottom - SIZE / 2);
     dressToss(state, OUTFIT);
     expect(state.worn).toHaveLength(3);
@@ -246,5 +247,69 @@ describe("tossShadow / physics", () => {
     expect(livelyBounces).toBeGreaterThan(dullBounces + 2);
     expect(lively.phase).toBe("idle");
     expect(dull.phase).toBe("idle");
+  });
+});
+
+/** Reads the phase without TypeScript narrowing it to the value just assigned. */
+const phaseOf = (state: TossState): TossState["phase"] => state.phase;
+
+describe("silhouette contact", () => {
+  // A creature: head circle above a body ellipse (px from the centre, y down), bottom of the body 92 px below the centre.
+  const SHAPE: TossShape = [
+    { cx: 0, cy: -22, rx: 50, ry: 50 },
+    { cx: 0, cy: 50, rx: 46, ry: 42 },
+  ];
+
+  it("reaches as far as the rotated ellipses", () => {
+    const upright = shapeExtents(SHAPE, 0);
+    expect(upright).toEqual({ left: 50, right: 50, top: 72, bottom: 92 });
+    const flipped = shapeExtents(SHAPE, 180);
+    expect(flipped.bottom).toBeCloseTo(72, 6);
+    expect(flipped.top).toBeCloseTo(92, 6);
+    const side = shapeExtents(SHAPE, 90);
+    expect(side.right).toBeCloseTo(72, 6); // turned clockwise (y down), the head now points to the viewer's right
+    expect(side.left).toBeCloseTo(92, 6);
+    expect(side.bottom).toBeCloseTo(50, 6);
+    const circle = shapeExtents([{ cx: 0, cy: 0, rx: 30, ry: 30 }], 37);
+    for (const v of Object.values(circle)) expect(v).toBeCloseTo(30, 9);
+  });
+
+  it("lands on its head when upside down, then rolls upright without ever leaving the floor", () => {
+    const state = createToss(BOUNDS, SIZE, [], undefined, SHAPE);
+    expect(state.floorY).toBe(state.rest.y + 92);
+    state.phase = "flying";
+    state.thrown = true;
+    state.angle = 180;
+    state.y = state.rest.y - 60;
+    state.vy = 0;
+    // First contact: the head (72 px below the centre when flipped) is exactly on the floor line.
+    let touched = false;
+    for (let t = 0; t < 3 && !touched; t += 0.01) {
+      stepToss(state, 0.01, () => 0.5, anchorOf);
+      if (state.y + shapeExtents(state.shape, state.angle).bottom >= state.floorY - 0.01) touched = true;
+    }
+    expect(touched).toBe(true);
+    expect(state.y).toBeCloseTo(state.floorY - 72, 6);
+    // While it gets back on its feet, the silhouette keeps touching the floor at every step.
+    for (let t = 0; t < 3 && phaseOf(state) !== "idle"; t += 0.01) {
+      stepToss(state, 0.01, () => 0.5, anchorOf);
+      if (phaseOf(state) === "landing") expect(state.y + shapeExtents(state.shape, state.angle).bottom).toBeCloseTo(state.floorY, 6);
+    }
+    expect(phaseOf(state)).toBe("idle");
+    expect(state.y).toBe(state.rest.y);
+  });
+
+  it("hits a wall with the part that sticks out, not with a fixed box", () => {
+    const state = createToss(BOUNDS, SIZE, [], { restitution: 0.5, floorRestitution: 0.5 }, SHAPE);
+    state.phase = "flying";
+    state.angle = 90; // head to the viewer's right
+    state.spin = 0;
+    state.x = 300;
+    state.y = state.rest.y - 100;
+    state.vy = -2600 * 0.01; // hovering for the first step
+    state.vx = 3000;
+    const events = stepToss(state, 0.01, () => 0.5, anchorOf);
+    expect(events.some((e) => e.kind === "bounce")).toBe(true);
+    expect(state.x).toBeCloseTo(BOUNDS.width - 72, 6);
   });
 });
