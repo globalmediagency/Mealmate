@@ -4,7 +4,7 @@ import { Gift, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AccessoryIcon } from "@/components/accessories";
-import { RARITY_COLORS, RarityBadge } from "@/components/creatures/rarity-badge";
+import { rarityTint, RarityBadge } from "@/components/creatures/rarity-badge";
 import { Alert } from "@/components/ui/alert";
 import { Button, LinkButton } from "@/components/ui/button";
 import type { Accessory } from "@/lib/accessories/catalog";
@@ -90,7 +90,7 @@ export function ChestOpener({ status: initial, canEquip, creatureId, mode = "che
         <div className="animate-rise">
           <div
             className="mx-auto flex h-36 w-36 items-center justify-center rounded-full mm-pop-in"
-            style={{ boxShadow: `0 0 50px ${RARITY_COLORS[reward.accessory.rarity]}66`, background: `${RARITY_COLORS[reward.accessory.rarity]}1a` }}
+            style={{ boxShadow: `0 0 50px ${rarityTint(reward.accessory.rarity, 0.4)}`, background: rarityTint(reward.accessory.rarity, 0.1) }}
           >
             <AccessoryIcon id={reward.accessory.id} size={120} />
           </div>

@@ -106,6 +106,8 @@ export const profiles = pgTable(
     /** Coaching rewards already opened as a student / as a coach (migration 010). */
     studentRewardsOpened: integer("student_rewards_opened").notNull().default(0),
     coachRewardsOpened: integer("coach_rewards_opened").notNull().default(0),
+    /** Design of the site the player picked (`lib/themes/catalog.ts` id, migration 020); NULL = the admin's default. */
+    theme: text("theme"),
   },
   (table) => [
     // Usernames are unique case-insensitively ("Chabond" == "chabond").

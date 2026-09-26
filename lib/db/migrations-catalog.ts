@@ -336,6 +336,14 @@ ALTER TABLE arena_players ADD COLUMN IF NOT EXISTS points integer NOT NULL DEFAU
 ALTER TABLE play_sessions DROP CONSTRAINT IF EXISTS play_sessions_kind_check;
 ALTER TABLE play_sessions ADD CONSTRAINT play_sessions_kind_check CHECK (kind IN ('catch', 'defense', 'arena', 'coop', 'pingpong'));`,
   },
+  // 019 was the photo marker, removed since: its columns stay unread and unchecked.
+  {
+    id: "020",
+    file: "020_profile_theme.sql",
+    title: "Design du site choisi par le joueur",
+    checks: [{ table: "profiles", column: "theme" }],
+    sql: `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS theme text;`,
+  },
 ];
 
 /** Migrations whose checks fail against the given set of existing `table` / `table.column` keys. */

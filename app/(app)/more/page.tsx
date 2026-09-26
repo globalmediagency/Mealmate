@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { Check, ChevronRight, FileText, Flower2, Gamepad2, HeartPulse, Layers, ScanLine, Shield, Shirt, Smartphone, X, type LucideIcon } from "lucide-react";
+import { Check, ChevronRight, FileText, Flower2, Gamepad2, HeartPulse, Layers, Palette, ScanLine, Shield, Shirt, Smartphone, X, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { DangerZone } from "@/components/account/danger-zone";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardText, CardTitle } from "@/components/ui/card";
 import { CopyButton } from "@/components/ui/copy-button";
+import { ThemePicker } from "@/components/theme/theme-picker";
 import { hasPasswordAccount } from "@/lib/account/service";
 import { requireViewer } from "@/lib/auth/session";
 import { ALL_SPECIES } from "@/lib/creatures";
@@ -13,6 +14,8 @@ import { discoverableSpecies, getDisabledSpecies } from "@/lib/game/species-serv
 import { getObtainedSpeciesIds } from "@/lib/creatures/service";
 import { getConfigStatus } from "@/lib/env";
 import { getOwnedAccessories } from "@/lib/accessories/service";
+import { isThemeId, selectableThemes } from "@/lib/themes/catalog";
+import { getThemeSettings } from "@/lib/themes/service";
 
 export const metadata: Metadata = { title: "Plus" };
 
@@ -60,12 +63,15 @@ function Section({ title, entries }: { title: string; entries: Entry[] }) {
 export default async function MorePage() {
   const { session, profile } = await requireViewer();
   const status = getConfigStatus();
-  const [hasPassword, owned, obtained, disabledSpecies] = await Promise.all([
+  const [hasPassword, owned, obtained, disabledSpecies, themeSettings] = await Promise.all([
     hasPasswordAccount(session.user.id),
     getOwnedAccessories(session.user.id).catch(() => []),
     getObtainedSpeciesIds(session.user.id).catch(() => []),
     getDisabledSpecies(),
+    getThemeSettings(),
   ]);
+  // The player's choice, when it still names a design the admin offers.
+  const chosenTheme = isThemeId(profile.theme) && !themeSettings.disabled.has(profile.theme) ? profile.theme : null;
   const discoverable = discoverableSpecies(ALL_SPECIES, disabledSpecies, new Set(obtained)).length;
   const unavailable: string[] = [];
   if (!status.gemini || !status.r2) unavailable.push("L'analyse des repas est indisponible pour le moment.");
@@ -92,6 +98,17 @@ export default async function MorePage() {
       />
       <Section title="Jouer" entries={[{ href: "/play", label: "Tous les jeux", detail: "Attrape-repas, Défendre, Arène, Défendre ensemble, Ping-pong", icon: Gamepad2 }]} />
       <Section title="Soins" entries={[{ href: "/shop", label: "Soins et boutique", detail: "Ton armoire à pharmacie, puis les soins à acheter", icon: HeartPulse }]} />
+
+      <section aria-label="Apparence" className="space-y-1.5">
+        <h2 className="flex items-center gap-1.5 px-1 text-xs font-semibold uppercase tracking-wider text-cream-700">
+          <Palette className="h-3.5 w-3.5" aria-hidden="true" />
+          Apparence
+        </h2>
+        <Card className="p-3">
+          <CardText className="mb-3">Couleurs, polices et formes de MealMate : choisis le design qui te plaît, il te suit sur tous tes appareils.</CardText>
+          <ThemePicker themes={selectableThemes(themeSettings)} defaultId={themeSettings.defaultId} chosen={chosenTheme} />
+        </Card>
+      </section>
 
       <section aria-label="Mon compte" className="space-y-3">
         <h2 className="px-1 text-xs font-semibold uppercase tracking-wider text-cream-700">Mon compte</h2>

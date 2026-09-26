@@ -45,7 +45,7 @@ export async function exportAccount(userId: string, now: Date = new Date()) {
   const [users, profileRows, creatureRows, mealRows, stepRows, playRows, accessoryRows, friendshipRows, purchaseRows, inventoryRows, giftRows, tradeRows, boardingRows, coachingRows, strava] =
     await Promise.all([
       db.select({ email: user.email, name: user.name, createdAt: user.createdAt }).from(user).where(eq(user.id, userId)),
-      db.select({ username: profiles.username, friendCode: profiles.friendCode, createdAt: profiles.createdAt }).from(profiles).where(eq(profiles.userId, userId)),
+      db.select({ username: profiles.username, friendCode: profiles.friendCode, createdAt: profiles.createdAt, theme: profiles.theme }).from(profiles).where(eq(profiles.userId, userId)),
       db.select().from(creatures).where(eq(creatures.userId, userId)).orderBy(desc(creatures.createdAt)),
       db.select().from(meals).where(eq(meals.userId, userId)).orderBy(desc(meals.createdAt)),
       db.select().from(stepEntries).where(eq(stepEntries.userId, userId)).orderBy(desc(stepEntries.date)),

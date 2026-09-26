@@ -68,7 +68,9 @@ CREATE TABLE IF NOT EXISTS profiles (
   friend_code            text NOT NULL UNIQUE,
   created_at             timestamptz NOT NULL DEFAULT now(),
   student_rewards_opened integer NOT NULL DEFAULT 0,
-  coach_rewards_opened   integer NOT NULL DEFAULT 0
+  coach_rewards_opened   integer NOT NULL DEFAULT 0,
+  -- Design of the site chosen by the player (migration 020); NULL = the admin's default.
+  theme                  text
 );
 -- Usernames are unique case-insensitively.
 CREATE UNIQUE INDEX IF NOT EXISTS profiles_username_lower_idx ON profiles (lower(username));

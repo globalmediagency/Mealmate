@@ -20,5 +20,6 @@ l'éditeur SQL de Neon dans l'ordre des numéros.
 | `009_boardings.sql` | 10 | table `boardings` (créature confiée en pension à un ami, 30 jours au plus) |
 | `010_coaching.sql` | 11 | tables `coachings` et `meal_reviews`, compteurs de récompenses sur `profiles` |
 | `011_boardings_acceptance.sql` | 12 | `boardings.status` (proposition à accepter par l'hôte), `owner_seen_at`, motifs `declined` / `cancelled` |
+| `020_profile_theme.sql` | designs | `profiles.theme` (design du site choisi par le joueur ; `019` était le marqueur photo, retiré depuis) |
 
 Un `init.sql` fraîchement exécuté contient déjà toutes ces évolutions.

@@ -1,5 +1,5 @@
 import { Creature } from "@/components/creatures/creature";
-import { RARITY_COLORS } from "@/components/creatures/rarity-badge";
+import { RARITY_COLORS, rarityTint } from "@/components/creatures/rarity-badge";
 import { speciesForTier } from "@/lib/creatures";
 import { RARITIES, RARITY_LABELS, TIER_CONFIG, TIERS } from "@/lib/game/config";
 
@@ -33,7 +33,7 @@ export function CollectionGrid({ obtained, hidden = new Set() }: { obtained: Rea
                   <li
                     key={s.id}
                     className="flex flex-col items-center rounded-2xl bg-ink-800/80 p-1.5 text-center"
-                    style={{ boxShadow: `inset 0 0 0 1px ${RARITY_COLORS[s.rarity]}${has ? "aa" : "44"}` }}
+                    style={{ boxShadow: `inset 0 0 0 1px ${rarityTint(s.rarity, has ? 0.67 : 0.27)}` }}
                   >
                     <Creature species={s} stage="adulte" size={64} animated={false} silhouette={!has} title={has ? s.name : "À découvrir"} />
                     <span className={has ? "text-[10px] font-semibold text-cream-100" : "text-[10px] text-cream-700"}>{has ? s.name : "?"}</span>

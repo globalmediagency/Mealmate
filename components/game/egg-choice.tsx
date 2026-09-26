@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Creature } from "@/components/creatures/creature";
 import { Egg } from "@/components/creatures/egg";
-import { RARITY_COLORS } from "@/components/creatures/rarity-badge";
+import { RARITY_COLORS, rarityTint } from "@/components/creatures/rarity-badge";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { Species } from "@/lib/creatures/types";
@@ -165,7 +165,7 @@ export function EggChoice({ speciesByTier, hiddenSpeciesByTier = {}, obtainedSpe
                 <div
                   key={s.id}
                   className="relative flex aspect-square items-center justify-center rounded-2xl bg-ink-900/70"
-                  style={{ boxShadow: `inset 0 0 0 1px ${RARITY_COLORS[s.rarity]}55` }}
+                  style={{ boxShadow: `inset 0 0 0 1px ${rarityTint(s.rarity, 0.33)}` }}
                   title={got ? s.name : "Espèce à découvrir"}
                 >
                   <Creature species={s} stage="enfant" size="82%" animated={false} silhouette={!got} title={got ? s.name : "Silhouette"} />
@@ -199,7 +199,7 @@ export function EggChoice({ speciesByTier, hiddenSpeciesByTier = {}, obtainedSpe
                     <div
                       key={s.id}
                       className="relative flex aspect-square items-center justify-center rounded-2xl bg-ink-900/70"
-                      style={{ boxShadow: `inset 0 0 0 1px ${RARITY_COLORS[s.rarity]}55` }}
+                      style={{ boxShadow: `inset 0 0 0 1px ${rarityTint(s.rarity, 0.33)}` }}
                       title={got ? s.name : "Espèce à découvrir"}
                     >
                       <Creature species={s} stage="enfant" size="88%" animated={false} silhouette={!got} title={got ? s.name : "Silhouette"} />

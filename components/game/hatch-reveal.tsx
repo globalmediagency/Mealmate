@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Creature } from "@/components/creatures/creature";
-import { RARITY_COLORS, RarityBadge } from "@/components/creatures/rarity-badge";
+import { RARITY_COLORS, rarityTint, RarityBadge } from "@/components/creatures/rarity-badge";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
@@ -71,7 +71,7 @@ export function HatchReveal({ creature, onNamed }: HatchRevealProps) {
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 mm-rays"
             style={{
-              background: `conic-gradient(from 0deg, transparent 0deg, ${RARITY_COLORS[rarity]}33 20deg, transparent 40deg, transparent 60deg, ${RARITY_COLORS[rarity]}33 80deg, transparent 100deg, transparent 120deg, ${RARITY_COLORS[rarity]}33 140deg, transparent 160deg, transparent 180deg, ${RARITY_COLORS[rarity]}33 200deg, transparent 220deg, transparent 240deg, ${RARITY_COLORS[rarity]}33 260deg, transparent 280deg, transparent 300deg, ${RARITY_COLORS[rarity]}33 320deg, transparent 340deg)`,
+              background: `conic-gradient(from 0deg, transparent 0deg, ${rarityTint(rarity, 0.2)} 20deg, transparent 40deg, transparent 60deg, ${rarityTint(rarity, 0.2)} 80deg, transparent 100deg, transparent 120deg, ${rarityTint(rarity, 0.2)} 140deg, transparent 160deg, transparent 180deg, ${rarityTint(rarity, 0.2)} 200deg, transparent 220deg, transparent 240deg, ${rarityTint(rarity, 0.2)} 260deg, transparent 280deg, transparent 300deg, ${rarityTint(rarity, 0.2)} 320deg, transparent 340deg)`,
             }}
           />
         ) : null}
@@ -93,7 +93,7 @@ export function HatchReveal({ creature, onNamed }: HatchRevealProps) {
         ) : null}
         <div
           className="relative mx-auto mb-2 flex items-center justify-center rounded-full mm-pop-in"
-          style={{ width: 220, height: 220, boxShadow: `0 0 60px ${RARITY_COLORS[rarity]}55` }}
+          style={{ width: 220, height: 220, boxShadow: `0 0 60px ${rarityTint(rarity, 0.33)}` }}
         >
           <Creature species={species} stage="bebe" state="healthy" size={220} reaction="tap" />
         </div>

@@ -240,6 +240,11 @@ public/sw.js, icons/    Service worker et icônes
 - **Lancer la créature** : dans la scène, une pression courte caresse toujours la créature ; la saisir au doigt la fait suivre le doigt, la lâcher vite la lance. Elle rebondit sur les quatre parois de la scène en tournant sur elle-même, perd un accessoire à chaque impact violent (tête, yeux, cou puis corps ; la pièce tombe de là où elle était portée, rebondit et se pose au sol), se remet sur pied, court chercher chaque accessoire (le plus proche d'abord, tournée dans le sens de sa course), le remet à sa place et revient au centre, en commentant dans sa bulle (« Wouuuh ! », « Hé ! Mes affaires ! », « Bon… je ramasse tout ça. », « Et voilà, tout est remis en place. »). Physique pure et testée (`lib/game/toss.ts`, constantes `TOSS`), rendu sans état React à chaque image (`ThrowableCreature`), rien n'est envoyé au serveur ; créature morte ou `prefers-reduced-motion` = caresse seulement.
 - **Navigation** : chevron « Retour » 44 px dans l'en-tête de toute page hors onglet, onglet parent allumé sur les sous-pages, invitations à jouer comptées sur l'onglet Créature (et rappelées en tête d'Amis), page Plus réduite à un annuaire court (Ma créature, Jouer, Soins, Mon compte, À propos ; état des services replié), marge haute qui s'ajoute à l'encoche.
 
+### 3.27 Designs du site (apparence)
+- Cinq designs (`lib/themes/catalog.ts`) : **Forêt** (l'original : nuit profonde, sauge, laiton, Fraunces + Manrope), **Sable** (seashell, moon mist, rodeo dust, sand dune, Baltic sea : beige chaud et clair, Cormorant Garamond + Jost), **Plage** (bleus délavés #7BA5B3 / #59838F, sable #D5B099 / #E7D6C6, bleu pâle #CADFE1 : clair et aérien, Josefin Sans + Nunito Sans), **Rose poudré** (ivoire rosé, vieux rose, or champagne, Playfair Display + DM Sans) et **Velours noir** (noir prune, ivoire, or, coins plus nets, Bodoni Moda + Outfit). Un design = toutes les couleurs de l'interface (surfaces, textes, accent, mise en avant, statuts, raretés), deux polices, ombres, lueurs, couleur de barre d'état, `color-scheme` et rayons ; les contrastes des paires utilisées par l'interface sont vérifiés par un test.
+- **Joueur** : « Plus » → Apparence montre les designs proposés en cartes peintes avec leurs propres couleurs et polices ; toucher une carte change la page aussitôt, enregistre le choix sur le compte (`profiles.theme`, migration 020) et sur l'appareil (cookie `mm_theme`, un an) ; « Suivre le design par défaut » remet `NULL`. Le layout racine rend le design du cookie (toutes les pages, connexion comprise, sans flash) ; dans l'app, le design du compte l'emporte et corrige le cookie si besoin.
+- **Admin** : onglet « Apparence » (`/admin/apparence`) : chaque design avec sa miniature, un interrupteur « Proposé / Désactivé » et « Définir par défaut » ; le défaut est toujours proposé (promouvoir un design désactivé le réactive, désactiver le défaut est refusé). Un design désactivé disparaît du sélecteur et les joueurs qui l'avaient reviennent au défaut (leur choix est conservé au cas où il revient). Réglages dans `game_settings` id `themes`, cache 60 s.
+
 ## 4. Schéma de données
 
 Source de vérité : `db/init.sql` (idempotent) ⇄ `lib/db/schema.ts`. Colonnes en `snake_case`, horodatages en `timestamptz`.
@@ -247,7 +252,7 @@ Source de vérité : `db/init.sql` (idempotent) ⇄ `lib/db/schema.ts`. Colonnes
 | Table | Rôle | Points clés |
 |---|---|---|
 | `user`, `session`, `account`, `verification` | Better Auth | Index sur `session.user_id`, `account.user_id`, `verification.identifier` |
-| `profiles` | Pseudo + code ami | PK `user_id`, `friend_code` unique, index unique `lower(username)` |
+| `profiles` | Pseudo + code ami | PK `user_id`, `friend_code` unique, index unique `lower(username)`, `theme` (design choisi, migration 020) |
 | `creatures` | Œuf → vivante → morte | `status ∈ {egg, alive, dead}`, `tier`, `species_id`, `rarity`, stats (`health`, `hunger`, `mood` en double precision, `xp` entier), `sick_since`, `protected_until`, `last_tick_at`, mort (`died_at`, `death_cause`, `lifespan_days`), `mourned_at` (migration 002), `accessory_drops` (migration 004), `chest_bonus_steps` (migration 012), `ar_marker` (migration 013). Index `(user_id, status)` + **index unique partiel** `user_id WHERE status IN ('egg','alive')` (une seule créature active) |
 | `meals` | Repas analysés | `image_key`, `image_hash` (SHA-256, anti-doublon 24 h), `score`, `verdict`, `foods` jsonb, `macros` jsonb, `portion`, `comment`, `creature_line`, `health_delta` |
 | `step_entries` | Pas | `date`, `steps`, `source ∈ {manual, strava, pedometer}`, `strava_activity_id` unique, `credited_steps` (pas déjà convertis en effets, migration 001) ; index unique partiel `(user_id, date, source) WHERE source='manual'` |
@@ -319,6 +324,8 @@ Phase 6 :
 Phase 4 (admin) :
 - `POST /api/admin/login` / `POST /api/admin/logout` — cookie signé.
 - `GET /api/admin/settings` — `{ rules, stored }` ; `PUT /api/admin/settings { patch } | { reset: true }`.
+- `GET /api/admin/themes` — `{ default, disabled, choices, updatedAt, updatedBy }` ; `PUT /api/admin/themes { id, enabled? | default: true }` — propose ou retire un design, ou le définit par défaut (`default_theme` (400) pour désactiver le défaut).
+- `PUT /api/account/theme { theme: id | null }` — session : enregistre le design du joueur (`theme_disabled` (400) si l'admin l'a retiré) et pose le cookie `mm_theme`.
 - `GET /api/admin/species` — `{ disabled, updatedAt, updatedBy }` ; `PUT /api/admin/species { id, enabled }` — retire une espèce des tirages d'éclosion ou l'y remet (`last_species` (400) pour la dernière espèce active d'un niveau, `not_found` (404) pour un id inconnu).
 
 Phase 7 :

@@ -107,6 +107,7 @@ Si tu avais déjà exécuté `db/init.sql` avant une phase, colle ses migrations
 - défendre à deux (mode coopératif) : [`db/migrations/016_coop_defense.sql`](./db/migrations/016_coop_defense.sql)
 - mises de l'arène (accessoires pariés) : [`db/migrations/017_arena_stakes.sql`](./db/migrations/017_arena_stakes.sql)
 - ping-pong (duel) : [`db/migrations/018_pingpong.sql`](./db/migrations/018_pingpong.sql)
+- designs du site : [`db/migrations/020_profile_theme.sql`](./db/migrations/020_profile_theme.sql)
 
 Si une migration manque, l'application l'indique elle-même : au lieu de planter, elle affiche « La base de données doit être mise à jour » avec le SQL exact à copier dans Neon → SQL Editor (bouton « Copier le SQL »). Recharge la page une fois le SQL exécuté.
 
@@ -374,6 +375,9 @@ apparaissent alors, sans connexion nécessaire :
     d'éclosion (les joueurs qui l'ont déjà la gardent) ; la dernière espèce active d'un niveau ne peut pas être désactivée.
 17. **Lancer la créature** : sur l'écran Créature, attrape-la au doigt et lance-la : elle rebondit sur les bords en perdant
     ses accessoires, se relève, court les ramasser un par un et les remet en place. Une simple pression continue de la caresser.
+18. **Designs du site** (migration `020`) : dans « Plus » → Apparence, choisis parmi cinq designs (Forêt, Sable, Plage, Rose poudré,
+    Velours noir : couleurs, polices, formes) ; le choix te suit sur tous tes appareils. Dans l'admin, onglet Apparence, tu proposes
+    ou retires chaque design et tu définis celui par défaut.
 
 ## 5. Limites connues
 

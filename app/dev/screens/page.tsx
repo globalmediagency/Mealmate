@@ -5,6 +5,9 @@ import { BoardedAway } from "@/components/game/boarded-away";
 import { BoardingProposals, OwnerBoardingNotices } from "@/components/game/boarding-notices";
 import { CreatureHome } from "@/components/game/creature-home";
 import { GameList, PlayHub } from "@/components/game/play-hub";
+import { ThemeAdmin } from "@/components/admin/theme-admin";
+import { ThemePicker } from "@/components/theme/theme-picker";
+import { DEFAULT_THEME_SETTINGS, selectableThemes, THEMES } from "@/lib/themes/catalog";
 import { PageHeader } from "@/components/layout/page-header";
 import { HostedCreatures } from "@/components/game/hosted-creatures";
 import { HostedDeathNotice } from "@/components/game/hosted-death-notice";
@@ -61,7 +64,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "turnaround", "creature-3d", "defense", "defense-boss", "arena", "arena-rtc", "arena-invite", "coop", "pingpong", "food-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "play-catch", "play-empty", "play-solo", "play-friends", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "themes", "turnaround", "creature-3d", "defense", "defense-boss", "arena", "arena-rtc", "arena-invite", "coop", "pingpong", "food-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "play-catch", "play-empty", "play-solo", "play-friends", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -547,6 +550,16 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
     }
     case "admin":
       content = <RulesForm initialRules={DEFAULT_RULES} storedPatch={{}} updatedAt={null} updatedBy={null} />;
+      break;
+    case "themes":
+      content = (
+        <div className="space-y-4">
+          <PageHeader title="Apparence" subtitle="Les designs du site : touche une carte pour changer la page (rien n'est enregistré ici)." />
+          <ThemePicker themes={selectableThemes(DEFAULT_THEME_SETTINGS)} defaultId={DEFAULT_THEME_SETTINGS.defaultId} chosen={null} preview />
+          <h2 className="pt-4 font-display text-2xl text-cream-50">Vue admin (Apparence)</h2>
+          <ThemeAdmin themes={THEMES} defaultId="foret" disabled={["velours"]} choices={{ sable: 3, plage: 1 }} />
+        </div>
+      );
       break;
     case "play":
     case "play-empty": {

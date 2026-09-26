@@ -6,7 +6,7 @@ import { useState } from "react";
 import { AccessoryIcon } from "@/components/accessories";
 import { Creature, type EquippedAccessory } from "@/components/creatures/creature";
 import { Environment } from "@/components/creatures/environment";
-import { RARITY_COLORS } from "@/components/creatures/rarity-badge";
+import { RARITY_COLORS, rarityTint } from "@/components/creatures/rarity-badge";
 import { Alert } from "@/components/ui/alert";
 import { SLOT_LABELS, SLOTS, type Accessory, type Slot } from "@/lib/accessories/catalog";
 import type { Outfit } from "@/lib/accessories/service";
@@ -108,7 +108,7 @@ export function Wardrobe({ creature, owned, outfit: initialOutfit, counts = {} }
                     "relative flex w-full flex-col items-center gap-1 rounded-2xl border bg-ink-800/90 p-2 text-center transition-colors",
                     active ? "border-sage-500 bg-sage-800/30" : "border-ink-600/80 hover:border-ink-400",
                   )}
-                  style={{ boxShadow: `inset 0 0 0 1px ${RARITY_COLORS[accessory.rarity]}44` }}
+                  style={{ boxShadow: `inset 0 0 0 1px ${rarityTint(accessory.rarity, 0.27)}` }}
                 >
                   <AccessoryIcon id={accessory.id} size={72} palette={species.palette} />
                   <span className="text-xs font-semibold text-cream-100">{accessory.name}</span>
