@@ -5,7 +5,7 @@ import { countPlaysToday, recordPlay } from "@/lib/play/service";
 import { saveManualSteps } from "@/lib/steps/service";
 import { createTestDatabase, insertTestUser, type TestDatabase } from "@/lib/test/pglite";
 import { CHEST_BACKDROPS, backdropsByRarity } from "@/lib/backdrops/catalog";
-import { addBackdrop, getOwnedBackdrops, setCreatureBackdrop } from "@/lib/backdrops/service";
+import { addBackdrop, countBackdropStats, getOwnedBackdrops, setCreatureBackdrop } from "@/lib/backdrops/service";
 import { accessoriesByRarity } from "./catalog";
 import { addAccessoryCopies, equipAccessory, getChestStatus, getOutfit, getOwnedAccessories, openChest, takeAccessoryCopy, type AccessoryReward, type BackdropReward, type ChestReward } from "./service";
 
@@ -105,6 +105,11 @@ describe("chests", () => {
     expect(await setCreatureBackdrop(userId, creature, found.backdrop.id)).toBe(found.backdrop.id);
     expect((await getActiveCreature(userId))!.backdrop).toBe(found.backdrop.id);
     expect(await setCreatureBackdrop(userId, creature, "velours")).toBe("velours");
+    // The admin tab counts who found what and what the living creatures show.
+    const stats = await countBackdropStats();
+    expect(stats.found[found.backdrop.id]).toBe(1);
+    expect(stats.inUse.velours).toBe(1);
+    expect(stats.followingDesign).toBe(0);
     await expect(setCreatureBackdrop(userId, creature, "galaxie")).rejects.toMatchObject({ code: "not_owned" });
     await expect(setCreatureBackdrop(userId, creature, "nope")).rejects.toMatchObject({ code: "unknown_backdrop" });
     expect(await setCreatureBackdrop(userId, creature, null)).toBeNull();

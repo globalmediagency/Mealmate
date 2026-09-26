@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { DomainError } from "@/lib/api/errors";
 import { getDb } from "@/lib/db";
 import { creatures, userBackdrops, type Creature } from "@/lib/db/schema";
@@ -45,4 +45,31 @@ export async function setCreatureBackdrop(userId: string, creature: Creature, ba
   }
   await getDb().update(creatures).set({ backdrop: backdropId }).where(eq(creatures.id, creature.id));
   return backdropId;
+}
+
+export type BackdropStats = {
+  /** Players who found each chest backdrop (design scenes are never stored). */
+  found: Record<string, number>;
+  /** Living creatures currently showing each backdrop (`NULL` = following the design, counted in `followingDesign`). */
+  inUse: Record<string, number>;
+  followingDesign: number;
+};
+
+/** Counts for the admin « Fonds » tab: who found what, and what the living creatures show. */
+export async function countBackdropStats(): Promise<BackdropStats> {
+  const db = getDb();
+  const [foundRows, useRows, following] = await Promise.all([
+    db.select({ id: userBackdrops.backdropId, count: sql<number>`count(*)::int` }).from(userBackdrops).groupBy(userBackdrops.backdropId),
+    db
+      .select({ id: creatures.backdrop, count: sql<number>`count(*)::int` })
+      .from(creatures)
+      .where(and(eq(creatures.status, "alive"), isNotNull(creatures.backdrop)))
+      .groupBy(creatures.backdrop),
+    db.select({ count: sql<number>`count(*)::int` }).from(creatures).where(and(eq(creatures.status, "alive"), sql`${creatures.backdrop} is null`)),
+  ]);
+  const found: Record<string, number> = {};
+  for (const row of foundRows) found[row.id] = Number(row.count);
+  const inUse: Record<string, number> = {};
+  for (const row of useRows) if (row.id) inUse[row.id] = Number(row.count);
+  return { found, inUse, followingDesign: Number(following[0]?.count ?? 0) };
 }

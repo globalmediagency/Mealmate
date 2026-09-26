@@ -46,6 +46,7 @@ import { RulesForm } from "@/components/admin/rules-form";
 import { FoodCatchGame } from "@/components/game/food-catch-game";
 import { Wardrobe } from "@/components/game/wardrobe";
 import { ChestOpener } from "@/components/game/chest-reveal";
+import { BackdropAdmin } from "@/components/admin/backdrop-admin";
 import { getBackdrop } from "@/lib/backdrops/catalog";
 import { ACCESSORIES, getAccessory } from "@/lib/accessories/catalog";
 import { CollectionGrid } from "@/components/game/collection-grid";
@@ -65,7 +66,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "themes", "turnaround", "creature-3d", "defense", "defense-boss", "arena", "arena-rtc", "arena-invite", "coop", "pingpong", "food-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "play-catch", "play-empty", "play-solo", "play-friends", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "themes", "turnaround", "creature-3d", "defense", "defense-boss", "arena", "arena-rtc", "arena-invite", "coop", "pingpong", "food-3d", "admin-players", "admin-fonds", "meal-result", "meals", "mourning", "admin", "play", "play-catch", "play-empty", "play-solo", "play-friends", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -375,6 +376,9 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
           </div>
         </div>
       );
+      break;
+    case "admin-fonds":
+      content = <BackdropAdmin stats={{ found: { prairie: 4, aurore: 2, galaxie: 1 }, inUse: { prairie: 2, galaxie: 1, velours: 1 }, followingDesign: 5 }} />;
       break;
     case "admin-players":
       content = (

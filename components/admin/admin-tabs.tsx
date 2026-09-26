@@ -8,6 +8,7 @@ const TABS = [
   { href: "/admin", label: "Règles de jeu" },
   { href: "/admin/creatures", label: "Créatures" },
   { href: "/admin/accessoires", label: "Accessoires" },
+  { href: "/admin/fonds", label: "Fonds" },
   { href: "/admin/aliments", label: "Aliments" },
   { href: "/admin/apparence", label: "Apparence" },
   { href: "/admin/joueurs", label: "Joueurs" },
