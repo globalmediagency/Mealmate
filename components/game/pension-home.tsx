@@ -13,6 +13,7 @@ import type { BoardingView } from "@/lib/boarding/service";
 import { getSpecies } from "@/lib/creatures";
 import type { PublicProfile } from "@/lib/friends/service";
 import type { ChestStatus } from "@/lib/game/accessories";
+import { HOME } from "@/lib/game/config";
 import type { CreatureView } from "@/lib/game/creature-view";
 import { ageLabel, creatureLine, hungerLabel, moodHelp, moodLabel } from "@/lib/game/dialogue";
 import { SHOP_ITEM_IDS } from "@/lib/game/medicine";
@@ -26,6 +27,8 @@ import { HealPanel } from "./heal-panel";
 
 type Props = {
   creature: CreatureView;
+  /** Size of the creature drawing (`rules.home.creatureSize`). */
+  creatureSize?: number;
   accessories: EquippedAccessory[];
   boarding: BoardingView;
   owner: PublicProfile;
@@ -35,7 +38,7 @@ type Props = {
 };
 
 /** The host's screen for a creature a friend entrusted to them: play, heal, open its chests, send it home. */
-export function PensionHome({ creature: initial, accessories, boarding, owner, inventory: initialInventory, chest }: Props) {
+export function PensionHome({ creature: initial, accessories, boarding, owner, inventory: initialInventory, chest, creatureSize = HOME.creatureSize }: Props) {
   const [creature, setCreature] = useState(initial);
   const [inventory, setInventory] = useState(initialInventory);
   const [healOpen, setHealOpen] = useState(false);
@@ -101,7 +104,7 @@ export function PensionHome({ creature: initial, accessories, boarding, owner, i
           </p>
         </div>
         <button type="button" onClick={tap} aria-label={`Caresser ${creature.name}`} className="absolute inset-x-0 bottom-2 flex justify-center focus-visible:outline-none">
-          <Creature species={species} stage={creature.stage.id} state={creature.state} size={220} reaction={reaction} accessories={accessories} />
+          <Creature species={species} stage={creature.stage.id} state={creature.state} size={creatureSize} reaction={reaction} accessories={accessories} />
         </button>
         <div className="absolute right-3 top-3 inline-flex min-h-11 items-center gap-1.5 rounded-full border border-cream-100/10 bg-ink-900/80 px-3.5 text-xs font-semibold text-cream-100 backdrop-blur">
           <Tent className="h-4 w-4 text-sage-300" aria-hidden="true" />

@@ -105,7 +105,7 @@ export default async function HomePage() {
 
   if (held.away) {
     const outfit = await getOutfit(creature.id);
-    return frame(<BoardedAway creature={creature} accessories={outfitToEquipped(outfit)} boarding={toBoardingView(held.away, now)} host={held.away.host} />);
+    return frame(<BoardedAway creature={creature} accessories={outfitToEquipped(outfit)} boarding={toBoardingView(held.away, now)} host={held.away.host} creatureSize={rules.home.creatureSize} />);
   }
 
   const today = gameDate();
@@ -129,6 +129,7 @@ export default async function HomePage() {
       playsLeft={plays === null ? null : Math.max(0, rules.play.maxPerDay - plays)}
       mealsToday={meals}
       maxMeals={rules.feeding.maxMealsPerDay}
+      home={rules.home}
     />,
     { gifts: false },
   );

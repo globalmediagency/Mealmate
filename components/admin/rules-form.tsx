@@ -44,6 +44,21 @@ type Draft = {
   arena: Record<ArenaField, string>;
   arenaWebrtc: boolean;
   pingpong: Record<PingPongField, string>;
+  home: Record<HomeField, string>;
+};
+
+const HOME_FIELDS = ["creatureSize", "bouncePercent", "floorBouncePercent"] as const;
+type HomeField = (typeof HOME_FIELDS)[number];
+
+const HOME_LABELS: Record<HomeField, { label: string; help: string; integer: boolean }> = {
+  creatureSize: { label: "Taille de la créature (px)", help: "Côté du dessin sur l'écran Créature, en pension et chez l'ami qui héberge (120 à 340).", integer: true },
+  bouncePercent: { label: "Rebond sur les parois (%)", help: "Part de la vitesse gardée quand la créature lancée touche un bord ou le plafond de la scène (0 = elle s'arrête net, 98 = elle rebondit presque sans fin).", integer: true },
+  floorBouncePercent: { label: "Rebond sur le sol (%)", help: "Part de la vitesse gardée à chaque rebond au sol ; plus c'est haut, plus elle rebondit longtemps avant de se relever.", integer: true },
+};
+const HOME_DEFAULTS: Record<HomeField, number> = {
+  creatureSize: DEFAULT_RULES.home.creatureSize,
+  bouncePercent: Math.round(DEFAULT_RULES.home.bounce * 100),
+  floorBouncePercent: Math.round(DEFAULT_RULES.home.floorBounce * 100),
 };
 
 const ARENA_FIELDS = ["hp", "eggDamage", "durationSeconds"] as const;
@@ -118,6 +133,7 @@ function toDraft(rules: GameRules): Draft {
     arena: Object.fromEntries(ARENA_FIELDS.map((f) => [f, String(rules.arena[f])])) as Draft["arena"],
     arenaWebrtc: rules.arena.webrtc,
     pingpong: Object.fromEntries(PINGPONG_FIELDS.map((f) => [f, String(rules.pingpong[f])])) as Draft["pingpong"],
+    home: { creatureSize: String(rules.home.creatureSize), bouncePercent: String(Math.round(rules.home.bounce * 100)), floorBouncePercent: String(Math.round(rules.home.floorBounce * 100)) },
   };
 }
 
@@ -137,6 +153,7 @@ function toPatch(draft: Draft): GameRulesPatch {
     play: { maxPerDay: num(draft.maxPlaysPerDay) },
     arena: { ...(Object.fromEntries(ARENA_FIELDS.map((f) => [f, num(draft.arena[f])])) as Record<ArenaField, number>), webrtc: draft.arenaWebrtc },
     pingpong: Object.fromEntries(PINGPONG_FIELDS.map((f) => [f, num(draft.pingpong[f])])) as GameRulesPatch["pingpong"],
+    home: { creatureSize: num(draft.home.creatureSize), bounce: num(draft.home.bouncePercent) / 100, floorBounce: num(draft.home.floorBouncePercent) / 100 },
   };
 }
 
@@ -159,6 +176,9 @@ function safePreview(draft: Draft): GameRules | null {
       patch.play?.maxPerDay,
       ...ARENA_FIELDS.map((f) => patch.arena?.[f]),
       ...PINGPONG_FIELDS.map((f) => patch.pingpong?.[f]),
+      patch.home?.creatureSize,
+      patch.home?.bounce,
+      patch.home?.floorBounce,
     ];
     if (flat.some((v) => v === undefined || Number.isNaN(v))) return null;
     return mergeRules(patch);
@@ -363,6 +383,29 @@ export function RulesForm({ initialRules, storedPatch, updatedAt, updatedBy }: R
             />
             <span className="block text-[11px] text-cream-700">
               {MOOD_LABELS[field].help} · défaut {DEFAULT_RULES.mood[field]}
+            </span>
+          </label>
+        ))}
+      </section>
+
+      <section className="grid gap-3 rounded-3xl border border-ink-600/80 bg-ink-800/90 p-4 shadow-card sm:grid-cols-2" data-rules-home>
+        <h2 className="font-display text-xl text-cream-50 sm:col-span-2">Écran Créature</h2>
+        <p className="-mt-2 text-xs text-cream-500 sm:col-span-2">
+          La taille du dessin dans la scène, et ce que la créature garde de sa vitesse à chaque rebond quand on la lance : plus le pourcentage est haut, plus elle
+          rebondit. S&apos;applique au prochain chargement de l&apos;écran.
+        </p>
+        {HOME_FIELDS.map((field) => (
+          <label key={field} className="space-y-1 text-sm">
+            <span className="text-cream-100">{HOME_LABELS[field].label}</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={draft.home[field]}
+              onChange={(e) => setDraft((d) => ({ ...d, home: { ...d.home, [field]: e.target.value } }))}
+              className={inputClass}
+            />
+            <span className="block text-[11px] text-cream-700">
+              {HOME_LABELS[field].help} · défaut {HOME_DEFAULTS[field]}
             </span>
           </label>
         ))}

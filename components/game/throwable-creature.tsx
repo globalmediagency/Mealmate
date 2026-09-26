@@ -8,7 +8,7 @@ import type { Slot } from "@/lib/accessories/catalog";
 import type { Species } from "@/lib/creatures/types";
 import { TOSS, type StageId } from "@/lib/game/config";
 import type { CreatureState } from "@/lib/game/creature-view";
-import { createToss, dressToss, grabToss, isTossActive, moveToss, releaseToss, resizeToss, stepToss, type AnchorOf, type LooseAccessory, type TossEvent, type TossPhase, type TossState } from "@/lib/game/toss";
+import { createToss, dressToss, grabToss, isTossActive, moveToss, releaseToss, resizeToss, stepToss, tossShadow, type AnchorOf, type LooseAccessory, type TossEvent, type TossPhase, type TossState } from "@/lib/game/toss";
 import { cn } from "@/lib/utils/cn";
 
 export type ThrowableCreatureProps = {
@@ -18,6 +18,9 @@ export type ThrowableCreatureProps = {
   accessories: EquippedAccessory[];
   /** Side of the drawing (px). */
   size?: number;
+  /** Share of the speed kept on a wall / ceiling bounce and on a floor bounce (`rules.home`). */
+  bounce?: number;
+  floorBounce?: number;
   reaction?: Reaction | null;
   /** Accessible name of the creature button ("Caresser Miso"). */
   label: string;
@@ -67,9 +70,10 @@ const itemTransform = (item: LooseAccessory, box: number) =>
  * re-renders on a phase change or when an accessory comes off or back on.
  * Keyboard: Enter / Space pat it. With reduced motion, it is only patted.
  */
-export function ThrowableCreature({ species, stage, state, accessories, size = 220, reaction = null, label, throwable = true, onTap, onToss }: ThrowableCreatureProps) {
+export function ThrowableCreature({ species, stage, state, accessories, size = 220, bounce = TOSS.restitution, floorBounce = TOSS.floorRestitution, reaction = null, label, throwable = true, onTap, onToss }: ThrowableCreatureProps) {
   const box = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
+  const shadow = useRef<HTMLDivElement>(null);
   const items = useRef(new Map<string, HTMLDivElement>());
   const toss = useRef<TossState | null>(null);
   const raf = useRef<number | null>(null);
@@ -80,6 +84,11 @@ export function ThrowableCreature({ species, stage, state, accessories, size = 2
   anchorOf.current = anchorsFor(species, stage, size);
   const callbacks = useRef({ onTap, onToss });
   callbacks.current = { onTap, onToss };
+
+  // The floor shadow: same width as the SVG's ellipse (20 % of the viewBox per side, stage-scaled), painted by the scene so it never leaves the ground.
+  const scales = stageScales(stage, LAYOUTS[species.parts.body].hasDistinctHead);
+  const shadowBox = useRef({ width: 0, height: 0 });
+  shadowBox.current = { width: size * 0.4 * scales.overall * scales.body, height: size * 0.052 };
 
   const [worn, setWorn] = useState<EquippedAccessory[]>(accessories);
   const [loose, setLoose] = useState<LooseAccessory[]>([]);
@@ -101,6 +110,12 @@ export function ThrowableCreature({ species, stage, state, accessories, size = 2
     const s = toss.current;
     if (!s) return;
     if (button.current) button.current.style.transform = creatureTransform(s);
+    if (shadow.current) {
+      const sh = tossShadow(s);
+      const { width, height } = shadowBox.current;
+      shadow.current.style.transform = `translate(${(sh.x - width / 2).toFixed(1)}px, ${(sh.y - height / 2).toFixed(1)}px) scale(${sh.scale.toFixed(3)})`;
+      shadow.current.style.opacity = sh.opacity.toFixed(3);
+    }
     const itemBox = (ITEM_VIEWBOX.side * s.size) / 100;
     for (const item of s.loose) {
       const el = items.current.get(item.key);
@@ -147,7 +162,7 @@ export function ThrowableCreature({ species, stage, state, accessories, size = 2
     const el = box.current;
     if (!el) return;
     const bounds = () => ({ width: el.clientWidth, height: el.clientHeight });
-    const s = createToss(bounds(), size, accessories);
+    const s = createToss(bounds(), size, accessories, { restitution: bounce, floorRestitution: floorBounce });
     toss.current = s;
     paint();
     const observer = new ResizeObserver(() => {
@@ -160,9 +175,9 @@ export function ThrowableCreature({ species, stage, state, accessories, size = 2
       stop();
       toss.current = null;
     };
-    // The outfit is followed by the effect below; the size never changes on a screen.
+    // The outfit is followed by the effect below; the size and bounces never change on a screen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [size, paint, stop]);
+  }, [size, bounce, floorBounce, paint, stop]);
 
   // A new outfit (wardrobe, server refresh): worn in full, nothing on the floor.
   const outfitKey = accessories.map((a) => `${a.slot}:${a.id}`).join("|");
@@ -243,6 +258,15 @@ export function ThrowableCreature({ species, stage, state, accessories, size = 2
 
   return (
     <div ref={box} className="pointer-events-none absolute inset-0" data-toss data-toss-phase={phase} data-toss-worn={worn.length} data-toss-loose={loose.length}>
+      {canThrow ? (
+        <div
+          ref={shadow}
+          aria-hidden="true"
+          data-toss-shadow
+          className="absolute left-0 top-0 rounded-full bg-black"
+          style={{ width: shadowBox.current.width, height: shadowBox.current.height, opacity: TOSS.shadowOpacity, willChange: "transform, opacity", transformOrigin: "50% 50%" }}
+        />
+      ) : null}
       <button
         ref={button}
         type="button"
@@ -258,7 +282,7 @@ export function ThrowableCreature({ species, stage, state, accessories, size = 2
         style={{ width: size, height: size, touchAction: "none", willChange: "transform", transformOrigin: "50% 50%", WebkitTapHighlightColor: "transparent" } as CSSProperties}
       >
         <div className={cn("mm-toss", `mm-toss-${phase}`)}>
-          <Creature species={species} stage={stage} state={state} size={size} reaction={reaction} accessories={worn} yaw={yaw} />
+          <Creature species={species} stage={stage} state={state} size={size} reaction={reaction} accessories={worn} yaw={yaw} shadow={!canThrow} />
         </div>
       </button>
       {loose.map((item) => {

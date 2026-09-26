@@ -238,13 +238,19 @@ export const PLAY = {
  * pick each one up. Lengths in pixels of the scene, times in seconds,
  * fractions relative to the creature drawing's size.
  */
+/** The home screen scene (spec § 3.26): the admin-tunable defaults of `rules.home`. */
+export const HOME = {
+  /** Side of the creature drawing (px). */
+  creatureSize: 220,
+} as const;
+
 export const TOSS = {
   /** Downward acceleration (px/s²) and speed cap (px/s). */
   gravity: 2600,
   maxSpeed: 2800,
-  /** Speed kept after a wall or ceiling bounce, and after a floor bounce; horizontal speed kept when hitting the floor. */
-  restitution: 0.55,
-  floorRestitution: 0.42,
+  /** Speed kept after a wall or ceiling bounce, and after a floor bounce (admin-tunable defaults, `rules.home`); horizontal speed kept when hitting the floor. */
+  restitution: 0.85,
+  floorRestitution: 0.65,
   floorFriction: 0.8,
   /** Rolling slowdown on the floor (fraction of speed lost per second). */
   rollFriction: 3.5,
@@ -279,6 +285,10 @@ export const TOSS = {
   runYaw: 40,
   /** Fallen accessories: their own, lighter physics; they settle on the floor a little below the creature's centre. */
   item: { gravity: 2200, restitution: 0.4, friction: 0.7, restSpeed: 30, maxSeconds: 4, half: 0.16, floor: 0.34 },
+  /** The floor shadow: its line below the drawing's centre (fraction of the size, = the SVG's ground line), its opacity at rest and its smallest scale in flight. */
+  shadowLine: 0.435,
+  shadowOpacity: 0.28,
+  shadowMinScale: 0.35,
   /** Collision box of the creature, as fractions of its drawing size, and the gap kept under its feet. */
   halfWidth: 0.28,
   halfHeight: 0.3,

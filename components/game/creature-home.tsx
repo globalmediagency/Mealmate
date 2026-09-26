@@ -11,6 +11,7 @@ import { buttonClasses } from "@/components/ui/button";
 import { getSpecies } from "@/lib/creatures";
 import { RARITY_LABELS } from "@/lib/game/config";
 import type { CreatureView } from "@/lib/game/creature-view";
+import { DEFAULT_RULES, type HomeRules } from "@/lib/game/rules";
 import { ageLabel, careAction, creatureLine, hungerLabel, moodHelp, moodLabel } from "@/lib/game/dialogue";
 import { SHOP_ITEM_IDS } from "@/lib/game/medicine";
 import type { GiftView, Inventory } from "@/lib/shop/service";
@@ -33,6 +34,8 @@ type CreatureHomeProps = {
   chest?: HomeChest | null;
   /** Steps entered today (all sources), for the "Aujourd'hui" line; null = unknown. */
   todaySteps?: number | null;
+  /** Size of the creature and how much it bounces (`rules.home`). */
+  home?: HomeRules;
   /** The player's medicine cupboard: "Soigner" opens it in place. */
   inventory?: Inventory;
   /** Medicine or accessories received from friends and not acknowledged yet. */
@@ -53,7 +56,7 @@ const EMPTY_INVENTORY: Inventory = { sirop: 0, antibiotique: 0, talisman: 0 };
  * Soigner when a dose or an illness makes it useful — then the day's steps and
  * chests, then the compact gauges. The games live behind "Jouer" (the hub).
  */
-export function CreatureHome({ creature, line, accessories = [], chest = null, todaySteps = null, inventory = EMPTY_INVENTORY, gifts = [], playsLeft = null, mealsToday = null, maxMeals }: CreatureHomeProps) {
+export function CreatureHome({ creature, line, accessories = [], chest = null, todaySteps = null, inventory = EMPTY_INVENTORY, gifts = [], playsLeft = null, mealsToday = null, maxMeals, home = DEFAULT_RULES.home }: CreatureHomeProps) {
   const species = creature.species ? getSpecies(creature.species.id) : undefined;
   const live = useLiveArena();
   const [reaction, setReaction] = useState<Reaction | null>(null);
@@ -159,7 +162,9 @@ export function CreatureHome({ creature, line, accessories = [], chest = null, t
           stage={creature.stage.id}
           state={creature.state}
           accessories={accessories}
-          size={220}
+          size={home.creatureSize}
+          bounce={home.bounce}
+          floorBounce={home.floorBounce}
           reaction={reaction}
           label={`Caresser ${creature.name}`}
           throwable={creature.state !== "dead"}

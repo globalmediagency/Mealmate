@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TOSS } from "./config";
-import { createToss, dressToss, grabToss, isTossActive, moveToss, pinPoint, releaseToss, resizeToss, stepToss, type AnchorOf, type TossEvent, type TossState } from "./toss";
+import { createToss, dressToss, grabToss, isTossActive, moveToss, pinPoint, releaseToss, resizeToss, stepToss, tossShadow, type AnchorOf, type TossEvent, type TossState } from "./toss";
 
 const BOUNDS = { width: 360, height: 320 };
 const SIZE = 220;
@@ -212,5 +212,39 @@ describe("a throw", () => {
     const later = run(state, 12);
     expect(later.at(-1)?.kind).toBe("home");
     expect(state.worn).toEqual(state.outfit);
+  });
+});
+
+describe("tossShadow / physics", () => {
+  it("keeps the shadow on the ground line under the creature, smaller and fainter the higher it is", () => {
+    const state = createToss(BOUNDS, SIZE, []);
+    const rest = tossShadow(state);
+    expect(rest).toEqual({ x: state.rest.x, y: state.rest.y + SIZE * TOSS.shadowLine, scale: 1, opacity: TOSS.shadowOpacity });
+    state.x = 100;
+    state.y = state.rest.y - SIZE;
+    state.angle = 137;
+    const high = tossShadow(state);
+    expect(high.x).toBe(100);
+    expect(high.y).toBe(rest.y);
+    expect(high.scale).toBeCloseTo(0.5, 6);
+    expect(high.opacity).toBeCloseTo(TOSS.shadowOpacity * 0.5, 6);
+    state.y = -SIZE * 5;
+    expect(tossShadow(state).scale).toBe(TOSS.shadowMinScale);
+  });
+
+  it("bounces as much as the admin rules say", () => {
+    const lively = createToss(BOUNDS, SIZE, [], { restitution: 0.95, floorRestitution: 0.9 });
+    const dull = createToss(BOUNDS, SIZE, [], { restitution: 0.1, floorRestitution: 0.1 });
+    expect(createToss(BOUNDS, SIZE, [], { restitution: 3, floorRestitution: -1 }).physics).toEqual({ restitution: 0.98, floorRestitution: 0 });
+    expect(createToss(BOUNDS, SIZE, []).physics).toEqual({ restitution: TOSS.restitution, floorRestitution: TOSS.floorRestitution });
+    for (const state of [lively, dull]) {
+      grabToss(state, state.x, state.y);
+      releaseToss(state, 1800, -900);
+    }
+    const livelyBounces = run(lively, 6).filter((e) => e.kind === "bounce").length;
+    const dullBounces = run(dull, 6).filter((e) => e.kind === "bounce").length;
+    expect(livelyBounces).toBeGreaterThan(dullBounces + 2);
+    expect(lively.phase).toBe("idle");
+    expect(dull.phase).toBe("idle");
   });
 });

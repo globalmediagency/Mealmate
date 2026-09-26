@@ -10,6 +10,7 @@ import { LinkButton } from "@/components/ui/button";
 import type { BoardingView } from "@/lib/boarding/service";
 import { getSpecies } from "@/lib/creatures";
 import type { PublicProfile } from "@/lib/friends/service";
+import { HOME } from "@/lib/game/config";
 import type { CreatureView } from "@/lib/game/creature-view";
 import { ageLabel, hungerLabel, moodLabel } from "@/lib/game/dialogue";
 import { EndBoardingButton } from "./boarding-actions";
@@ -18,7 +19,7 @@ import { Gauge } from "./gauge";
 export const formatEndDate = (iso: string) => new Date(iso).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
 
 /** The owner's home screen while their creature lives at a friend's. */
-export function BoardedAway({ creature, accessories, boarding, host }: { creature: CreatureView; accessories: EquippedAccessory[]; boarding: BoardingView; host: PublicProfile }) {
+export function BoardedAway({ creature, accessories, boarding, host, creatureSize = HOME.creatureSize }: { creature: CreatureView; accessories: EquippedAccessory[]; boarding: BoardingView; host: PublicProfile; creatureSize?: number }) {
   const species = creature.species ? getSpecies(creature.species.id) : undefined;
   if (!species) return null;
   return (
@@ -55,7 +56,7 @@ export function BoardedAway({ creature, accessories, boarding, host }: { creatur
           Chez {host.username}
         </div>
         <div className="absolute inset-x-0 bottom-2 flex justify-center opacity-90">
-          <Creature species={species} stage={creature.stage.id} state={creature.state} size={220} accessories={accessories} />
+          <Creature species={species} stage={creature.stage.id} state={creature.state} size={creatureSize} accessories={accessories} />
         </div>
       </section>
 

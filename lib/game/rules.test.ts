@@ -35,6 +35,14 @@ describe("rules", () => {
     expect(gameRulesPatchSchema.safeParse({ arena: { durationSeconds: 5 } }).success).toBe(false);
   });
 
+  it("tunes the home screen (creature size and bounces)", () => {
+    expect(DEFAULT_RULES.home).toEqual({ creatureSize: 220, bounce: 0.85, floorBounce: 0.65 });
+    expect(mergeRules({ home: { creatureSize: 260 } }).home).toEqual({ creatureSize: 260, bounce: 0.85, floorBounce: 0.65 });
+    expect(gameRulesPatchSchema.safeParse({ home: { bounce: 1.2 } }).success).toBe(false);
+    expect(gameRulesPatchSchema.safeParse({ home: { creatureSize: 50 } }).success).toBe(false);
+    expect(gameRulesPatchSchema.safeParse({ home: { floorBounce: "0.5" } }).success).toBe(true);
+  });
+
   it("tunes the mood rules", () => {
     const rules = mergeRules({ mood: { happyMin: 60, chestStepsBonusPercent: 0 } });
     expect(rules.mood).toMatchObject({ happyMin: 60, chestStepsBonusPercent: 0, xpBonusPercent: 25 });

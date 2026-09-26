@@ -28,11 +28,16 @@ export type LooseAccessory = TossAccessory & {
 
 export type TossBounds = { width: number; height: number };
 
+/** How much of its speed the creature keeps on a wall / ceiling bounce and on a floor bounce (`rules.home`, defaults `TOSS`). */
+export type TossPhysics = { restitution: number; floorRestitution: number };
+export const DEFAULT_TOSS_PHYSICS: TossPhysics = { restitution: TOSS.restitution, floorRestitution: TOSS.floorRestitution };
+
 export type TossState = {
   width: number;
   height: number;
   /** Side of the creature drawing (px). */
   size: number;
+  physics: TossPhysics;
   /** Where the creature stands when nothing happens (its centre). */
   rest: { x: number; y: number };
   x: number;
@@ -86,13 +91,14 @@ function restOf(bounds: TossBounds, size: number): { x: number; y: number } {
   return { x: bounds.width / 2, y: bounds.height - TOSS.restBottom - size / 2 };
 }
 
-export function createToss(bounds: TossBounds, size: number, outfit: readonly TossAccessory[]): TossState {
+export function createToss(bounds: TossBounds, size: number, outfit: readonly TossAccessory[], physics: TossPhysics = DEFAULT_TOSS_PHYSICS): TossState {
   const rest = restOf(bounds, size);
   const worn = sortOutfit([...outfit]);
   return {
     width: bounds.width,
     height: bounds.height,
     size,
+    physics: { restitution: clamp(physics.restitution, 0, 0.98), floorRestitution: clamp(physics.floorRestitution, 0, 0.98) },
     rest,
     x: rest.x,
     y: rest.y,
@@ -154,6 +160,19 @@ export function isTossActive(state: TossState): boolean {
 }
 
 /** The point of the drawing the finger holds, in the scene (the pin rotated with the creature, from its centre). */
+export type TossShadow = { x: number; y: number; scale: number; opacity: number };
+
+/**
+ * The creature's shadow stays on the floor whatever it does: under its centre,
+ * on the ground line of the drawing (where the SVG paints it at rest),
+ * smaller and fainter the higher it flies or hangs.
+ */
+export function tossShadow(state: TossState): TossShadow {
+  const height = Math.max(0, state.rest.y - state.y);
+  const scale = clamp(1 - height / (state.size * 2), TOSS.shadowMinScale, 1);
+  return { x: state.x, y: state.rest.y + state.size * TOSS.shadowLine, scale, opacity: TOSS.shadowOpacity * scale };
+}
+
 export function pinPoint(state: TossState): { x: number; y: number } {
   const rad = (state.angle * Math.PI) / 180;
   const cos = Math.cos(rad);
@@ -329,25 +348,25 @@ function stepFlying(state: TossState, dt: number, random: () => number, anchorOf
   if (state.x < hw) {
     state.x = hw;
     bounce(state, state.vx, random, anchorOf, events);
-    state.vx = -state.vx * TOSS.restitution;
-    state.spin = -state.spin * TOSS.restitution;
+    state.vx = -state.vx * state.physics.restitution;
+    state.spin = -state.spin * state.physics.restitution;
   } else if (state.x > state.width - hw) {
     state.x = state.width - hw;
     bounce(state, state.vx, random, anchorOf, events);
-    state.vx = -state.vx * TOSS.restitution;
-    state.spin = -state.spin * TOSS.restitution;
+    state.vx = -state.vx * state.physics.restitution;
+    state.spin = -state.spin * state.physics.restitution;
   }
   if (state.y < hh) {
     state.y = hh;
     bounce(state, state.vy, random, anchorOf, events);
-    state.vy = -state.vy * TOSS.restitution;
+    state.vy = -state.vy * state.physics.restitution;
   }
   if (state.y >= state.rest.y) {
     state.y = state.rest.y;
     const impact = state.vy;
     if (impact > TOSS.bounceStop) {
       bounce(state, impact, random, anchorOf, events);
-      state.vy = -impact * TOSS.floorRestitution;
+      state.vy = -impact * state.physics.floorRestitution;
       state.vx *= TOSS.floorFriction;
       state.spin *= 0.6;
     } else {
