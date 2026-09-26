@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { Crosshair, Swords } from "lucide-react";
+import { ChevronRight, Gamepad2 } from "lucide-react";
 import Link from "next/link";
 import { ArViewer } from "@/components/ar/ar-viewer";
 import { MarkerCard } from "@/components/ar/marker-card";
 import { PhotoMarkerCard } from "@/components/ar/photo-marker-card";
+import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardText, CardTitle } from "@/components/ui/card";
 import { getPhotoMarker } from "@/lib/ar/photo-marker";
 import { listArTargets } from "@/lib/ar/service";
@@ -22,13 +23,11 @@ export default async function ArPage() {
 
   return (
     <div className="space-y-5 animate-rise">
-      <header>
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-cream-50">Voir en vrai</h1>
-        <p className="mt-1 text-sm text-cream-500">
-          Chaque créature a son propre marqueur imprimé, ou une photo que tu choisis. Pose-en un ou plusieurs sur la table : les créatures apparaissent dessus, dans l&apos;image de ta
-          caméra.
-        </p>
-      </header>
+      <PageHeader
+        title="Voir en vrai"
+        subtitle="Pose le marqueur imprimé (ou ta photo-marqueur) sur la table : ta créature apparaît dessus, dans ta caméra."
+        back={{ href: "/home", label: "Retour à ma créature" }}
+      />
 
       {targets.length > 0 ? (
         <ArViewer targets={targets} />
@@ -43,36 +42,14 @@ export default async function ArPage() {
       )}
 
       {own ? (
-        <Card className="border-brass-500/40">
-          <CardTitle>Défendre {own.creature.name}</CardTitle>
-          <CardText className="mt-1">
-            Un jeu sur le même marqueur : la malbouffe surgit autour de ta créature et fonce dessus, tu lances des œufs pour la protéger. Même limite de parties et
-            mêmes récompenses que « Jouer ».
-          </CardText>
-          <Link
-            href="/defense"
-            className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-brass-400 px-4 text-sm font-semibold text-ink-950 hover:bg-brass-300"
-          >
-            <Crosshair className="h-5 w-5" aria-hidden="true" />
-            Jouer à Défendre
-          </Link>
-        </Card>
-      ) : null}
-
-      {own ? (
-        <Card className="border-sage-500/40">
-          <CardTitle>Arène : bataille entre amis</CardTitle>
-          <CardText className="mt-1">
-            Chacun pose son marqueur sur la même table et vise les créatures des autres avec son téléphone : œufs, langue et bons aliments, tous ensemble en direct.
-          </CardText>
-          <Link
-            href="/arena"
-            className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-sage-500 px-4 text-sm font-semibold text-ink-950 hover:bg-sage-400"
-          >
-            <Swords className="h-5 w-5" aria-hidden="true" />
-            Entrer dans l&apos;arène
-          </Link>
-        </Card>
+        <Link href="/play" className="flex min-h-14 items-center gap-3 rounded-3xl border border-ink-600/80 bg-ink-800/70 px-4 py-3 text-sm text-cream-100 hover:border-sage-500/50" data-ar-games>
+          <Gamepad2 className="h-5 w-5 shrink-0 text-sage-300" aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            <strong>Envie de jouer sur ce marqueur ?</strong>
+            <span className="block text-xs text-cream-500">Défendre, Arène, Défendre ensemble, Ping-pong : tous les jeux sont derrière « Jouer ».</span>
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-cream-700" aria-hidden="true" />
+        </Link>
       ) : null}
 
       {own ? <MarkerCard name={own.creature.name ?? "ta créature"} markerId={own.markerId} creatureId={own.creatureId} photoUrl={own.image ?? null} /> : null}

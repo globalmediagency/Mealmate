@@ -20,8 +20,10 @@ import { toCreatureView } from "@/lib/game/creature-view";
 import { creatureLine } from "@/lib/game/dialogue";
 import { getGameRules } from "@/lib/game/rules-service";
 import { gameDate } from "@/lib/game/time";
-import { getInventory, listUnseenGifts, totalDoses } from "@/lib/shop/service";
-import { getManualEntry } from "@/lib/steps/service";
+import { countMealsToday } from "@/lib/meals/service";
+import { countPlaysToday } from "@/lib/play/service";
+import { getInventory, listUnseenGifts } from "@/lib/shop/service";
+import { getManualEntry, sumStepsSince } from "@/lib/steps/service";
 
 export const metadata: Metadata = { title: "Ma créature" };
 
@@ -51,7 +53,8 @@ export default async function HomePage() {
           notices={ownerNotices}
         />
       ) : null;
-    const list = hosted.length > 0 ? <HostedCreatures items={hosted} /> : null;
+    // The creatures a friend entrusted come first, as a compact strip: the host sees a sick guest without scrolling.
+    const list = hosted.length > 0 ? <HostedCreatures items={hosted} variant="strip" /> : null;
     if (!notice && !losses && !asked && !mine && !list) return screen;
     return (
       <div className="space-y-4">
@@ -59,8 +62,8 @@ export default async function HomePage() {
         {losses}
         {asked}
         {mine}
-        {screen}
         {list}
+        {screen}
       </div>
     );
   };
@@ -98,15 +101,27 @@ export default async function HomePage() {
     return frame(<BoardedAway creature={creature} accessories={outfitToEquipped(outfit)} boarding={toBoardingView(held.away, now)} host={held.away.host} />);
   }
 
-  const [outfit, chest, inventory] = await Promise.all([getOutfit(creature.id), raw ? getChestStatus(raw) : null, getInventory(session.user.id)]);
+  const today = gameDate();
+  const [outfit, chest, inventory, stepsToday, plays, meals] = await Promise.all([
+    getOutfit(creature.id),
+    raw ? getChestStatus(raw) : null,
+    getInventory(session.user.id),
+    sumStepsSince(session.user.id, today).catch(() => null),
+    countPlaysToday(creature.id).catch(() => null),
+    countMealsToday(session.user.id, today).catch(() => null),
+  ]);
   return frame(
     <CreatureHome
       creature={creature}
       line={creatureLine(creature)}
       accessories={outfitToEquipped(outfit)}
-      chestsAvailable={chest?.available ?? 0}
-      doses={totalDoses(inventory)}
+      chest={chest}
+      todaySteps={stepsToday}
+      inventory={inventory}
       gifts={gifts}
+      playsLeft={plays === null ? null : Math.max(0, rules.play.maxPerDay - plays)}
+      mealsToday={meals}
+      maxMeals={rules.feeding.maxMealsPerDay}
     />,
     { gifts: false },
   );

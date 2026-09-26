@@ -15,7 +15,7 @@ type LiveArenaState = {
 
 const LiveArenaContext = createContext<LiveArenaState>({ invites: 0 });
 
-/** The live invitation count, for the Amis badge. */
+/** The live invitation count, for the Créature tab badge and the « Jouer » tile. */
 export function useLiveArena(): LiveArenaState {
   return useContext(LiveArenaContext);
 }
@@ -99,7 +99,7 @@ export function ArenaInviteToasts({ notices, onDismiss, now = Date.now() }: Aren
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-sm text-cream-50">
-                <span className="font-semibold">{notice.hostName}</span> {notice.mode === "coop" ? "t'invite à défendre à deux" : notice.mode === "pingpong" ? "te défie au ping-pong" : "t'invite à une bataille dans l'arène"}
+                <span className="font-semibold">{notice.hostName}</span> {notice.mode === "coop" ? "t'invite à défendre ensemble" : notice.mode === "pingpong" ? "te défie au ping-pong" : "t'invite à une bataille dans l'arène"}
               </p>
               <p className="mt-0.5 text-xs text-cream-500">
                 {notice.players.length > 0 ? `Avec ${notice.players.join(", ")} · ` : ""}
@@ -194,7 +194,7 @@ export function LiveArena({ initialInvites, children }: LiveArenaProps) {
         if (known.current) {
           const fresh = invites.filter((i) => !known.current!.has(i.matchId));
           if (fresh.length > 0) {
-            if (pathRef.current === "/arena" || pathRef.current === "/friends") router.refresh();
+            if (pathRef.current === "/arena" || pathRef.current === "/play" || pathRef.current === "/friends") router.refresh();
             for (const notice of fresh) notifyInBackground(notice, () => router.push(`/arena/${notice.matchId}`));
           }
         }

@@ -73,3 +73,27 @@ describe("labels", () => {
     expect(ageLabel(12)).toBe("12 jours");
   });
 });
+
+describe("play limit wording", () => {
+  it("names the shared limit and the plays left", async () => {
+    const { playLimitLabel, playsLeftLabel } = await import("./dialogue");
+    expect(playLimitLabel(3)).toBe("3 parties par jour au total, tous jeux confondus.");
+    expect(playLimitLabel(1)).toBe("1 partie par jour au total, tous jeux confondus.");
+    expect(playsLeftLabel(2)).toBe("2 parties restantes aujourd'hui");
+    expect(playsLeftLabel(1)).toBe("1 partie restante aujourd'hui");
+    expect(playsLeftLabel(0)).toBe("Plus de partie aujourd'hui · à demain !");
+  });
+});
+
+describe("careAction", () => {
+  it("prefers a dose for a sick or tired creature, meals otherwise", async () => {
+    const { careAction } = await import("./dialogue");
+    expect(careAction({ status: "alive", state: "sick", hunger: 10 }, 1)).toBe("heal");
+    expect(careAction({ status: "alive", state: "tired", hunger: 10 }, 2)).toBe("heal");
+    expect(careAction({ status: "alive", state: "sick", hunger: 10 }, 0)).toBe("feed");
+    expect(careAction({ status: "alive", state: "healthy", hunger: 60 }, 0)).toBe("feed");
+    expect(careAction({ status: "alive", state: "tired", hunger: 20 }, 0)).toBe(null);
+    expect(careAction({ status: "alive", state: "healthy", hunger: 20 }, 3)).toBe(null);
+    expect(careAction({ status: "dead", state: "dead", hunger: 90 }, 3)).toBe(null);
+  });
+});

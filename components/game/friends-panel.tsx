@@ -1,8 +1,10 @@
 "use client";
 
-import { Check, UserPlus, UserRoundX, X } from "lucide-react";
+import { Check, Gamepad2, UserPlus, UserRoundX, X } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState, type FormEvent } from "react";
+import { useLiveArena } from "@/components/arena/live-arena";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardText, CardTitle } from "@/components/ui/card";
@@ -36,6 +38,7 @@ type FriendsPanelProps = {
 
 export function FriendsPanel({ me, friends, incoming, outgoing, inventory, trades, boardable = null, cooldownUntil = null, pendingBoarding = null, demoTrade }: FriendsPanelProps) {
   const cooldownActive = cooldownUntil !== null && new Date(cooldownUntil).getTime() > Date.now();
+  const live = useLiveArena();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState<string | null>(null);
@@ -101,10 +104,22 @@ export function FriendsPanel({ me, friends, incoming, outgoing, inventory, trade
 
   return (
     <div className="space-y-5 animate-rise">
+      {live.invites > 0 ? (
+        <Link href="/play" className="flex min-h-11 items-center gap-3 rounded-2xl border border-brass-500/50 bg-brass-500/10 px-4 text-sm text-cream-50" data-friends-invites={live.invites}>
+          <Gamepad2 className="h-5 w-5 shrink-0 text-brass-300" aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            <strong>
+              {live.invites} invitation{live.invites > 1 ? "s" : ""} à jouer
+            </strong>{" "}
+            <span className="text-cream-300">· à retrouver dans « Jouer »</span>
+          </span>
+          <span className="shrink-0 text-xs font-semibold">Voir</span>
+        </Link>
+      ) : null}
       <Card>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] uppercase tracking-wider text-cream-700">Mon code ami</p>
+            <p className="text-xs uppercase tracking-wider text-cream-700">Mon code ami</p>
             <p className="font-mono text-xl font-semibold tracking-[0.18em] text-brass-300">{me.friendCode}</p>
             <p className="text-xs text-cream-500">ou mon pseudo : {me.username}</p>
           </div>

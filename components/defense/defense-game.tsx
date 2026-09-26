@@ -1,6 +1,6 @@
 "use client";
 
-import { Crosshair, Egg, RotateCcw, Trophy } from "lucide-react";
+import { ChevronLeft, Crosshair, Egg, RotateCcw, Trophy } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
@@ -32,6 +32,7 @@ import {
 import { playEffects, type PlayEffects } from "@/lib/game/play";
 import type { DefenseRules } from "@/lib/game/rules";
 import { cn } from "@/lib/utils/cn";
+import { playLimitLabel, playsLeftLabel } from "@/lib/game/dialogue";
 
 type StageModule = typeof import("@/components/ar/three/stage");
 type SceneModule = typeof import("@/components/ar/three/defense-scene");
@@ -76,7 +77,7 @@ const IDLE_HUD: Hud = { status: "idle", wave: 0, hp: 0, score: 0, seen: false, e
  * and throws eggs. The pure game lives in `lib/game/defense.ts`, the 3D in
  * `DefenseScene`; this component runs the camera, the loop and the HUD.
  */
-export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPerDay = PLAY.maxPerDay, creatureId, homeHref = "/home", preview = false }: DefenseGameProps) {
+export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPerDay = PLAY.maxPerDay, creatureId, homeHref = "/play", preview = false }: DefenseGameProps) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("intro");
   const [problem, setProblem] = useState<Problem>(null);
@@ -369,11 +370,16 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPer
   return (
     <div className="space-y-3">
       <header className="flex items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight text-cream-50">Défendre {name}</h1>
-          <p className="mt-0.5 text-sm text-cream-500">
-            {inGame ? "Vise avec le centre de l'écran, tire des œufs sur la malbouffe." : `${playsLeft} partie${playsLeft > 1 ? "s" : ""} restante${playsLeft > 1 ? "s" : ""} aujourd'hui, jeu et défense confondus.`}
-          </p>
+        <div className="flex min-w-0 items-start gap-1">
+          {!inGame ? (
+            <Link href={homeHref} aria-label="Retour aux jeux" title="Retour aux jeux" className="-ml-2 mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-cream-300 hover:bg-ink-700 hover:text-cream-50" data-back>
+              <ChevronLeft className="h-6 w-6" aria-hidden="true" />
+            </Link>
+          ) : null}
+          <div className="min-w-0">
+            <h1 className="font-display text-3xl font-semibold tracking-tight text-cream-50">Défendre {name}</h1>
+            <p className="mt-0.5 text-sm text-cream-500">{inGame ? "Vise avec le centre de l'écran, tire des œufs sur la malbouffe." : playsLeftLabel(playsLeft)}</p>
+          </div>
         </div>
       </header>
 
@@ -572,7 +578,7 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPer
                 </Button>
               ) : null}
               <LinkButton href={homeHref} variant="secondary" className="w-auto px-5">
-                Retour
+                Autres jeux
               </LinkButton>
             </div>
           </div>
@@ -582,9 +588,9 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPer
       <AccessorySprites ref={sprites} items={[{ speciesId: target.creature.speciesId, accessories: target.creature.accessories }]} />
 
       <p className="text-center text-xs text-cream-700">
-        Maximum {maxPerDay} partie{maxPerDay > 1 ? "s" : ""} par jour, jeu et défense confondus. Les points de vie perdus ici ne touchent pas la vraie créature.{" "}
+        {playLimitLabel(maxPerDay)} Les points de vie perdus ici ne touchent pas la vraie créature.{" "}
         <Link href={homeHref} className="underline">
-          {homeHref === "/home" ? "Retour à l'accueil" : "Retour à la pension"}
+          Retour aux jeux
         </Link>
       </p>
     </div>

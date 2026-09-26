@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { StudentMeals } from "@/components/game/student-meals";
 import { PageHeader } from "@/components/layout/page-header";
 import { ConfigBanner } from "@/components/system/config-banner";
-import { LinkButton } from "@/components/ui/button";
 import { requireViewer } from "@/lib/auth/session";
 import { studentMealsForCoach } from "@/lib/coaching/service";
 import { ConfigError, getConfigStatus } from "@/lib/env";
@@ -35,15 +34,7 @@ export default async function CoachStudentPage({ params }: { params: Promise<{ i
   if (!data) redirect("/coach");
   return (
     <div className="space-y-5">
-      <PageHeader
-        title={data.coaching.student.username}
-        subtitle="Tu es son coach."
-        action={
-          <LinkButton href="/coach" variant="ghost" size="md" className="w-auto">
-            Retour
-          </LinkButton>
-        }
-      />
+      <PageHeader title={data.coaching.student.username} subtitle="Tu es son coach." back={{ href: "/coach", label: "Retour au coaching" }} />
       <StudentMeals coaching={data.coaching} meals={data.meals} retentionDays={rules.feeding.mealRetentionDays} thumbsPerReward={rules.coaching.thumbsPerStudentReward} />
     </div>
   );

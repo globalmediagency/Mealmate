@@ -20,7 +20,7 @@ export default async function CemeteryPage() {
 
   return (
     <div className="space-y-5 animate-rise">
-      <PageHeader title="Cimetière" subtitle="Celles et ceux qui ont vécu à tes côtés." />
+      <PageHeader title="Cimetière" subtitle="Celles et ceux qui ont vécu à tes côtés." back={{ href: "/more", label: "Retour" }} />
       {dead.length === 0 ? (
         <Card className="flex flex-col items-center gap-3 py-10 text-center">
           <span className="flex h-14 w-14 items-center justify-center rounded-full border border-ink-500 bg-ink-700 text-cream-500">

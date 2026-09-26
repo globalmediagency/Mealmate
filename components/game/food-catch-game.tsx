@@ -1,6 +1,6 @@
 "use client";
 
-import { Gamepad2, RotateCcw, Trophy } from "lucide-react";
+import { ChevronLeft, Gamepad2, RotateCcw, Trophy } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -11,6 +11,7 @@ import { Button, LinkButton } from "@/components/ui/button";
 import { getSpecies } from "@/lib/creatures";
 import { PLAY } from "@/lib/game/config";
 import type { CreatureView } from "@/lib/game/creature-view";
+import { playLimitLabel, playsLeftLabel } from "@/lib/game/dialogue";
 import type { PlayEffects } from "@/lib/game/play";
 import { computePlayScore } from "@/lib/game/play";
 
@@ -46,7 +47,7 @@ type FoodCatchGameProps = {
   homeHref?: string;
 };
 
-export function FoodCatchGame({ creature, accessories, playsLeft: initialPlaysLeft, maxPerDay = PLAY.maxPerDay, creatureId, homeHref = "/home" }: FoodCatchGameProps) {
+export function FoodCatchGame({ creature, accessories, playsLeft: initialPlaysLeft, maxPerDay = PLAY.maxPerDay, creatureId, homeHref = "/play" }: FoodCatchGameProps) {
   const router = useRouter();
   const species = creature.species ? getSpecies(creature.species.id) : undefined;
   const [phase, setPhase] = useState<Phase>("intro");
@@ -226,11 +227,14 @@ export function FoodCatchGame({ creature, accessories, playsLeft: initialPlaysLe
   return (
     <div className="space-y-4 animate-rise">
       <header className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight text-cream-50">Jouer avec {creature.name}</h1>
-          <p className="mt-1 text-sm text-cream-500">
-            {phase === "playing" ? "Glisse ton doigt pour la déplacer." : `${playsLeft} partie${playsLeft > 1 ? "s" : ""} restante${playsLeft > 1 ? "s" : ""} aujourd'hui.`}
-          </p>
+        <div className="flex min-w-0 items-start gap-1">
+          <Link href={homeHref} aria-label="Retour aux jeux" title="Retour aux jeux" className="-ml-2 mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-cream-300 hover:bg-ink-700 hover:text-cream-50" data-back>
+            <ChevronLeft className="h-6 w-6" aria-hidden="true" />
+          </Link>
+          <div className="min-w-0">
+            <h1 className="font-display text-3xl font-semibold tracking-tight text-cream-50">Attrape-repas</h1>
+            <p className="mt-1 text-sm text-cream-500">{phase === "playing" ? `Glisse ton doigt pour déplacer ${creature.name}.` : playsLeftLabel(playsLeft)}</p>
+          </div>
         </div>
         <div className="shrink-0 text-right">
           <p className="font-display text-3xl font-semibold tabular-nums text-cream-50">{phase === "playing" ? `${timeLeft}s` : ""}</p>
@@ -314,7 +318,7 @@ export function FoodCatchGame({ creature, accessories, playsLeft: initialPlaysLe
                 </Button>
               ) : null}
               <LinkButton href={homeHref} variant="secondary" className="w-auto px-5">
-                Retour
+                Autres jeux
               </LinkButton>
             </div>
           </div>
@@ -322,7 +326,10 @@ export function FoodCatchGame({ creature, accessories, playsLeft: initialPlaysLe
       </div>
 
       <p className="text-center text-xs text-cream-700">
-        Maximum {maxPerDay} partie{maxPerDay > 1 ? "s" : ""} par jour, jeu et défense confondus. <Link href={homeHref} className="underline">{homeHref === "/home" ? "Retour à l'accueil" : "Retour à la pension"}</Link>
+        {playLimitLabel(maxPerDay)}{" "}
+        <Link href={homeHref} className="underline">
+          Retour aux jeux
+        </Link>
       </p>
     </div>
   );

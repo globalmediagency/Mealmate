@@ -432,6 +432,9 @@ export type ShopItemId = keyof typeof SHOP_ITEMS;
 
 export const TALISMAN_PROTECTION_DAYS = 7;
 
+/** Hunger (0 = full, 100 = starving) from which the creature says it is hungry and « Nourrir » is highlighted. */
+export const HUNGER_ALERT_THRESHOLD = 60;
+
 /** Timezone used for all "per day" computations. */
 export const GAME_TIMEZONE = "Europe/Paris";
 

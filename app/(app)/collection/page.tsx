@@ -12,7 +12,7 @@ export default async function CollectionPage() {
   const obtained = new Set(await getObtainedSpeciesIds(session.user.id));
   return (
     <div className="space-y-6 animate-rise">
-      <PageHeader title="Collection" subtitle={`${obtained.size} / ${ALL_SPECIES.length} créatures découvertes.`} />
+      <PageHeader title="Collection" subtitle={`${obtained.size} / ${ALL_SPECIES.length} créatures découvertes.`} back={{ href: "/more", label: "Retour" }} />
       <CollectionGrid obtained={obtained} />
     </div>
   );

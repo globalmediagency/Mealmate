@@ -7,6 +7,7 @@ import { useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardText, CardTitle } from "@/components/ui/card";
+import { ARENA_MODE_LABELS } from "@/lib/arena/labels";
 import type { ArenaListing, ArenaMode, ArenaSnapshot } from "@/lib/arena/service";
 import { cn } from "@/lib/utils/cn";
 
@@ -18,16 +19,18 @@ export type ArenaListProps = {
   /** Why the user cannot open a match right now (null when they can). */
   blocked: string | null;
   maxPlayers: number;
+  /** The game chosen on the hub (`/arena?mode=`): the selector then shows that game only, with a way back to the hub. */
+  initialMode?: ArenaMode | null;
+  /** Plays left today for the user's creature (every game counts), shown before the form. */
+  playsLeft?: number | null;
 };
 
 const dateFormat = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
 
-const MODE_LABEL: Record<ArenaMode, string> = { arena: "Arène", coop: "Défendre à deux", pingpong: "Ping-pong" };
-
 const MODES: Array<{ id: ArenaMode; label: string; help: string; icon: typeof Swords }> = [
-  { id: "arena", label: "Arène", help: "Chacun pour soi : lance des œufs sur les créatures des autres.", icon: Swords },
-  { id: "coop", label: "Défendre à deux", help: "Ensemble contre la malbouffe qui attaque toutes vos créatures.", icon: Shield },
-  { id: "pingpong", label: "Ping-pong", help: "En duel : renvoie la balle au bon moment, 7 points pour gagner.", icon: CircleDot },
+  { id: "arena", label: ARENA_MODE_LABELS.arena, help: "Chacun pour soi : lance des œufs sur les créatures des autres.", icon: Swords },
+  { id: "coop", label: ARENA_MODE_LABELS.coop, help: "Ensemble contre la malbouffe qui attaque toutes vos créatures.", icon: Shield },
+  { id: "pingpong", label: ARENA_MODE_LABELS.pingpong, help: "En duel : renvoie la balle au bon moment.", icon: CircleDot },
 ];
 
 /** How many friends a mode takes. */
@@ -41,10 +44,11 @@ function names(snapshot: ArenaSnapshot): string {
 }
 
 /** The arena's front door: open a match with friends, answer invitations, resume or review matches (spec § 3.22). */
-export function ArenaList({ listing, friends, blocked, maxPlayers }: ArenaListProps) {
+export function ArenaList({ listing, friends, blocked, maxPlayers, initialMode = null, playsLeft = null }: ArenaListProps) {
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>([]);
-  const [mode, setMode] = useState<ArenaMode>("arena");
+  const [mode, setMode] = useState<ArenaMode>(initialMode ?? "arena");
+  const chosen = initialMode ? MODES.find((m) => m.id === initialMode) ?? null : null;
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const available = friends.filter((f) => f.available);
@@ -89,7 +93,7 @@ export function ArenaList({ listing, friends, blocked, maxPlayers }: ArenaListPr
               return (
                 <li key={s.match.id} className="flex min-h-11 items-center justify-between gap-3 py-2 text-sm">
                   <span className="text-cream-100">
-                    <span className="font-semibold">{host?.username ?? "Un ami"}</span> t&apos;invite · {MODE_LABEL[s.match.mode]} · {names(s)}
+                    <span className="font-semibold">{host?.username ?? "Un ami"}</span> t&apos;invite · {ARENA_MODE_LABELS[s.match.mode]} · {names(s)}
                   </span>
                   <Link href={`/arena/${s.match.id}`} className="shrink-0 rounded-full bg-brass-400 px-3 py-1.5 text-xs font-semibold text-ink-950 hover:bg-brass-300">
                     Voir
@@ -108,7 +112,7 @@ export function ArenaList({ listing, friends, blocked, maxPlayers }: ArenaListPr
             {listing.open.map((s) => (
               <li key={s.match.id} className="flex min-h-11 items-center justify-between gap-3 py-2 text-sm">
                 <span className="text-cream-100">
-                  {MODE_LABEL[s.match.mode]} · {s.match.status === "playing" ? "en cours" : "salle d'attente"} · {names(s)}
+                  {ARENA_MODE_LABELS[s.match.mode]} · {s.match.status === "playing" ? "en cours" : "salle d'attente"} · {names(s)}
                 </span>
                 <Link href={`/arena/${s.match.id}`} className="shrink-0 rounded-full bg-sage-500 px-3 py-1.5 text-xs font-semibold text-ink-950 hover:bg-sage-400">
                   Reprendre
@@ -121,14 +125,27 @@ export function ArenaList({ listing, friends, blocked, maxPlayers }: ArenaListPr
 
       <Card data-arena-create>
         <div className="flex items-center gap-2">
-          <Swords className="h-5 w-5 text-sage-300" aria-hidden="true" />
-          <CardTitle>Nouvelle partie</CardTitle>
+          {chosen ? <chosen.icon className="h-5 w-5 text-sage-300" aria-hidden="true" /> : <Swords className="h-5 w-5 text-sage-300" aria-hidden="true" />}
+          <CardTitle>{chosen ? `${chosen.label} · nouvelle partie` : "Nouvelle partie"}</CardTitle>
         </div>
         <CardText className="mt-1">
+          {chosen ? `${chosen.help} ` : ""}
           {mode === "pingpong" ? "Invite un ami dont la créature est vivante." : `Invite jusqu'à ${maxPlayers - 1} amis dont la créature est vivante.`} Chacun pose son marqueur sur la même table et cadre la table avec son
           téléphone.
         </CardText>
-        <div className="mt-3 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Type de partie">
+        {playsLeft !== null && !blocked ? (
+          <p className="mt-2 text-xs text-cream-500" data-arena-plays-left={playsLeft}>
+            {playsLeft} partie{playsLeft > 1 ? "s" : ""} restante{playsLeft > 1 ? "s" : ""} aujourd&apos;hui pour toi · une partie compte pour chaque joueur.
+          </p>
+        ) : null}
+        {chosen ? (
+          <p className="mt-2 text-xs text-cream-500">
+            <Link href="/play" className="font-semibold text-sage-300 underline" data-arena-change-mode>
+              Changer de jeu
+            </Link>
+          </p>
+        ) : null}
+        <div className={cn("mt-3 grid grid-cols-2 gap-2", chosen && "hidden")} role="radiogroup" aria-label="Type de partie">
           {MODES.map(({ id, label, help, icon: Icon }) => (
             <button
               key={id}
@@ -143,7 +160,7 @@ export function ArenaList({ listing, friends, blocked, maxPlayers }: ArenaListPr
                 <Icon className="h-4 w-4 text-sage-300" aria-hidden="true" />
                 {label}
               </span>
-              <span className="text-[11px] leading-snug text-cream-500">{help}</span>
+              <span className="text-xs leading-snug text-cream-500">{help}</span>
             </button>
           ))}
         </div>
@@ -183,7 +200,7 @@ export function ArenaList({ listing, friends, blocked, maxPlayers }: ArenaListPr
               </Alert>
             ) : null}
             <Button onClick={() => void create()} disabled={selected.length === 0 || busy} variant="brass" className="mt-3 w-auto px-6">
-              {busy ? "Ouverture…" : `Inviter${selected.length > 0 ? ` (${selected.length})` : ""} · ${MODE_LABEL[mode]}`}
+              {busy ? "Ouverture…" : `Inviter${selected.length > 0 ? ` (${selected.length})` : ""} · ${ARENA_MODE_LABELS[mode]}`}
             </Button>
           </>
         )}
@@ -199,7 +216,7 @@ export function ArenaList({ listing, friends, blocked, maxPlayers }: ArenaListPr
               return (
                 <li key={s.match.id} className="flex min-h-11 items-center justify-between gap-3 py-2 text-sm">
                   <span className="text-cream-100">
-                    {s.match.finishedAt ? dateFormat.format(new Date(s.match.finishedAt)) : ""} · {MODE_LABEL[s.match.mode]} ·{" "}
+                    {s.match.finishedAt ? dateFormat.format(new Date(s.match.finishedAt)) : ""} · {ARENA_MODE_LABELS[s.match.mode]} ·{" "}
                     {s.match.mode === "coop"
                       ? s.match.coop?.result
                         ? `${s.match.coop.result.score} pts à ${count}`

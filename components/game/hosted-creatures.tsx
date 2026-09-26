@@ -9,8 +9,13 @@ import type { HostedCreatureView } from "@/lib/boarding/views";
 import { getSpecies } from "@/lib/creatures";
 import { cn } from "@/lib/utils/cn";
 
-/** Home-screen section listing the creatures friends entrusted to the user; opening it acknowledges the new ones. */
-export function HostedCreatures({ items }: { items: HostedCreatureView[] }) {
+/**
+ * Home-screen section listing the creatures friends entrusted to the user;
+ * opening it acknowledges the new ones. `variant="strip"` = a compact
+ * horizontal row placed above the player's own creature (a sick guest is seen
+ * without scrolling).
+ */
+export function HostedCreatures({ items, variant = "list" }: { items: HostedCreatureView[]; variant?: "list" | "strip" }) {
   const unseen = items.some((item) => !item.boarding.seen);
   useEffect(() => {
     if (!unseen) return;
@@ -19,6 +24,43 @@ export function HostedCreatures({ items }: { items: HostedCreatureView[] }) {
     });
   }, [unseen]);
   if (items.length === 0) return null;
+
+  if (variant === "strip") {
+    return (
+      <section className="rounded-3xl border border-ink-600/80 bg-ink-800/80 px-3 py-2.5 shadow-card animate-rise" aria-label="En pension chez toi" data-hosted-strip={items.length}>
+        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-cream-500">
+          <Tent className="h-4 w-4 text-sage-300" aria-hidden="true" />
+          En pension chez toi ({items.length})
+        </p>
+        <ul className="-mx-1 mt-1.5 flex gap-2 overflow-x-auto pb-1">
+          {items.map(({ boarding, creature, accessories, owner }) => {
+            const species = creature.species ? getSpecies(creature.species.id) : undefined;
+            const sick = creature.state === "sick";
+            return (
+              <li key={boarding.id} className="shrink-0">
+                <Link
+                  href={`/pension/${creature.id}`}
+                  className={cn("flex min-h-11 w-28 flex-col items-center gap-0.5 rounded-2xl border bg-ink-900/60 px-2 py-1.5 text-center transition-colors hover:border-sage-500/60", sick ? "border-danger/60" : boarding.seen ? "border-ink-600/80" : "border-brass-400/60")}
+                  title={`Confiée par ${owner.username} · encore ${boarding.daysLeft} jour${boarding.daysLeft > 1 ? "s" : ""}`}
+                >
+                  <span className="flex h-14 w-14 items-end justify-center overflow-hidden">
+                    {species ? <Creature species={species} stage={creature.stage.id} state={creature.state} size={56} accessories={accessories} /> : null}
+                  </span>
+                  <span className="w-full truncate text-xs font-semibold text-cream-50">{creature.name}</span>
+                  <span className={cn("text-xs", sick ? "font-semibold text-danger" : !boarding.seen ? "font-semibold text-brass-200" : "text-cream-500")}>
+                    {sick ? "Malade" : !boarding.seen ? "Nouveau" : `${boarding.daysLeft} j`}
+                  </span>
+                  <span className="sr-only">
+                    Confiée par {owner.username}, santé {Math.round(creature.health)} sur 100, faim {Math.round(creature.hunger)} sur 100
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+    );
+  }
 
   return (
     <Card className="animate-rise">

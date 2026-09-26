@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils/cn";
 import { CoopGame } from "@/components/coop/coop-game";
 import { PingPongGame } from "@/components/pingpong/pingpong-game";
 import { PINGPONG } from "@/lib/game/config";
+import { ARENA_MODE_LABELS } from "@/lib/arena/labels";
 import { ArenaGame } from "./arena-game";
 import { PreviewTransport } from "./preview-transport";
 import { ChannelSignaling, RtcTransport } from "./rtc-transport";
@@ -120,7 +121,7 @@ export function ArenaMatch({ initial, webrtc, preview = false, previewRtc = fals
   return (
     <div className="space-y-4 animate-rise" data-arena-match data-status={match.status}>
       <header>
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-cream-50">{coop ? "Défendre à deux" : pingpong ? "Ping-pong" : "Arène"}</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-cream-50">{ARENA_MODE_LABELS[match.mode]}</h1>
         <p className="mt-0.5 text-sm text-cream-500">
           {match.status === "lobby"
             ? coop
@@ -260,8 +261,8 @@ export function ArenaMatch({ initial, webrtc, preview = false, previewRtc = fals
             <LinkButton href="/arena" variant="brass" className="w-auto px-5">
               Nouvelle partie
             </LinkButton>
-            <LinkButton href="/home" variant="secondary" className="w-auto px-5">
-              Retour à l&apos;accueil
+            <LinkButton href="/play" variant="secondary" className="w-auto px-5">
+              Autres jeux
             </LinkButton>
           </div>
         </Card>
@@ -325,8 +326,8 @@ export function ArenaMatch({ initial, webrtc, preview = false, previewRtc = fals
             <LinkButton href="/arena" variant="brass" className="w-auto px-5">
               Nouvelle partie
             </LinkButton>
-            <LinkButton href="/home" variant="secondary" className="w-auto px-5">
-              Retour à l&apos;accueil
+            <LinkButton href="/play" variant="secondary" className="w-auto px-5">
+              Autres jeux
             </LinkButton>
           </div>
         </Card>
@@ -377,8 +378,8 @@ export function ArenaMatch({ initial, webrtc, preview = false, previewRtc = fals
             <LinkButton href="/arena" variant="brass" className="w-auto px-5">
               Nouvelle partie
             </LinkButton>
-            <LinkButton href="/home" variant="secondary" className="w-auto px-5">
-              Retour à l&apos;accueil
+            <LinkButton href="/play" variant="secondary" className="w-auto px-5">
+              Autres jeux
             </LinkButton>
           </div>
         </Card>
@@ -396,8 +397,8 @@ export function ArenaMatch({ initial, webrtc, preview = false, previewRtc = fals
         <Card>
           <CardTitle>Partie annulée</CardTitle>
           <CardText className="mt-1">L&apos;hôte a fermé la partie, ou personne ne l&apos;a lancée à temps.</CardText>
-          <Link href="/arena" className="mt-3 inline-block text-sm font-semibold text-sage-300 underline">
-            Retour à l&apos;arène
+          <Link href="/play" className="mt-3 inline-block text-sm font-semibold text-sage-300 underline">
+            Retour aux jeux
           </Link>
         </Card>
       ) : null}

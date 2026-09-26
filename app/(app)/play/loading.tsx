@@ -1,0 +1,12 @@
+/** Skeleton of the games hub: title, counter, five cards. */
+export default function Loading() {
+  return (
+    <div className="space-y-4 pt-2" aria-busy="true" aria-label="Chargement">
+      <div className="h-8 w-48 animate-pulse rounded-xl bg-ink-700/80" />
+      <div className="h-12 animate-pulse rounded-2xl bg-ink-800/90" />
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="h-24 animate-pulse rounded-3xl bg-ink-800/90" />
+      ))}
+    </div>
+  );
+}

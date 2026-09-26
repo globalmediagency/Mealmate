@@ -39,9 +39,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <a href="#main" className="skip-link">
         Aller au contenu
       </a>
-      {/* Arena invitations are live (polled by the phone) and reach every page: their count is added client-side to the Amis badge. */}
+      {/* Arena invitations are live (polled by the phone) and reach every page: their count is added client-side to the Créature badge (the « Jouer » door). */}
       <LiveArena initialInvites={arenaInvites}>
-        <main id="main" className="mx-auto w-full max-w-md px-4 pt-3 safe-top">{children}</main>
+        <main id="main" className="mx-auto w-full max-w-md px-4 safe-top">{children}</main>
         <BottomNav badges={{ "/friends": pendingRequests + pendingTrades + coaching, "/home": unseenGifts + unseenBoardings + ownerNotices }} />
       </LiveArena>
     </div>

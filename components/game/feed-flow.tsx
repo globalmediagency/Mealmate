@@ -8,7 +8,7 @@ import { Creature } from "@/components/creatures/creature";
 import { Alert } from "@/components/ui/alert";
 import { Button, LinkButton } from "@/components/ui/button";
 import { getSpecies } from "@/lib/creatures";
-import { FEEDING } from "@/lib/game/config";
+import { FEEDING, HUNGER_ALERT_THRESHOLD } from "@/lib/game/config";
 import { isSuspiciousPhoto } from "@/lib/ai/meal-schema";
 import type { CreatureView } from "@/lib/game/creature-view";
 import type { MealEffects } from "@/lib/game/meal-effects";
@@ -459,7 +459,7 @@ export function FeedFlow({
             </div>
           ) : null}
           <p className="max-w-xs text-sm leading-relaxed text-cream-300">
-            {creature.hunger >= 60
+            {creature.hunger >= HUNGER_ALERT_THRESHOLD
               ? "J'ai faim ! Qu'est-ce que tu me donnes ?"
               : creature.hunger < FEEDING.fullHungerThreshold
                 ? "Je n'ai pas très faim, mais je goûterai."

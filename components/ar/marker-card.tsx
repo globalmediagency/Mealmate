@@ -11,10 +11,42 @@ type MarkerCardProps = {
   ownerName?: string | null;
   /** The owner's photo marker, when they use one (spec § 3.19): shown next to the printed square. */
   photoUrl?: string | null;
+  /** One line (small preview, number, PDF link): the games hub. */
+  compact?: boolean;
 };
 
 /** A creature's printed marker: preview with the name under it and, for one's own creature, the PDF to print (spec § 3.19). */
-export function MarkerCard({ name, markerId, creatureId, ownerName, photoUrl }: MarkerCardProps) {
+export function MarkerCard({ name, markerId, creatureId, ownerName, photoUrl, compact = false }: MarkerCardProps) {
+  if (compact) {
+    return (
+      <div className="flex min-h-14 items-center gap-3 rounded-3xl border border-ink-600/80 bg-ink-800/70 px-3 py-2" data-marker-compact={markerId}>
+        <figure className="w-12 shrink-0 rounded-lg bg-white p-0.5">
+          <div aria-hidden="true" dangerouslySetInnerHTML={{ __html: markerSvg(markerId) }} />
+        </figure>
+        {photoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={photoUrl} alt="Marqueur photo actif" title="Marqueur photo actif" className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-sage-500/60" />
+        ) : null}
+        <p className="min-w-0 flex-1 text-sm leading-snug text-cream-100">
+          <span className="block font-semibold">Marqueur n° {markerId}</span>
+          <span className="block text-xs text-cream-500">
+            {creatureId ? `Celui de ${name}, à imprimer une fois (A4, en noir).` : `${ownerName ?? "Son propriétaire"} l'imprime depuis son application.`}
+          </span>
+        </p>
+        {creatureId ? (
+          <a
+            href={`/api/ar/marker?creature=${creatureId}`}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-2xl border border-brass-400/60 bg-brass-500/15 px-3 text-xs font-semibold text-brass-200 hover:bg-brass-500/25"
+          >
+            <FileDown className="h-4 w-4" aria-hidden="true" />
+            PDF
+          </a>
+        ) : null}
+      </div>
+    );
+  }
   return (
     <Card>
       <CardTitle>Le marqueur de {name}</CardTitle>

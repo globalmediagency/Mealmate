@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { BoardedAway } from "@/components/game/boarded-away";
 import { BoardingProposals, OwnerBoardingNotices } from "@/components/game/boarding-notices";
 import { CreatureHome } from "@/components/game/creature-home";
+import { PlayHub } from "@/components/game/play-hub";
+import { PageHeader } from "@/components/layout/page-header";
 import { HostedCreatures } from "@/components/game/hosted-creatures";
 import { HostedDeathNotice } from "@/components/game/hosted-death-notice";
 import { CoachingPanel } from "@/components/game/coaching-panel";
@@ -62,7 +64,7 @@ import { isDevGalleryEnabled } from "@/lib/env";
 export const metadata: Metadata = { title: "Écrans (démo)" };
 export const dynamic = "force-dynamic";
 
-const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "photo-marker", "turnaround", "creature-3d", "defense", "defense-boss", "arena", "arena-rtc", "arena-invite", "coop", "pingpong", "food-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
+const SCREENS = ["egg", "incubation", "ready", "reveal", "home", "home-sick", "home-hungry", "activity", "feed", "feed-animation", "food", "schema", "ar", "photo-marker", "turnaround", "creature-3d", "defense", "defense-boss", "arena", "arena-rtc", "arena-invite", "coop", "pingpong", "food-3d", "admin-players", "meal-result", "meals", "mourning", "admin", "play", "play-catch", "play-empty", "wardrobe", "chest", "collection", "friends", "shop", "home-protected", "account", "home-away", "home-hosting", "pension", "mourning-pension", "coach", "coach-meals", "home-pending"] as const;
 type Screen = (typeof SCREENS)[number];
 
 function mockCreature(overrides: Partial<CreatureView>): CreatureView {
@@ -135,7 +137,7 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
     }
     case "home-sick": {
       const c = mockCreature({ health: 22, hunger: 85, mood: 30, state: "sick", stage: { id: "adulte", label: "Adulte", minXp: 500 }, xp: 620, xpToNextStage: 580, sickSince: new Date(Date.now() - 2 * 86_400_000).toISOString(), daysUntilDeath: 5 });
-      content = <CreatureHome creature={c} line={creatureLine(c)} />;
+      content = <CreatureHome creature={c} line={creatureLine(c)} inventory={{ sirop: 2, antibiotique: 0, talisman: 0 }} todaySteps={800} chest={{ available: 0, stepsToNext: 2600, stepsPerChest: 5000, opened: 3, earned: 3, totalSteps: 17400 }} playsLeft={1} mealsToday={0} maxMeals={5} />;
       break;
     }
     case "activity": {
@@ -553,14 +555,34 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
     }
     case "home-hungry": {
       const c = mockCreature({ hunger: 86, health: 74, mood: 50 });
-      content = <CreatureHome creature={c} line={creatureLine(c)} />;
+      content = <CreatureHome creature={c} line={creatureLine(c)} todaySteps={0} chest={{ available: 0, stepsToNext: 3400, stepsPerChest: 5000, opened: 1, earned: 1, totalSteps: 6600 }} playsLeft={3} mealsToday={1} maxMeals={5} />;
       break;
     }
     case "admin":
       content = <RulesForm initialRules={DEFAULT_RULES} storedPatch={{}} updatedAt={null} updatedBy={null} />;
       break;
     case "play":
-      content = <FoodCatchGame creature={mockCreature({})} accessories={[{ slot: "head", id: "straw_hat" }]} playsLeft={3} />;
+    case "play-empty": {
+      const left = screen === "play" ? 2 : 0;
+      content = (
+        <div className="space-y-4">
+          <PageHeader title="Jouer avec Miso" back={{ href: "/dev/screens?screen=home", label: "Retour à ma créature" }} />
+          <PlayHub
+            creatureName="Miso"
+            playsLeft={left}
+            maxPerDay={3}
+            friendsAvailable={screen === "play" ? 2 : 0}
+            invitations={screen === "play" ? [{ matchId: "00000000-0000-4000-8000-000000000042", hostName: "Sam", mode: "arena", players: ["Léa"] }] : []}
+            marker={{ id: 17, creatureId: "demo", photoUrl: screen === "play" ? DEV_DOODLE_URL : null }}
+            maxPlayers={4}
+            pingpongPoints={DEFAULT_RULES.pingpong.pointsToWin}
+          />
+        </div>
+      );
+      break;
+    }
+    case "play-catch":
+      content = <FoodCatchGame creature={mockCreature({})} accessories={[{ slot: "head", id: "straw_hat" }]} playsLeft={3} homeHref="/dev/screens?screen=play" />;
       break;
     case "wardrobe":
       content = (
@@ -624,7 +646,12 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
         <CreatureHome
           creature={c}
           line={creatureLine(c)}
-          doses={2}
+          inventory={{ sirop: 1, antibiotique: 1, talisman: 0 }}
+          todaySteps={3200}
+          chest={{ available: 0, stepsToNext: 1800, stepsPerChest: 5000, opened: 2, earned: 2, totalSteps: 13200 }}
+          playsLeft={2}
+          mealsToday={2}
+          maxMeals={5}
           gifts={[
             { id: "g1", from: { userId: "u1", username: "Marion" }, kind: "medicine", item: "antibiotique", createdAt: new Date().toISOString() },
             { id: "g2", from: { userId: "u2", username: "Karim" }, kind: "accessory", accessory: ACCESSORIES.find((a) => a.id === "crown")!, createdAt: new Date().toISOString() },
@@ -655,13 +682,14 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
           <BoardingProposals
             proposals={[{ boarding: { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", creatureId: "demo-lune", status: "pending", startedAt: new Date().toISOString(), endsAt, daysLeft: 5, days: 14, seen: false }, creature: mockCreature({ id: "demo-lune", name: "Lune", tier: "facile", species: toSpeciesSummary(getSpecies("facile-lapin-doux")!) }), ownerName: "Lina" }]}
           />
-          <CreatureHome creature={mockCreature({})} line={creatureLine(mockCreature({}))} chestsAvailable={1} />
           <HostedCreatures
+            variant="strip"
             items={[
               { boarding: { id: "77777777-7777-4777-8777-777777777777", creatureId: azur.id, startedAt: new Date().toISOString(), endsAt, daysLeft: 5, days: 7, status: "active", seen: false }, creature: azur, accessories: [], owner: { userId: "u2", username: "Karim" } },
               { boarding: { id: "88888888-8888-4888-8888-888888888888", creatureId: roux.id, startedAt: new Date().toISOString(), endsAt, daysLeft: 12, days: 14, status: "active", seen: true }, creature: roux, accessories: [{ slot: "head", id: "beret" }], owner: { userId: "u1", username: "Marion" } },
             ]}
           />
+          <CreatureHome creature={mockCreature({})} line={creatureLine(mockCreature({}))} chest={{ available: 1, stepsToNext: 4100, stepsPerChest: 5000, opened: 1, earned: 2, totalSteps: 10900 }} todaySteps={4300} playsLeft={3} mealsToday={1} maxMeals={5} />
         </div>
       );
       break;
@@ -756,13 +784,24 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
       break;
     default: {
       const c = mockCreature({});
-      content = <CreatureHome creature={c} line={creatureLine(c)} accessories={[{ slot: "head", id: "beret" }, { slot: "neck", id: "bow_tie" }]} chestsAvailable={1} />;
+      content = (
+        <CreatureHome
+          creature={c}
+          line={creatureLine(c)}
+          accessories={[{ slot: "head", id: "beret" }, { slot: "neck", id: "bow_tie" }]}
+          chest={{ available: 1, stepsToNext: 4100, stepsPerChest: 5000, opened: 1, earned: 2, totalSteps: 10900 }}
+          todaySteps={3200}
+          playsLeft={3}
+          mealsToday={1}
+          maxMeals={5}
+        />
+      );
     }
   }
 
   return (
     <div className="min-h-dvh pb-nav">
-      <main className="mx-auto w-full max-w-md px-4 pt-3 safe-top">
+      <main className="mx-auto w-full max-w-md px-4 safe-top">
         <nav className="mb-3 flex flex-wrap gap-1 text-xs">
           {SCREENS.map((s) => (
             <Link key={s} href={`/dev/screens?screen=${s}`} className={s === screen ? "rounded-lg bg-sage-800/50 px-2 py-1 text-sage-200" : "rounded-lg px-2 py-1 text-cream-500"}>

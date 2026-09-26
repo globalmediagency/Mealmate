@@ -23,7 +23,7 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
   const secretKey = optionalEnv("STRIPE_SECRET_KEY");
   return (
     <div className="space-y-4">
-      <PageHeader title="Boutique" subtitle="Des soins pour ta créature, et pour celles de tes amis." />
+      <PageHeader title="Boutique" subtitle="Ton armoire à pharmacie, puis les soins à acheter." back={{ href: "/home", label: "Retour à ma créature" }} />
       <ShopPanel
         inventory={inventory}
         purchases={purchases}

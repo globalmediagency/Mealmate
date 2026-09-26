@@ -79,8 +79,9 @@
 }
 
 /* iOS safe areas */
+/* Adds to the page's own top padding: the notch inset is 0 on Android, on a plain browser and on phones without one. */
 @utility safe-top {
-  padding-top: env(safe-area-inset-top);
+  padding-top: calc(0.75rem + env(safe-area-inset-top, 0px));
 }
 @utility safe-bottom {
   padding-bottom: env(safe-area-inset-bottom);
