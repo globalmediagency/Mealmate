@@ -506,9 +506,7 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
     if (!v) return;
     setProblem(null);
     go("starting");
-    // Players who use a photo marker (spec § 3.19): their picture is recognised as their number.
-    const references = latest.current.players.flatMap((p) => (p.markerImage ? [{ id: p.markerId, url: p.markerImage }] : []));
-    const cam = new MarkerCamera(v, references);
+    const cam = new MarkerCamera(v);
     cam.onFrame = onFrame;
     camera.current = cam;
     try {
@@ -661,7 +659,7 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
 
             {hud.status === "lobby" ? (
               <p className="pointer-events-none absolute inset-x-4 bottom-4 rounded-2xl bg-ink-950/75 px-4 py-2 text-center text-sm text-cream-100 backdrop-blur" data-arena-notice="lobby">
-                {hud.seen > 0 ? `${hud.seen} créature${hud.seen > 1 ? "s" : ""} reconnue${hud.seen > 1 ? "s" : ""}. ` : "Cadre les marqueurs posés sur la table (imprimés ou photos). "}
+                {hud.seen > 0 ? `${hud.seen} créature${hud.seen > 1 ? "s" : ""} reconnue${hud.seen > 1 ? "s" : ""}. ` : "Cadre les marqueurs posés sur la table. "}
                 La bataille commence quand l&apos;hôte la lance.
               </p>
             ) : null}

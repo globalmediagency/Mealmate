@@ -8,7 +8,7 @@ import { coverTransform, CREATURE_HEIGHT_PER_MARKER, mapQuad, markerPose, smooth
 import { getSpecies } from "@/lib/creatures";
 import { viewFromAngle } from "@/lib/creatures/turnaround";
 import { cn } from "@/lib/utils/cn";
-import { CameraError, MarkerCamera, type CameraFrame, type Corner, type MarkerReference, type PhotoMarkerState } from "./marker-camera";
+import { CameraError, MarkerCamera, type CameraFrame, type Corner } from "./marker-camera";
 import { ViewsRenderer } from "./renderers/views";
 import { AccessorySprites, accessoryMarkup } from "./three/accessory-sprites";
 import type { CreatureMeshInput } from "./three/creature-mesh";
@@ -28,21 +28,6 @@ const GROUND = 0.92;
 /** Marker lost for longer than this (or three detections, on a slow phone): hide its creature. */
 const LOST_MS = 450;
 const SMOOTHING = 0.35;
-/** How often the photo-marker status line is refreshed while the camera runs. */
-const PHOTO_STATUS_MS = 500;
-
-/** The pictures the camera must recognise, from the targets. */
-const photoReferences = (targets: ArTarget[]): MarkerReference[] => targets.flatMap((t) => (t.image ? [{ id: t.markerId, url: t.image }] : []));
-
-/** One line per photo marker: loaded or not, recognised or not (what the owner reads on their phone when it "does not work"). */
-function photoStatusText(state: PhotoMarkerState, now: number): string {
-  if (state.state === "loading") return "chargement…";
-  if (state.state === "failed") return `indisponible (${state.detail ?? "erreur"})`;
-  const ago = now - state.lastSeen;
-  if (ago < 1000) return `reconnue (${state.lastInliers} points)`;
-  if (Number.isFinite(state.lastSeen)) return `chargée (${state.keypoints ?? 0} repères) · vue il y a ${Math.round(ago / 1000)} s`;
-  return `chargée (${state.keypoints ?? 0} repères) · pas encore vue`;
-}
 
 const shadowSize = (p: MarkerPose) => ({ w: Math.max(24, p.width * 0.8), h: Math.max(8, p.height * 0.55) });
 
@@ -61,7 +46,6 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
   const [visible, setVisible] = useState<number[]>([]);
   const [viewState, setViewState] = useState<Record<number, number>>({});
   const [photo, setPhoto] = useState<string | null>(null);
-  const [photoStatus, setPhotoStatus] = useState<{ id: number; text: string; state: PhotoMarkerState["state"] }[]>([]);
   const video = useRef<HTMLVideoElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const glCanvas = useRef<HTMLCanvasElement>(null);
@@ -80,31 +64,6 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
   const views = useRef(new Map<number, number>());
   const byMarker = useRef(new Map<number, ArTarget>());
   byMarker.current = new Map(targets.map((t) => [t.markerId, t]));
-  const photoKey = photoReferences(targets)
-    .map((r) => `${r.id}:${r.url}`)
-    .join("|");
-
-  // A photo saved, replaced or switched while the camera runs: the running camera reloads its pictures.
-  useEffect(() => {
-    camera.current?.setReferences(photoReferences(targets));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [photoKey]);
-
-  // The status line of the photo markers, refreshed twice a second while the camera runs.
-  useEffect(() => {
-    if (status !== "running" || photoKey === "") {
-      setPhotoStatus([]);
-      return;
-    }
-    const timer = window.setInterval(() => {
-      const cam = camera.current;
-      if (!cam) return;
-      const now = performance.now();
-      const next = cam.photoStatus().map((s) => ({ id: s.id, state: s.state, text: photoStatusText(s, now) }));
-      setPhotoStatus((current) => (current.length === next.length && current.every((c, i) => c.id === next[i].id && c.text === next[i].text) ? current : next));
-    }, PHOTO_STATUS_MS);
-    return () => window.clearInterval(timer);
-  }, [status, photoKey]);
 
   const stop = useCallback(() => {
     camera.current?.stop();
@@ -118,7 +77,6 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
     visibleRef.current = [];
     setVisible([]);
     setViewState({});
-    setPhotoStatus([]);
     setStatus("idle");
   }, []);
 
@@ -144,7 +102,7 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
     const v = video.current;
     if (!v) return;
     setStatus("starting");
-    const cam = new MarkerCamera(v, photoReferences(targets));
+    const cam = new MarkerCamera(v);
     cam.onFrame = onFrame;
     camera.current = cam;
     try {
@@ -414,7 +372,7 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
             })}
             {!found ? (
               <p className="pointer-events-none absolute inset-x-4 bottom-4 rounded-2xl bg-ink-950/70 px-4 py-2 text-center text-sm text-cream-100 backdrop-blur">
-                {status === "starting" ? "Ouverture de la caméra…" : targets.some((t) => t.image) ? "Cadre un marqueur, imprimé ou photo, bien à plat et éclairé." : "Cadre un marqueur imprimé, bien à plat et éclairé."}
+                {status === "starting" ? "Ouverture de la caméra…" : "Cadre un marqueur imprimé, bien à plat et éclairé."}
               </p>
             ) : null}
           </>
@@ -436,16 +394,6 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
           </div>
         )}
       </div>
-
-      {running && photoStatus.length > 0 ? (
-        <ul className="space-y-0.5 px-1 text-xs text-cream-500" data-photo-status>
-          {photoStatus.map((s) => (
-            <li key={s.id} data-photo-marker-status={s.state} data-marker-id={s.id}>
-              Photo de <span className="text-cream-300">{byMarker.current.get(s.id)?.creature.name ?? `n° ${s.id}`}</span> : {s.text}
-            </li>
-          ))}
-        </ul>
-      ) : null}
 
       {/* Accessory drawings the 3D scene turns into textures (never displayed). */}
       <AccessorySprites ref={sprites} items={targets.map((t) => ({ speciesId: t.creature.speciesId, accessories: t.creature.accessories }))} />

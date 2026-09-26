@@ -64,10 +64,6 @@ const storage: ObjectStorage = {
   async put(key, bytes) {
     stored.set(key, bytes);
   },
-  async get(key) {
-    const bytes = stored.get(key);
-    return bytes ? { bytes, contentType: "image/jpeg" } : null;
-  },
   async signedUrl(key) {
     return `https://signed.example/${key}`;
   },

@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { PlayHub, type HubInvitation, type HubOpenMatch } from "@/components/game/play-hub";
 import { isMarkerId } from "@/lib/ar/config";
-import { photoMarkerUrls } from "@/lib/ar/photo-marker";
 import { ensureCreatureMarker } from "@/lib/ar/service";
 import { listMatchesFor } from "@/lib/arena/service";
 import { requireViewer } from "@/lib/auth/session";
@@ -32,13 +31,12 @@ export default async function PlayPage({ searchParams }: { searchParams: SearchP
   const creature = held?.creature;
   if (!held || !creature || creature.status !== "alive" || !creature.name) redirect("/home");
   const boarded = held.boarding !== null;
-  const [plays, friends, listing, markerId, photos] = await Promise.all([
+  const [plays, friends, listing, markerId] = await Promise.all([
     countPlaysToday(creature.id),
     boarded ? [] : listFriends(session.user.id, now).catch(() => []),
     boarded ? null : listMatchesFor(session.user.id, now, rules).catch(() => null),
     // The marker is created here for one's own creature (never for a boarded one: it belongs to its owner).
     boarded ? creature.arMarker : ensureCreatureMarker(creature).catch(() => null),
-    photoMarkerUrls([creature.userId]).catch(() => new Map<string, string>()),
   ]);
   const invitations: HubInvitation[] = (listing?.invitations ?? []).map((s) => ({
     matchId: s.match.id,
@@ -64,7 +62,7 @@ export default async function PlayPage({ searchParams }: { searchParams: SearchP
         friendsAvailable={friends.filter((f) => f.creature.status === "alive" && f.creature.name !== null).length}
         invitations={invitations}
         openMatches={openMatches}
-        marker={isMarkerId(markerId) ? { id: markerId, creatureId: boarded ? undefined : creature.id, ownerName: boarded ? (held.owner?.username ?? null) : null, photoUrl: photos.get(creature.userId) ?? null } : null}
+        marker={isMarkerId(markerId) ? { id: markerId, creatureId: boarded ? undefined : creature.id, ownerName: boarded ? (held.owner?.username ?? null) : null } : null}
         maxPlayers={ARENA.maxPlayers}
         pingpongPoints={rules.pingpong.pointsToWin}
       />

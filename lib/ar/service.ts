@@ -13,7 +13,6 @@ import type { GameRules } from "@/lib/game/rules";
 import { getGameRules } from "@/lib/game/rules-service";
 import { pickMarkerId } from "./assign";
 import { isMarkerId } from "./config";
-import { photoMarkerUrls } from "./photo-marker";
 
 /** Marker numbers already used by the creatures of these users (living or not: a dead creature's paper may still be around). */
 async function markersUsedBy(userIds: string[]): Promise<Set<number>> {
@@ -47,14 +46,13 @@ export async function ensureCreatureMarker(creature: Creature, random: () => num
 }
 
 /** A living, named creature as the AR screen draws it (accessories included). */
-async function targetFor(creature: Creature, markerId: number, mine: boolean, ownerName: string | null, image: string | null = null): Promise<ArTarget | null> {
+async function targetFor(creature: Creature, markerId: number, mine: boolean, ownerName: string | null): Promise<ArTarget | null> {
   if (creature.status !== "alive" || !creature.speciesId || !creature.name) return null;
   const outfit = await getOutfit(creature.id);
   return {
     markerId,
     mine,
     ownerName,
-    image,
     creature: { name: creature.name, speciesId: creature.speciesId, stage: stageForXp(creature.xp).id, state: deriveState(creature), accessories: outfitToEquipped(outfit) },
   };
 }
@@ -71,20 +69,17 @@ export type ArTargets = {
  * Everything the viewer's camera may recognise (spec § 3.19): their own
  * creature (even away at a friend's), the creatures boarded with them and
  * their accepted friends' living creatures that already have a marker. One
- * target per marker number. Owners who use a photo marker get its image URL
- * on their target (spec § 3.19).
+ * target per marker number.
  */
 export async function listArTargets(userId: string, now: Date = new Date(), rules?: GameRules): Promise<ArTargets> {
   const gameRules = rules ?? (await getGameRules());
   const held = await getHeldCreatures(userId, now, gameRules);
-  const friendIds = await acceptedFriendIds(userId);
-  const photos = await photoMarkerUrls([userId, ...held.boarded.map((b) => b.creature.userId), ...friendIds]);
   const candidates: ArTarget[] = [];
 
   let own: ArTargets["own"] = null;
   if (held.own && held.own.status === "alive" && held.own.name) {
     const markerId = await ensureCreatureMarker(held.own);
-    const target = await targetFor(held.own, markerId, true, null, photos.get(userId) ?? null);
+    const target = await targetFor(held.own, markerId, true, null);
     if (target) {
       own = { ...target, creatureId: held.own.id };
       candidates.push(target);
@@ -93,10 +88,11 @@ export async function listArTargets(userId: string, now: Date = new Date(), rule
 
   for (const boarded of held.boarded) {
     if (!isMarkerId(boarded.creature.arMarker)) continue;
-    const target = await targetFor(boarded.creature, boarded.creature.arMarker, false, boarded.owner.username, photos.get(boarded.creature.userId) ?? null);
+    const target = await targetFor(boarded.creature, boarded.creature.arMarker, false, boarded.owner.username);
     if (target) candidates.push(target);
   }
 
+  const friendIds = await acceptedFriendIds(userId);
   if (friendIds.length > 0) {
     const rows = await getDb()
       .select()
@@ -106,7 +102,7 @@ export async function listArTargets(userId: string, now: Date = new Date(), rule
     for (const row of rows) {
       if (!isMarkerId(row.arMarker) || candidates.some((c) => c.creature.name === row.name && c.ownerName === names.get(row.userId)?.username)) continue;
       const ticked = await tickCreature(row, now, gameRules);
-      const target = await targetFor(ticked, row.arMarker, false, names.get(row.userId)?.username ?? "Un ami", photos.get(row.userId) ?? null);
+      const target = await targetFor(ticked, row.arMarker, false, names.get(row.userId)?.username ?? "Un ami");
       if (target) candidates.push(target);
     }
   }

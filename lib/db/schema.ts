@@ -106,10 +106,6 @@ export const profiles = pgTable(
     /** Coaching rewards already opened as a student / as a coach (migration 010). */
     studentRewardsOpened: integer("student_rewards_opened").notNull().default(0),
     coachRewardsOpened: integer("coach_rewards_opened").notNull().default(0),
-    /** Photo marker (migration 019): object key of the picture recognised instead of the printed marker, whether it is in use, when it changed. */
-    photoMarkerKey: text("photo_marker_key"),
-    photoMarkerEnabled: boolean("photo_marker_enabled").notNull().default(false),
-    photoMarkerUpdatedAt: timestamptz("photo_marker_updated_at"),
   },
   (table) => [
     // Usernames are unique case-insensitively ("Chabond" == "chabond").

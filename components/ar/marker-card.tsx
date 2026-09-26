@@ -1,4 +1,4 @@
-import { FileDown, Image as ImageIcon, Printer } from "lucide-react";
+import { FileDown, Printer } from "lucide-react";
 import { Card, CardText, CardTitle } from "@/components/ui/card";
 import { AR_MARKER } from "@/lib/ar/config";
 import { markerSvg } from "@/lib/ar/marker";
@@ -9,24 +9,18 @@ type MarkerCardProps = {
   /** The viewer's own creature: offers the PDF (the route only serves one's own markers). */
   creatureId?: string;
   ownerName?: string | null;
-  /** The owner's photo marker, when they use one (spec § 3.19): shown next to the printed square. */
-  photoUrl?: string | null;
   /** One line (small preview, number, PDF link): the games hub. */
   compact?: boolean;
 };
 
 /** A creature's printed marker: preview with the name under it and, for one's own creature, the PDF to print (spec § 3.19). */
-export function MarkerCard({ name, markerId, creatureId, ownerName, photoUrl, compact = false }: MarkerCardProps) {
+export function MarkerCard({ name, markerId, creatureId, ownerName, compact = false }: MarkerCardProps) {
   if (compact) {
     return (
       <div className="flex min-h-14 items-center gap-3 rounded-3xl border border-ink-600/80 bg-ink-800/70 px-3 py-2" data-marker-compact={markerId}>
         <figure className="w-12 shrink-0 rounded-lg bg-white p-0.5">
           <div aria-hidden="true" dangerouslySetInnerHTML={{ __html: markerSvg(markerId) }} />
         </figure>
-        {photoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={photoUrl} alt="Marqueur photo actif" title="Marqueur photo actif" className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-sage-500/60" />
-        ) : null}
         <p className="min-w-0 flex-1 text-sm leading-snug text-cream-100">
           <span className="block font-semibold">Marqueur n° {markerId}</span>
           <span className="block text-xs text-cream-500">
@@ -77,20 +71,6 @@ export function MarkerCard({ name, markerId, creatureId, ownerName, photoUrl, co
           </p>
         </div>
       </div>
-      {photoUrl ? (
-        <div className="mt-4 flex items-center gap-4 rounded-2xl border border-sage-500/40 bg-sage-500/10 p-3" data-photo-marker-active>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={photoUrl} alt="" className="h-16 w-16 shrink-0 rounded-xl object-cover" />
-          <p className="text-sm text-cream-200">
-            <ImageIcon className="mr-1 inline h-4 w-4 align-text-bottom text-sage-300" aria-hidden="true" />
-            {creatureId ? (
-              <>Ton marqueur photo est actif : cet objet fait aussi apparaître {name}, chez toi et chez tes amis.</>
-            ) : (
-              <>{ownerName ?? "Son propriétaire"} utilise aussi cette photo comme marqueur : elle fait apparaître {name} sur ton écran.</>
-            )}
-          </p>
-        </div>
-      ) : null}
     </Card>
   );
 }

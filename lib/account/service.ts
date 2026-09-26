@@ -45,10 +45,7 @@ export async function exportAccount(userId: string, now: Date = new Date()) {
   const [users, profileRows, creatureRows, mealRows, stepRows, playRows, accessoryRows, friendshipRows, purchaseRows, inventoryRows, giftRows, tradeRows, boardingRows, coachingRows, strava] =
     await Promise.all([
       db.select({ email: user.email, name: user.name, createdAt: user.createdAt }).from(user).where(eq(user.id, userId)),
-      db
-        .select({ username: profiles.username, friendCode: profiles.friendCode, createdAt: profiles.createdAt, photoMarkerEnabled: profiles.photoMarkerEnabled, photoMarkerUpdatedAt: profiles.photoMarkerUpdatedAt })
-        .from(profiles)
-        .where(eq(profiles.userId, userId)),
+      db.select({ username: profiles.username, friendCode: profiles.friendCode, createdAt: profiles.createdAt }).from(profiles).where(eq(profiles.userId, userId)),
       db.select().from(creatures).where(eq(creatures.userId, userId)).orderBy(desc(creatures.createdAt)),
       db.select().from(meals).where(eq(meals.userId, userId)).orderBy(desc(meals.createdAt)),
       db.select().from(stepEntries).where(eq(stepEntries.userId, userId)).orderBy(desc(stepEntries.date)),
@@ -100,25 +97,23 @@ export async function exportAccount(userId: string, now: Date = new Date()) {
 }
 
 export type PurgeDeps = { storage: ObjectStorage; stravaApi: StravaApi };
-export type PurgeReport = { photosRemoved: number; markersRemoved: number; stravaRevoked: boolean };
+export type PurgeReport = { photosRemoved: number; stravaRevoked: boolean };
 
 /**
- * Removes what the database cascade cannot reach: meal photos and the photo marker in R2 and the
+ * Removes what the database cascade cannot reach: meal photos in R2 and the
  * Strava authorisation. Called before the user row is deleted. A storage
  * that is not configured is skipped (nothing could have been uploaded).
  */
 export async function purgeExternalData(userId: string, deps: PurgeDeps): Promise<PurgeReport> {
   let photosRemoved = 0;
-  let markersRemoved = 0;
   try {
     photosRemoved = await deps.storage.removePrefix(`meals/${userId}/`);
-    markersRemoved = await deps.storage.removePrefix(`markers/${userId}/`);
   } catch (error) {
     if (!isConfigError(error)) throw error;
   }
   const strava = await getStravaStatus(userId);
   if (strava.connected) await disconnectStrava(userId, deps.stravaApi);
-  return { photosRemoved, markersRemoved, stravaRevoked: strava.connected };
+  return { photosRemoved, stravaRevoked: strava.connected };
 }
 
 /** Deletes the user row; every MealMate table cascades from it. Used by tests and the auth hook fallback. */

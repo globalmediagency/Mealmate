@@ -22,8 +22,8 @@ export type PlayHubProps = {
   friendsAvailable: number;
   invitations?: HubInvitation[];
   openMatches?: HubOpenMatch[];
-  /** The creature's printed marker (null when it could not be created), with the owner's photo marker if any. */
-  marker?: { id: number; creatureId?: string; ownerName?: string | null; photoUrl?: string | null } | null;
+  /** The creature's printed marker (null when it could not be created). */
+  marker?: { id: number; creatureId?: string; ownerName?: string | null } | null;
   /** How many players the friends' games take and the ping-pong target, from the rules. */
   maxPlayers: number;
   pingpongPoints: number;
@@ -194,7 +194,7 @@ export function PlayHub({ creatureName, boarded = null, playsLeft, maxPerDay, fr
       ) : null}
 
       {marker ? (
-        <MarkerCard compact name={creatureName} markerId={marker.id} creatureId={marker.creatureId} ownerName={marker.ownerName} photoUrl={marker.photoUrl} />
+        <MarkerCard compact name={creatureName} markerId={marker.id} creatureId={marker.creatureId} ownerName={marker.ownerName} />
       ) : (
         <p className="text-xs text-cream-500">
           {boarded

@@ -3,10 +3,8 @@ import { ChevronRight, Gamepad2 } from "lucide-react";
 import Link from "next/link";
 import { ArViewer } from "@/components/ar/ar-viewer";
 import { MarkerCard } from "@/components/ar/marker-card";
-import { PhotoMarkerCard } from "@/components/ar/photo-marker-card";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardText, CardTitle } from "@/components/ui/card";
-import { getPhotoMarker } from "@/lib/ar/photo-marker";
 import { listArTargets } from "@/lib/ar/service";
 import { requireViewer } from "@/lib/auth/session";
 import { getGameRules } from "@/lib/game/rules-service";
@@ -18,14 +16,14 @@ export const dynamic = "force-dynamic";
 export default async function ArPage() {
   const { session } = await requireViewer();
   const rules = await getGameRules();
-  const [{ targets, own, conflicts }, photoMarker] = await Promise.all([listArTargets(session.user.id, new Date(), rules), getPhotoMarker(session.user.id)]);
+  const { targets, own, conflicts } = await listArTargets(session.user.id, new Date(), rules);
   const others = targets.filter((t) => !t.mine);
 
   return (
     <div className="space-y-5 animate-rise">
       <PageHeader
         title="Voir en vrai"
-        subtitle="Pose le marqueur imprimé (ou ta photo-marqueur) sur la table : ta créature apparaît dessus, dans ta caméra."
+        subtitle="Pose le marqueur imprimé sur la table : ta créature apparaît dessus, dans ta caméra."
         back={{ href: "/home", label: "Retour à ma créature" }}
       />
 
@@ -52,15 +50,13 @@ export default async function ArPage() {
         </Link>
       ) : null}
 
-      {own ? <MarkerCard name={own.creature.name ?? "ta créature"} markerId={own.markerId} creatureId={own.creatureId} photoUrl={own.image ?? null} /> : null}
-
-      <PhotoMarkerCard initial={photoMarker} />
+      {own ? <MarkerCard name={own.creature.name ?? "ta créature"} markerId={own.markerId} creatureId={own.creatureId} /> : null}
 
       <Card>
         <CardTitle>Créatures reconnues sur ton écran</CardTitle>
         <CardText className="mt-1">
           Les marqueurs de tes amis marchent aussi sur ton téléphone : posez vos feuilles côte à côte et vos créatures apparaissent ensemble. Chacun imprime le sien depuis son
-          application. Quand un ami utilise une photo comme marqueur, ta caméra la reconnaît aussi : sa vignette est affichée à côté de son nom.
+          application.
         </CardText>
         {targets.length > 0 ? (
           <ul className="mt-3 flex flex-wrap gap-2">
@@ -71,10 +67,6 @@ export default async function ArPage() {
               <li key={t.markerId} className="inline-flex items-center gap-2 rounded-full border border-ink-500 bg-ink-700 py-1 pl-3 pr-3 text-xs text-cream-300" data-ar-friend={t.markerId}>
                 {t.creature.name}
                 {t.ownerName ? <span className="text-cream-700"> · {t.ownerName}</span> : null}
-                {t.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={t.image} alt="Utilise une photo comme marqueur" title="Utilise une photo comme marqueur" className="-mr-1.5 h-6 w-6 rounded-md object-cover ring-1 ring-sage-500/60" data-ar-friend-photo />
-                ) : null}
               </li>
             ))}
           </ul>
@@ -94,7 +86,6 @@ export default async function ArPage() {
           <li>Lance la caméra et cadre le carré.</li>
           <li>Ta créature se tient dessus, avec ses accessoires. Approche-toi, éloigne-toi, déplace la feuille : elle suit. Fais tourner la feuille : tu la vois de profil, puis de dos.</li>
           <li>Ajoute les marqueurs de tes amis pour voir plusieurs créatures à la fois, puis prends une photo.</li>
-          <li>Tu préfères un objet à toi ? Active le marqueur photo ci-dessus : un dessin au stylo sur une feuille, un motif, ta main.</li>
         </ol>
         <p className="mt-3 text-xs text-cream-700">Les images de la caméra sont analysées sur ton téléphone et n&apos;en sortent jamais.</p>
       </Card>

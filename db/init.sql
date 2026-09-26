@@ -68,11 +68,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   friend_code            text NOT NULL UNIQUE,
   created_at             timestamptz NOT NULL DEFAULT now(),
   student_rewards_opened integer NOT NULL DEFAULT 0,
-  coach_rewards_opened   integer NOT NULL DEFAULT 0,
-  -- Photo marker (migration 019): a picture recognised instead of the printed marker.
-  photo_marker_key        text,
-  photo_marker_enabled    boolean NOT NULL DEFAULT false,
-  photo_marker_updated_at timestamptz
+  coach_rewards_opened   integer NOT NULL DEFAULT 0
 );
 -- Usernames are unique case-insensitively.
 CREATE UNIQUE INDEX IF NOT EXISTS profiles_username_lower_idx ON profiles (lower(username));
