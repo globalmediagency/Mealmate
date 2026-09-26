@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TOSS } from "./config";
-import { createToss, dressToss, grabToss, isTossActive, moveToss, releaseToss, resizeToss, stepToss, type AnchorOf, type TossEvent, type TossState } from "./toss";
+import { createToss, dressToss, grabToss, isTossActive, moveToss, pinPoint, releaseToss, resizeToss, stepToss, type AnchorOf, type TossEvent, type TossState } from "./toss";
 
 const BOUNDS = { width: 360, height: 320 };
 const SIZE = 220;
@@ -26,23 +26,74 @@ function run(state: TossState, seconds: number, random = lcg()): TossEvent[] {
 }
 
 describe("createToss / grab / move", () => {
-  it("stands the creature at the bottom centre, sorted outfit on, and follows the finger inside the scene", () => {
+  it("stands the creature at the bottom centre, sorted outfit on, and hangs it from the point the finger holds", () => {
     const state = createToss(BOUNDS, SIZE, OUTFIT);
     expect(state.phase).toBe("idle");
     expect(state.x).toBe(180);
     expect(state.y).toBe(320 - TOSS.restBottom - SIZE / 2);
     expect(state.worn.map((a) => a.slot)).toEqual(["head", "eyes", "neck"]);
     expect(isTossActive(state)).toBe(false);
-    grabToss(state, 190, state.y + 30);
+    // Grabbed by the top of the head (above its centre): it hangs head up under the finger.
+    grabToss(state, 180, state.y - 80);
     expect(state.phase).toBe("held");
+    expect(state.pin).toEqual({ dx: 0, dy: -80 });
     moveToss(state, 250, 100);
-    expect(state.x).toBe(240);
-    expect(state.y).toBe(70);
-    // Never beyond the walls, never below its feet.
+    run(state, 4);
+    const held = pinPoint(state);
+    expect(held.x).toBeCloseTo(250, 0);
+    expect(held.y).toBeCloseTo(100, 0);
+    // Hanging under the finger (a last, faint swing may remain).
+    expect(Math.abs(state.x - 250)).toBeLessThan(8);
+    expect(Math.abs(state.y - 180)).toBeLessThan(3);
+    expect(Math.abs(state.angle)).toBeLessThan(6);
+    // The finger never leaves the scene: the pin is kept inside, the creature with it.
     moveToss(state, -500, 900);
-    expect(state.x).toBe(SIZE * TOSS.halfWidth);
-    expect(state.y).toBe(state.rest.y);
-    expect(stepToss(state, 0.05, lcg(), anchorOf)).toEqual([]);
+    run(state, 1);
+    expect(state.pivotTarget.x).toBe(SIZE * TOSS.halfWidth);
+    expect(state.pivotTarget.y).toBe(state.rest.y);
+    expect(state.x).toBeGreaterThanOrEqual(SIZE * TOSS.halfWidth);
+    expect(state.y).toBeLessThanOrEqual(state.rest.y);
+  });
+
+  it("swings around the finger: held by the side it ends up sideways, held by the feet upside down", () => {
+    const side = createToss(BOUNDS, SIZE, []);
+    grabToss(side, side.x - 50, side.y);
+    moveToss(side, 180, 60);
+    run(side, 6);
+    // Centre to the right of the pin at the start: it swings down clockwise and hangs there.
+    expect(((side.angle % 360) + 360) % 360).toBeGreaterThan(80);
+    expect(((side.angle % 360) + 360) % 360).toBeLessThan(100);
+    expect(side.y).toBeGreaterThan(side.pivot.y + 40);
+    const feet = createToss(BOUNDS, SIZE, []);
+    grabToss(feet, feet.x + 6, feet.y + 70);
+    moveToss(feet, 180, 40);
+    run(feet, 7);
+    expect(Math.abs(((feet.angle % 360) + 360) % 360 - 180)).toBeLessThan(15);
+    expect(feet.y).toBeGreaterThan(feet.pivot.y + 40);
+  });
+
+  it("is spun up by a circular finger motion and flung when let go", () => {
+    const state = createToss(BOUNDS, SIZE, []);
+    grabToss(state, state.x, state.y - 60);
+    // Two fast turns of the finger around the middle of the scene.
+    const cx = 180;
+    const cy = 150;
+    let t = 0;
+    const finger = (at: number) => ({ x: cx + 70 * Math.cos(at * 2 * Math.PI * 1.5), y: cy + 70 * Math.sin(at * 2 * Math.PI * 1.5) });
+    for (let step = 0; step < 240; step += 1) {
+      t += 1 / 120;
+      const p = finger(t);
+      moveToss(state, p.x, p.y);
+      stepToss(state, 1 / 120, lcg(), anchorOf);
+    }
+    expect(Math.abs(state.spin)).toBeGreaterThan(120);
+    // Let go while the finger still moves: the finger's speed plus the swing's.
+    const last = finger(t);
+    const before = finger(t - 1 / 120);
+    const events = releaseToss(state, (last.x - before.x) * 120, (last.y - before.y) * 120);
+    expect(events).toEqual([{ kind: "throw", speed: expect.any(Number) }]);
+    expect(Math.hypot(state.vx, state.vy)).toBeGreaterThan(TOSS.throwMinSpeed);
+    expect(Math.abs(state.spin)).toBeGreaterThan(100);
   });
 
   it("treats a slow release as a drop: it falls, lands, walks home and keeps everything on", () => {
@@ -156,7 +207,7 @@ describe("a throw", () => {
     expect(events.some((e) => e.kind === "drop")).toBe(true);
     grabToss(state, state.x, state.y);
     expect(state.phase).toBe("held");
-    expect(state.angle).toBe(0);
+    run(state, 0.3);
     releaseToss(state, 0, 0);
     const later = run(state, 12);
     expect(later.at(-1)?.kind).toBe("home");

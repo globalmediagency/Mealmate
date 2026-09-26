@@ -123,7 +123,9 @@ export function ThrowableCreature({ species, stage, state, accessories, size = 2
       last.current = now;
       const before = { phase: s.phase, facing: s.facing, worn: s.worn.length, loose: s.loose.length };
       const events: TossEvent[] = [];
-      for (let left = elapsed; left > 0; left -= SUB_STEP) events.push(...stepToss(s, Math.min(SUB_STEP, left), Math.random, anchorOf.current));
+      // Equal sub-steps (never a tiny remainder: the pin joint reads its velocities back from each step's move).
+      const steps = Math.max(1, Math.ceil(elapsed / SUB_STEP));
+      for (let i = 0; i < steps && elapsed > 0; i += 1) events.push(...stepToss(s, elapsed / steps, Math.random, anchorOf.current));
       paint();
       if (s.phase !== before.phase) setPhase(s.phase);
       if (s.facing !== before.facing) setFacing(s.facing);

@@ -55,7 +55,10 @@ export type TossState = {
   loose: LooseAccessory[];
   /** Where the creature runs: −1 left, 1 right, 0 still. */
   facing: -1 | 0 | 1;
-  grab: { dx: number; dy: number };
+  /** While held: the grabbed point on the drawing (offset from its centre, unrotated) and the finger it hangs from (`pivot` follows `pivotTarget`). */
+  pin: { dx: number; dy: number };
+  pivot: { x: number; y: number };
+  pivotTarget: { x: number; y: number };
   /** Bounces since the release; `thrown` when the release was fast enough to count as a throw; `picked` = accessories put back since. */
   bounces: number;
   thrown: boolean;
@@ -105,7 +108,9 @@ export function createToss(bounds: TossBounds, size: number, outfit: readonly To
     worn: [...worn],
     loose: [],
     facing: 0,
-    grab: { dx: 0, dy: 0 },
+    pin: { dx: 0, dy: 0 },
+    pivot: { x: rest.x, y: rest.y },
+    pivotTarget: { x: rest.x, y: rest.y },
     bounces: 0,
     thrown: false,
     picked: 0,
@@ -148,35 +153,63 @@ export function isTossActive(state: TossState): boolean {
   return state.phase !== "idle" || state.loose.some((item) => !item.settled);
 }
 
-/** The finger takes the creature (from rest, mid-air or while it runs): it hangs from where it was touched. */
+/** The point of the drawing the finger holds, in the scene (the pin rotated with the creature, from its centre). */
+export function pinPoint(state: TossState): { x: number; y: number } {
+  const rad = (state.angle * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  return { x: state.x + state.pin.dx * cos - state.pin.dy * sin, y: state.y + state.pin.dx * sin + state.pin.dy * cos };
+}
+
+/**
+ * The finger takes the creature (from rest, mid-air or while it runs) by the
+ * very point it touched: from then on the creature hangs from that point and
+ * swings around it (a pin joint, see `stepHeld`), keeping the orientation and
+ * the motion it had.
+ */
 export function grabToss(state: TossState, px: number, py: number): void {
+  const rad = (state.angle * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const rx = px - state.x;
+  const ry = py - state.y;
   state.phase = "held";
   state.phaseAt = 0;
-  state.grab = { dx: state.x - px, dy: state.y - py };
-  state.vx = 0;
-  state.vy = 0;
-  state.spin = 0;
-  state.angle = 0;
+  // Local offset of the touched point: the scene offset rotated back by the creature's angle.
+  state.pin = { dx: rx * cos + ry * sin, dy: -rx * sin + ry * cos };
+  state.pivot = { x: px, y: py };
+  state.pivotTarget = { x: px, y: py };
   state.facing = 0;
   state.wait = 0;
 }
 
-/** The finger moves: the creature follows, kept inside the scene. */
+/** The finger moves: the pin follows it (kept inside the scene), the creature swings after it. */
 export function moveToss(state: TossState, px: number, py: number): void {
   if (state.phase !== "held") return;
-  state.x = clamp(px + state.grab.dx, halfWidth(state), state.width - halfWidth(state));
-  state.y = clamp(py + state.grab.dy, halfHeight(state), state.rest.y);
+  state.pivotTarget = { x: clamp(px, halfWidth(state), state.width - halfWidth(state)), y: clamp(py, halfHeight(state), state.rest.y) };
 }
 
-/** The finger lets go with this speed (px/s): a fast release is a throw, a slow one a drop. */
+/**
+ * The finger lets go, moving at this speed (px/s): the creature leaves with
+ * the finger's speed plus the speed of its swing around it (a circular
+ * motion flings it), and keeps turning. A slow release is a drop, not a throw.
+ */
 export function releaseToss(state: TossState, vx: number, vy: number): TossEvent[] {
   if (state.phase !== "held") return [];
-  const speed = hypot(vx, vy);
+  // Speed of the centre = speed of the pin (the finger) + the swing's tangential speed around it.
+  const omega = (state.spin * Math.PI) / 180;
+  const pin = pinPoint(state);
+  const rx = state.x - pin.x;
+  const ry = state.y - pin.y;
+  const bodyVx = vx - omega * ry;
+  const bodyVy = vy + omega * rx;
+  const speed = hypot(bodyVx, bodyVy);
   const scale = speed > TOSS.maxSpeed ? TOSS.maxSpeed / speed : 1;
-  state.vx = vx * scale;
-  state.vy = vy * scale;
+  state.vx = bodyVx * scale;
+  state.vy = bodyVy * scale;
   state.thrown = speed >= TOSS.throwMinSpeed;
-  state.spin = state.thrown ? clamp(state.vx * TOSS.spinPerSpeed, -TOSS.maxSpin, TOSS.maxSpin) : 0;
+  state.spin = clamp(state.spin + (state.thrown ? state.vx * TOSS.spinPerSpeed * 0.5 : 0), -TOSS.maxSpin, TOSS.maxSpin);
+  if (!state.thrown && Math.abs(state.spin) < 30) state.spin = 0;
   state.bounces = 0;
   state.picked = 0;
   state.phase = "flying";
@@ -223,6 +256,66 @@ function bounce(state: TossState, impact: number, random: () => number, anchorOf
     const dropped = shed(state, impact, random, anchorOf);
     if (dropped) events.push(dropped);
   }
+}
+
+/**
+ * Held: a rigid body hanging from the pin, solved position-based. Gravity
+ * and the velocities move the centre and the angle, then a few passes pull
+ * the grabbed point back onto the finger, sharing the correction between a
+ * shift and a turn (the further from the centre the finger holds, the more
+ * it turns), and keep the centre inside the scene. The velocities are read
+ * back from the move, so a circular finger motion spins the creature up and
+ * a release keeps that swing. Damping settles it hanging below the finger,
+ * head up, head down or sideways depending on where it is held.
+ */
+function stepHeld(state: TossState, dt: number): void {
+  // Velocities are read back from the move: a step too short would turn a residual correction into a huge speed.
+  if (dt < 1e-4) return;
+  const follow = Math.min(1, TOSS.pivotFollow * dt);
+  state.pivot.x += (state.pivotTarget.x - state.pivot.x) * follow;
+  state.pivot.y += (state.pivotTarget.y - state.pivot.y) * follow;
+  const x0 = state.x;
+  const y0 = state.y;
+  const rad0 = (state.angle * Math.PI) / 180;
+  // The swing lives in both the turn and the centre's motion (the pin converts one into the other): damp both.
+  const keep = Math.max(0, 1 - TOSS.swingDamping * dt);
+  const omega = ((state.spin * Math.PI) / 180) * keep;
+  state.vx *= keep;
+  state.vy = state.vy * keep + TOSS.gravity * dt;
+  let x = x0 + state.vx * dt;
+  let y = y0 + state.vy * dt;
+  let rad = rad0 + omega * dt;
+  const inertia = (state.size * TOSS.gyration) ** 2;
+  const hw = halfWidth(state);
+  const hh = halfHeight(state);
+  for (let i = 0; i < TOSS.pinIterations; i += 1) {
+    // The grabbed point, where it is now, and how far it sits from the finger.
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const rx = state.pin.dx * cos - state.pin.dy * sin;
+    const ry = state.pin.dx * sin + state.pin.dy * cos;
+    const ex = state.pivot.x - (x + rx);
+    const ey = state.pivot.y - (y + ry);
+    const dist = hypot(ex, ey);
+    if (dist > 1e-6) {
+      const nx = ex / dist;
+      const ny = ey / dist;
+      const cross = rx * ny - ry * nx;
+      const w = 1 + (cross * cross) / inertia;
+      const lambda = dist / w;
+      x += nx * lambda;
+      y += ny * lambda;
+      rad += (lambda * cross) / inertia;
+    }
+    x = clamp(x, hw, state.width - hw);
+    y = clamp(y, hh, state.rest.y);
+  }
+  state.vx = (x - x0) / dt;
+  state.vy = (y - y0) / dt;
+  state.spin = (((rad - rad0) / dt) * 180) / Math.PI;
+  state.x = x;
+  state.y = y;
+  state.angle = (rad * 180) / Math.PI;
 }
 
 function stepFlying(state: TossState, dt: number, random: () => number, anchorOf: AnchorOf, events: TossEvent[]): void {
@@ -288,6 +381,7 @@ function stepLanding(state: TossState, dt: number, events: TossEvent[]): void {
   if (state.loose.length > 0) state.phase = "fetching";
   else if (Math.abs(state.x - state.rest.x) > 1) state.phase = "returning";
   else {
+    state.x = state.rest.x;
     state.phase = "idle";
     state.facing = 0;
     events.push({ kind: "home", collected: 0 });
@@ -415,6 +509,7 @@ export function stepToss(state: TossState, dt: number, random: () => number, anc
   switch (state.phase) {
     case "held":
       state.phaseAt += dt;
+      stepHeld(state, dt);
       break;
     case "flying":
       state.phaseAt += dt;

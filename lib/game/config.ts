@@ -250,9 +250,21 @@ export const TOSS = {
   /** Below this (px/s) on the floor the creature stops rolling; a floor bounce slower than `bounceStop` ends the flight. */
   restSpeed: 40,
   bounceStop: 140,
-  /** Spin (°/s) per px/s of horizontal speed at release, capped. */
+  /** Spin (°/s) per px/s of horizontal speed at release, capped (a swing built up under the finger is kept too). */
   spinPerSpeed: 0.35,
   maxSpin: 720,
+  /**
+   * Held by the finger, the creature hangs from the point it was grabbed at
+   * (a pin joint) and swings like a pendulum: `gyration` = its radius of
+   * gyration as a fraction of the drawing (how easily it turns), `pivotFollow`
+   * = how fast the pin catches up with the finger (1/s, smooths the pointer
+   * events), `swingDamping` = loss of swing per second, `pinIterations` =
+   * constraint passes per sub-step.
+   */
+  gyration: 0.22,
+  pivotFollow: 45,
+  swingDamping: 1.1,
+  pinIterations: 3,
   /** Getting back on its feet, running speed (px/s), pick-up reach (px) and pause. */
   landingSeconds: 0.55,
   runSpeed: 300,
