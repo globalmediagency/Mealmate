@@ -784,7 +784,7 @@ export default async function DevScreensPage({ searchParams }: { searchParams: P
         <CreatureHome
           creature={c}
           line={creatureLine(c)}
-          accessories={[{ slot: "head", id: "beret" }, { slot: "neck", id: "bow_tie" }]}
+          accessories={[{ slot: "head", id: "beret" }, { slot: "eyes", id: "round_glasses" }, { slot: "neck", id: "bow_tie" }, { slot: "body", id: "cape" }]}
           chest={{ available: 1, stepsToNext: 4100, stepsPerChest: 5000, opened: 1, earned: 2, totalSteps: 10900 }}
           todaySteps={3200}
           playsLeft={3}

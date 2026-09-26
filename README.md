@@ -370,6 +370,10 @@ apparaissent alors, sans connexion nécessaire :
 15. **Ping-pong** (migration `018`) : dans Arène, choisis « Ping-pong » et invite un seul ami. Marqueurs face à face,
     la balle vole d'une créature à l'autre : appuie sur « Frapper » quand l'anneau autour de la tienne devient vert
     (frappe parfaite = balle plus rapide), 7 points pour gagner. Le téléphone de l'hôte arbitre et garde l'écran allumé. Depuis l'admin (section « Ping-pong »), tu règles la vitesse, les fenêtres de frappe, le moment où l'anneau disparaît et la force du lob et du smash.
+16. **Espèces désactivables** : dans l'admin, onglet Créatures, l'interrupteur de chaque espèce la retire des tirages
+    d'éclosion (les joueurs qui l'ont déjà la gardent) ; la dernière espèce active d'un niveau ne peut pas être désactivée.
+17. **Lancer la créature** : sur l'écran Créature, attrape-la au doigt et lance-la : elle rebondit sur les bords en perdant
+    ses accessoires, se relève, court les ramasser un par un et les remet en place. Une simple pression continue de la caresser.
 
 ## 5. Limites connues
 

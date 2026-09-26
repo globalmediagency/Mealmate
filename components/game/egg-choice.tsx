@@ -23,6 +23,8 @@ import { cn } from "@/lib/utils/cn";
 
 type EggChoiceProps = {
   speciesByTier: Record<Tier, Species[]>;
+  /** Species of the tier switched off from the admin and not owned: left out of the grid, not counted as "en cours de création". */
+  hiddenSpeciesByTier?: Partial<Record<Tier, number>>;
   obtainedSpeciesIds: string[];
   playableTiers: Tier[];
   /** Effective game rules (admin overrides applied). */
@@ -31,7 +33,7 @@ type EggChoiceProps = {
   intro?: string;
 };
 
-export function EggChoice({ speciesByTier, obtainedSpeciesIds, playableTiers, rules, intro }: EggChoiceProps) {
+export function EggChoice({ speciesByTier, hiddenSpeciesByTier = {}, obtainedSpeciesIds, playableTiers, rules, intro }: EggChoiceProps) {
   const router = useRouter();
   const [selected, setSelected] = useState<Tier>("facile");
   const [pending, setPending] = useState(false);
@@ -64,6 +66,7 @@ export function EggChoice({ speciesByTier, obtainedSpeciesIds, playableTiers, ru
   const species = speciesByTier[selected];
   const baseSpecies = species.filter((s) => !s.collection);
   const zodiac = species.filter((s) => s.collection === "zodiaque");
+  const upcoming = Math.max(0, SPECIES_PER_TIER - baseSpecies.length - (hiddenSpeciesByTier[selected] ?? 0));
   const playable = playableTiers.includes(selected);
 
   return (
@@ -174,15 +177,15 @@ export function EggChoice({ speciesByTier, obtainedSpeciesIds, playableTiers, ru
                 </div>
               );
             })}
-            {Array.from({ length: Math.max(0, SPECIES_PER_TIER - baseSpecies.length) }).map((_, i) => (
+            {Array.from({ length: upcoming }).map((_, i) => (
               <div key={`soon-${i}`} className="flex aspect-square items-center justify-center rounded-2xl border border-dashed border-ink-500 text-lg text-cream-700">
                 ?
               </div>
             ))}
           </div>
-          {baseSpecies.length < SPECIES_PER_TIER ? (
+          {upcoming > 0 ? (
             <p className="mt-2 text-xs text-cream-700">
-              {SPECIES_PER_TIER - baseSpecies.length} espèces sont encore en cours de création.
+              {upcoming} espèces sont encore en cours de création.
             </p>
           ) : null}
           {zodiac.length > 0 ? (

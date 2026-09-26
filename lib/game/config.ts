@@ -228,6 +228,51 @@ export const PLAY = {
 } as const;
 
 /**
+ * Tossing the creature on its home screen (spec § 3.5): grab it, throw it, it
+ * bounces off the walls of its scene shedding its accessories, then runs to
+ * pick each one up. Lengths in pixels of the scene, times in seconds,
+ * fractions relative to the creature drawing's size.
+ */
+export const TOSS = {
+  /** Downward acceleration (px/s²) and speed cap (px/s). */
+  gravity: 2600,
+  maxSpeed: 2800,
+  /** Speed kept after a wall or ceiling bounce, and after a floor bounce; horizontal speed kept when hitting the floor. */
+  restitution: 0.55,
+  floorRestitution: 0.42,
+  floorFriction: 0.8,
+  /** Rolling slowdown on the floor (fraction of speed lost per second). */
+  rollFriction: 3.5,
+  /** A release slower than this is a drop, not a throw (no spin, no "throw" line). */
+  throwMinSpeed: 260,
+  /** An impact faster than this sheds one accessory (head first): a fall from a hand's height stays gentle. */
+  dropImpactSpeed: 700,
+  /** Below this (px/s) on the floor the creature stops rolling; a floor bounce slower than `bounceStop` ends the flight. */
+  restSpeed: 40,
+  bounceStop: 140,
+  /** Spin (°/s) per px/s of horizontal speed at release, capped. */
+  spinPerSpeed: 0.35,
+  maxSpin: 720,
+  /** Getting back on its feet, running speed (px/s), pick-up reach (px) and pause. */
+  landingSeconds: 0.55,
+  runSpeed: 300,
+  pickupDistance: 26,
+  pickupSeconds: 0.35,
+  /** How far the creature turns toward where it runs (degrees of yaw). */
+  runYaw: 40,
+  /** Fallen accessories: their own, lighter physics; they settle on the floor a little below the creature's centre. */
+  item: { gravity: 2200, restitution: 0.4, friction: 0.7, restSpeed: 30, maxSeconds: 4, half: 0.16, floor: 0.34 },
+  /** Collision box of the creature, as fractions of its drawing size, and the gap kept under its feet. */
+  halfWidth: 0.28,
+  halfHeight: 0.3,
+  restBottom: 4,
+  /** A press shorter than this and moving less than this is a pat, not a throw; pointer samples used for the release speed. */
+  tapMs: 350,
+  tapDistance: 8,
+  velocityWindowMs: 90,
+} as const;
+
+/**
  * "Défendre": the tower-defense game played on the printed marker (spec § 3.21).
  * Lengths are in marker sides, times in seconds. The first six values are the
  * admin-tunable defaults (`rules.defense`); the rest is fixed.

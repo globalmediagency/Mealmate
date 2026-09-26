@@ -9,6 +9,7 @@ import { CopyButton } from "@/components/ui/copy-button";
 import { hasPasswordAccount } from "@/lib/account/service";
 import { requireViewer } from "@/lib/auth/session";
 import { ALL_SPECIES } from "@/lib/creatures";
+import { discoverableSpecies, getDisabledSpecies } from "@/lib/game/species-service";
 import { getObtainedSpeciesIds } from "@/lib/creatures/service";
 import { getConfigStatus } from "@/lib/env";
 import { getOwnedAccessories } from "@/lib/accessories/service";
@@ -59,11 +60,13 @@ function Section({ title, entries }: { title: string; entries: Entry[] }) {
 export default async function MorePage() {
   const { session, profile } = await requireViewer();
   const status = getConfigStatus();
-  const [hasPassword, owned, obtained] = await Promise.all([
+  const [hasPassword, owned, obtained, disabledSpecies] = await Promise.all([
     hasPasswordAccount(session.user.id),
     getOwnedAccessories(session.user.id).catch(() => []),
     getObtainedSpeciesIds(session.user.id).catch(() => []),
+    getDisabledSpecies(),
   ]);
+  const discoverable = discoverableSpecies(ALL_SPECIES, disabledSpecies, new Set(obtained)).length;
   const unavailable: string[] = [];
   if (!status.gemini || !status.r2) unavailable.push("L'analyse des repas est indisponible pour le moment.");
   if (!status.stripe) unavailable.push("La boutique est fermée pour l'instant : les soins reçus en cadeau restent utilisables.");
@@ -82,7 +85,7 @@ export default async function MorePage() {
         title="Ma créature"
         entries={[
           { href: "/wardrobe", label: "Garde-robe", detail: `${owned.length} accessoire${owned.length > 1 ? "s" : ""}`, icon: Shirt },
-          { href: "/collection", label: "Collection", detail: `${obtained.length} / ${ALL_SPECIES.length} créatures découvertes`, icon: Layers },
+          { href: "/collection", label: "Collection", detail: `${obtained.length} / ${discoverable} créatures découvertes`, icon: Layers },
           { href: "/cemetery", label: "Cimetière", icon: Flower2 },
           { href: "/ar", label: "Voir en vrai", detail: "Ta créature sur sa feuille, dans ta caméra", icon: ScanLine },
         ]}
