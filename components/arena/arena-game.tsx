@@ -199,7 +199,7 @@ export function ArenaGame({ transport, initial, preview = false, onLeave }: Aren
     const sceneMod = sceneModule.current;
     if (!canvas || !stageMod || !sceneMod) return null;
     try {
-      const created = new stageMod.ThreeStage(canvas, videoWidth, videoHeight);
+      const created = new stageMod.ThreeStage(canvas, videoWidth, videoHeight, { creatureHeight: latest.current.match.ar?.creatureHeight });
       stage.current = created;
       scene.current = new sceneMod.ArenaScene();
       if (preview) {

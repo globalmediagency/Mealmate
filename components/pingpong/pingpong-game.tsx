@@ -279,7 +279,7 @@ export function PingPongGame({ transport, initial, preview = false, onLeave }: P
     const sceneMod = sceneModule.current;
     if (!canvas || !stageMod || !sceneMod) return null;
     try {
-      const created = new stageMod.ThreeStage(canvas, videoWidth, videoHeight);
+      const created = new stageMod.ThreeStage(canvas, videoWidth, videoHeight, { creatureHeight: latest.current.match.ar?.creatureHeight });
       stage.current = created;
       const sc = new sceneMod.PingPongScene();
       created.attachWorld(sc.root);

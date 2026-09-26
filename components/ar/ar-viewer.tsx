@@ -40,7 +40,7 @@ const shadowSize = (p: MarkerPose) => ({ w: Math.max(24, p.width * 0.8), h: Math
  * `style.transform` instead. React only re-renders when a marker appears or
  * disappears (or, in the fallback, when a view changes).
  */
-export function ArViewer({ targets }: { targets: ArTarget[] }) {
+export function ArViewer({ targets, creatureHeight }: { targets: ArTarget[]; creatureHeight?: number }) {
   const [status, setStatus] = useState<Status>("idle");
   const [mode, setMode] = useState<Mode>("three");
   const [visible, setVisible] = useState<number[]>([]);
@@ -132,7 +132,7 @@ export function ArViewer({ targets }: { targets: ArTarget[] }) {
     // The module may still be loading while the camera already runs: frames wait (a failed import switches the mode in `start`).
     if (!canvas || !three) return null;
     try {
-      stage.current = new three.ThreeStage(canvas, videoWidth, videoHeight);
+      stage.current = new three.ThreeStage(canvas, videoWidth, videoHeight, { creatureHeight });
     } catch (error) {
       fallBackToViews(error);
     }

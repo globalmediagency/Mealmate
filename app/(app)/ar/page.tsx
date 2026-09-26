@@ -28,7 +28,7 @@ export default async function ArPage() {
       />
 
       {targets.length > 0 ? (
-        <ArViewer targets={targets} />
+        <ArViewer targets={targets} creatureHeight={rules.ar.creatureHeight} />
       ) : (
         <Card>
           <CardTitle>Pas encore de créature à montrer</CardTitle>

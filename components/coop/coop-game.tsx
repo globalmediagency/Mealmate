@@ -19,6 +19,7 @@ import { getSpecies } from "@/lib/creatures";
 import { COOP } from "@/lib/game/config";
 import { advanceDefense, coopOver, coopRandom, parseCoopState, serializeDefense, type CoopStateMessage } from "@/lib/game/coop";
 import {
+  aimRadius,
   applyCatch,
   clampAim,
   createDefense,
@@ -274,7 +275,7 @@ export function CoopGame({ transport, initial, preview = false, onLeave }: CoopG
     const stageMod = stageModule.current;
     if (!canvas || !stageMod || !sceneModule.current) return null;
     try {
-      const created = new stageMod.ThreeStage(canvas, videoWidth, videoHeight);
+      const created = new stageMod.ThreeStage(canvas, videoWidth, videoHeight, { creatureHeight: latest.current.match.ar?.creatureHeight });
       stage.current = created;
       if (preview) (window as unknown as { __coopSims?: unknown }).__coopSims = sims.current;
       return created;
@@ -318,7 +319,7 @@ export function CoopGame({ transport, initial, preview = false, onLeave }: CoopG
         const y = typeof payload.y === "number" ? payload.y : 0;
         const f = payload.from as { x: number; y: number; z: number } | null | undefined;
         fireDefense(frame.state, { x, y }, { cosmetic: true, from: f && typeof f === "object" ? f : undefined });
-        if (actor && actor.userId === frame.userId) actor.state.yaw = yawToward(clampAim({ x, y }));
+        if (actor && actor.userId === frame.userId) actor.state.yaw = yawToward(clampAim({ x, y }, aimRadius(latest.current.match.defense)));
         else if (actor && s.isTracked(actor.marker) && s.isTracked(frame.marker)) {
           const towards = convert(s, frame.marker, actor.marker, x, y, 0);
           if (towards) actor.state.yaw = yawToward(towards);
@@ -434,7 +435,7 @@ export function CoopGame({ transport, initial, preview = false, onLeave }: CoopG
       if (d < best && d <= COOP.aimMaxRadius) {
         best = d;
         target = sim;
-        point = clampAim(p);
+        point = clampAim(p, aimRadius(latest.current.match.defense));
       }
     }
     aim.current = { target, point };

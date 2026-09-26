@@ -15,6 +15,7 @@ import { Button, LinkButton } from "@/components/ui/button";
 import { getSpecies } from "@/lib/creatures";
 import { PLAY } from "@/lib/game/config";
 import {
+  aimRadius,
   bossesInWave,
   clampAim,
   computeDefenseScore,
@@ -48,6 +49,8 @@ export type DefenseGameProps = {
   /** The creature to defend, with its marker number. */
   target: ArTarget;
   rules: DefenseRules;
+  /** Height of the creature on its marker (`rules.ar.creatureHeight`, marker sides). */
+  creatureHeight?: number;
   playsLeft: number;
   /** Daily limit shared by both games (admin rule). */
   maxPerDay?: number;
@@ -77,7 +80,7 @@ const IDLE_HUD: Hud = { status: "idle", wave: 0, hp: 0, score: 0, seen: false, e
  * and throws eggs. The pure game lives in `lib/game/defense.ts`, the 3D in
  * `DefenseScene`; this component runs the camera, the loop and the HUD.
  */
-export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPerDay = PLAY.maxPerDay, creatureId, homeHref = "/play", preview = false }: DefenseGameProps) {
+export function DefenseGame({ target, rules, creatureHeight, playsLeft: initialPlaysLeft, maxPerDay = PLAY.maxPerDay, creatureId, homeHref = "/play", preview = false }: DefenseGameProps) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("intro");
   const [problem, setProblem] = useState<Problem>(null);
@@ -179,7 +182,7 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPer
     const sceneMod = sceneModule.current;
     if (!canvas || !stageMod || !sceneMod) return null;
     try {
-      const created = new stageMod.ThreeStage(canvas, videoWidth, videoHeight);
+      const created = new stageMod.ThreeStage(canvas, videoWidth, videoHeight, { creatureHeight });
       stage.current = created;
       scene.current = new sceneMod.DefenseScene();
       if (preview) (window as unknown as { __defenseScene?: unknown }).__defenseScene = scene.current; // dev screens: inspectable from tests
@@ -214,7 +217,7 @@ export function DefenseGame({ target, rules, playsLeft: initialPlaysLeft, maxPer
     const seen = lastSeen.current > 0 && frame.now - lastSeen.current < Math.max(HOLD_MS, 3 * frame.period);
     s.update(detections, seen ? new Set([id]) : new Set());
     const point = seen ? s.aimOnMarker(id) : null;
-    aim.current = point ? clampAim(point) : null;
+    aim.current = point ? clampAim(point, aimRadius(rules)) : null;
     const elapsed = lastFrame.current > 0 ? Math.max(0, Math.min(MAX_FRAME_SECONDS, (frame.now - lastFrame.current) / 1000)) : 0;
     lastFrame.current = frame.now;
     const state = game.current;

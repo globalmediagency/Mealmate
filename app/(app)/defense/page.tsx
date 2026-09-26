@@ -60,6 +60,7 @@ export default async function DefensePage({ searchParams }: { searchParams: Sear
       <DefenseGame
         target={target}
         rules={rules.defense}
+        creatureHeight={rules.ar.creatureHeight}
         playsLeft={Math.max(0, rules.play.maxPerDay - plays)}
         maxPerDay={rules.play.maxPerDay}
         creatureId={boarded ? creature.id : undefined}

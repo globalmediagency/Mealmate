@@ -298,6 +298,12 @@ export const TOSS = {
   velocityWindowMs: 90,
 } as const;
 
+/** The 3D creature on its printed marker (spec § 3.19), shared by « Voir en vrai » and every AR game: the admin-tunable default of `rules.ar`. */
+export const AR_SCENE = {
+  /** Height of the creature in marker sides (the printed square is 1). */
+  creatureHeight: 2.2,
+} as const;
+
 /**
  * "Défendre": the tower-defense game played on the printed marker (spec § 3.21).
  * Lengths are in marker sides, times in seconds. The first six values are the
@@ -316,10 +322,12 @@ export const DEFENSE = {
   bossEveryWaves: 3,
   /** Eggs needed to destroy the first boss (one more at each following boss). */
   bossHits: 3,
-  /** Where foods appear, from the creature. */
+  /** How far foods appear from the creature at most (admin-tunable default, `rules.defense.spawnDistance`); they surge between `spawnNearFraction` × that and that. */
   arenaRadius: 2.8,
-  /** How far the aim point can go beyond the arena. */
+  spawnNearFraction: 0.75,
+  /** How far the aim point can go: at least this, and always a bit beyond where foods appear (`aimBeyondSpawn`). */
   aimMaxRadius: 3.4,
+  aimBeyondSpawn: 0.6,
   /** A food closer than this has reached the creature. */
   reachRadius: 0.45,
   /** An egg destroys the foods within this distance of its landing point (and lower than `blastHeight`). */

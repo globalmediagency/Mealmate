@@ -35,7 +35,7 @@ import { coopScore, parseCoopState, type CoopStateMessage } from "@/lib/game/coo
 import { parsePingPongState, pingpongScore, type PingPongStateMessage } from "@/lib/game/pingpong";
 import type { DefenseSummary } from "@/lib/game/defense";
 import { randomSeed } from "@/lib/game/random";
-import type { DefenseRules, PingPongRules } from "@/lib/game/rules";
+import type { ArSceneRules, DefenseRules, PingPongRules } from "@/lib/game/rules";
 import { deriveState } from "@/lib/game/creature-view";
 import { stageForXp } from "@/lib/game/growth";
 import type { PlayEffects } from "@/lib/game/play";
@@ -73,6 +73,8 @@ export type ArenaMatchView = {
   seed: number;
   /** The defense rules the coop simulation runs with. */
   defense: DefenseRules;
+  /** The 3D scene settings of the moment (creature height on the markers). */
+  ar: ArSceneRules;
   /** Coop only: the host's latest published simulation and, once finished, the team's result. */
   coop: { live: CoopStateMessage | null; liveAt: string | null; result: CoopResultStored | null } | null;
   /** Ping-pong only: the host's latest published state and, once finished, the score (spec § 3.25). */
@@ -204,6 +206,7 @@ function toMatchView(match: ArenaMatch, userId: string, now: Date, rules: GameRu
     mode: match.mode,
     seed: match.seed,
     defense: rules.defense,
+    ar: rules.ar,
     coop: coopView(match),
     pingpong: pingpongView(match, rules),
     stakes,

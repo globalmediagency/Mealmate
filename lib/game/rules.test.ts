@@ -14,7 +14,7 @@ describe("rules", () => {
     expect(DEFAULT_RULES.mood).toEqual({ happyMin: 70, xpBonusPercent: 25, lowMax: 30, xpMalusPercent: 25, gloomyMax: 20, healthLossPerHourWhenGloomy: 0.5, chestStepsBonusPercent: 10 });
     expect(DEFAULT_RULES.play).toEqual({ maxPerDay: 3 });
     expect(DEFAULT_RULES.arena).toEqual({ hp: 100, eggDamage: 15, durationSeconds: 180, webrtc: false });
-    expect(DEFAULT_RULES.defense).toEqual({ hp: 100, baseSpeed: 0.32, speedGrowthPercent: 12, firstWaveEnemies: 5, enemiesGrowthPerWave: 2, fireCooldownMs: 350, bossEveryWaves: 3, bossHits: 3 });
+    expect(DEFAULT_RULES.defense).toEqual({ hp: 100, baseSpeed: 0.32, speedGrowthPercent: 12, firstWaveEnemies: 5, enemiesGrowthPerWave: 2, fireCooldownMs: 350, bossEveryWaves: 3, bossHits: 3, spawnDistance: 2.8 });
   });
 
   it("tunes the defense rules", () => {
@@ -33,6 +33,14 @@ describe("rules", () => {
     expect(gameRulesPatchSchema.safeParse({ pingpong: { paceFactor: "0,9".replace(",", ".") } }).success).toBe(true);
     expect(gameRulesPatchSchema.safeParse({ pingpong: { smashFactor: 1.5 } }).success).toBe(false);
     expect(gameRulesPatchSchema.safeParse({ arena: { durationSeconds: 5 } }).success).toBe(false);
+  });
+
+  it("tunes the AR scene (creature height on the marker) and where foods appear", () => {
+    expect(DEFAULT_RULES.ar).toEqual({ creatureHeight: 2.2 });
+    expect(mergeRules({ ar: { creatureHeight: 3 } }).ar.creatureHeight).toBe(3);
+    expect(mergeRules({ defense: { spawnDistance: 4 } }).defense).toMatchObject({ spawnDistance: 4, hp: 100 });
+    expect(gameRulesPatchSchema.safeParse({ ar: { creatureHeight: 0.1 } }).success).toBe(false);
+    expect(gameRulesPatchSchema.safeParse({ defense: { spawnDistance: 20 } }).success).toBe(false);
   });
 
   it("tunes the home screen (creature size and bounces)", () => {
