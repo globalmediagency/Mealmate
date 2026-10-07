@@ -95,3 +95,30 @@ export function careAction(creature: Pick<CreatureView, "status" | "state" | "hu
   if (creature.hunger >= HUNGER_ALERT_THRESHOLD) return "feed";
   return null;
 }
+
+/** How the creature takes a throw once it lands (spec § 3.26): confused, cross, cheeky or thrilled. */
+export const TOSS_REACTIONS = ["dizzy", "angry", "tongue", "laugh"] as const;
+export type TossReaction = (typeof TOSS_REACTIONS)[number];
+
+const TOSS_LINES: Record<TossReaction, readonly string[]> = {
+  dizzy: ["Ouh là… tout tourne.", "Où… où est le haut ?", "J'ai vu trois étoiles. Non, quatre."],
+  angry: ["Non mais ça va pas ?!", "Grrr… tu vas voir !", "C'est MOI qu'on lance comme ça ?"],
+  tongue: ["Bêêê ! Même pas mal !", "C'est tout ce que tu sais faire ?", "Pfff, trop facile."],
+  laugh: ["Encore ! Encore !", "Hahaha, c'était génial !", "Plus haut la prochaine fois !"],
+};
+
+export type TossLanding = { reaction: TossReaction; line: string };
+
+/**
+ * Picks, at random, how the creature reacts after a throw: a sick one is only
+ * dizzy, the others may be dizzy, cross, cheeky (tongue out) or thrilled. With
+ * things to pick up, the line ends on it.
+ */
+export function tossLanding(random: () => number, options: { loose?: number; state?: CreatureView["state"] } = {}): TossLanding {
+  const roll = (n: number) => Math.min(n - 1, Math.max(0, Math.floor(random() * n)));
+  const reaction: TossReaction = options.state === "sick" ? "dizzy" : TOSS_REACTIONS[roll(TOSS_REACTIONS.length)];
+  const lines = TOSS_LINES[reaction];
+  let line = lines[roll(lines.length)];
+  if ((options.loose ?? 0) > 0) line += " Bon… je ramasse tout ça.";
+  return { reaction, line };
+}

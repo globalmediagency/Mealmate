@@ -12,7 +12,7 @@ import { getSpecies } from "@/lib/creatures";
 import { RARITY_LABELS } from "@/lib/game/config";
 import type { CreatureView } from "@/lib/game/creature-view";
 import { DEFAULT_RULES, type HomeRules } from "@/lib/game/rules";
-import { ageLabel, careAction, creatureLine, hungerLabel, moodHelp, moodLabel } from "@/lib/game/dialogue";
+import { ageLabel, careAction, creatureLine, hungerLabel, moodHelp, moodLabel, tossLanding } from "@/lib/game/dialogue";
 import { SHOP_ITEM_IDS } from "@/lib/game/medicine";
 import type { GiftView, Inventory } from "@/lib/shop/service";
 import type { TossEvent } from "@/lib/game/toss";
@@ -95,9 +95,14 @@ export function CreatureHome({ creature, line, accessories = [], chest = null, t
       case "drop":
         say("Hé ! Mes affaires !");
         break;
-      case "land":
-        if (event.thrown) say(event.loose > 0 ? "Bon… je ramasse tout ça." : "Encore !");
+      case "land": {
+        if (!event.thrown) break;
+        // How it takes the throw is drawn at random: confused, cross, cheeky or thrilled.
+        const landing = tossLanding(Math.random, { loose: event.loose, state: creature.state });
+        setReaction(landing.reaction);
+        say(landing.line, 2400);
         break;
+      }
       case "home":
         if (event.collected > 0) say("Et voilà, tout est remis en place.");
         break;
