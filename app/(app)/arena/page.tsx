@@ -51,7 +51,7 @@ export default async function ArenaPage({ searchParams }: { searchParams: Search
       <PageHeader
         title={mode ? ARENA_MODE_LABELS[mode] : "Jouer entre amis"}
         subtitle={mode === "coop" ? "Ensemble contre la malbouffe, en réalité augmentée." : mode === "pingpong" ? "Un duel en réalité augmentée." : mode === "arena" ? "Une bataille d'œufs entre amis, en réalité augmentée." : "Arène, Défendre ensemble, Ping-pong : chacun sur son marqueur, autour de la même table."}
-        back={{ href: "/play", label: "Retour aux jeux" }}
+        back={{ href: "/play/amis", label: "Retour aux jeux" }}
       />
       <ArenaList key={mode ?? "all"} listing={listing} friends={options} blocked={blocked} maxPlayers={ARENA.maxPlayers} initialMode={mode} playsLeft={playsLeft} />
       <NotificationOptIn />

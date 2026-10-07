@@ -123,6 +123,11 @@ export const ACCESSORY_RARITY_WEIGHTS: Record<Rarity, number> = {
   legendaire: 0.02,
 };
 
+/** Backdrops found in step chests (spec § 3.28): the chance a chest holds one instead of an accessory while some are still missing. */
+export const BACKDROP_DROPS = {
+  chestChance: 0.25,
+} as const;
+
 /** Visual state thresholds derived from health. */
 export const HEALTH_STATE = {
   healthyMin: 60,
@@ -228,6 +233,78 @@ export const PLAY = {
 } as const;
 
 /**
+ * Tossing the creature on its home screen (spec § 3.5): grab it, throw it, it
+ * bounces off the walls of its scene shedding its accessories, then runs to
+ * pick each one up. Lengths in pixels of the scene, times in seconds,
+ * fractions relative to the creature drawing's size.
+ */
+/** The home screen scene (spec § 3.26): the admin-tunable defaults of `rules.home`. */
+export const HOME = {
+  /** Side of the creature drawing (px). */
+  creatureSize: 220,
+} as const;
+
+export const TOSS = {
+  /** Downward acceleration (px/s²) and speed cap (px/s). */
+  gravity: 2600,
+  maxSpeed: 2800,
+  /** Speed kept after a wall or ceiling bounce, and after a floor bounce (admin-tunable defaults, `rules.home`); horizontal speed kept when hitting the floor. */
+  restitution: 0.85,
+  floorRestitution: 0.65,
+  floorFriction: 0.8,
+  /** Rolling slowdown on the floor (fraction of speed lost per second). */
+  rollFriction: 3.5,
+  /** A release slower than this is a drop, not a throw (no spin, no "throw" line). */
+  throwMinSpeed: 260,
+  /** An impact faster than this sheds one accessory (head first): a fall from a hand's height stays gentle. */
+  dropImpactSpeed: 700,
+  /** Below this (px/s) on the floor the creature stops rolling; a floor bounce slower than `bounceStop` ends the flight. */
+  restSpeed: 40,
+  bounceStop: 140,
+  /** Spin (°/s) per px/s of horizontal speed at release, capped (a swing built up under the finger is kept too). */
+  spinPerSpeed: 0.35,
+  maxSpin: 720,
+  /**
+   * Held by the finger, the creature hangs from the point it was grabbed at
+   * (a pin joint) and swings like a pendulum: `gyration` = its radius of
+   * gyration as a fraction of the drawing (how easily it turns), `pivotFollow`
+   * = how fast the pin catches up with the finger (1/s, smooths the pointer
+   * events), `swingDamping` = loss of swing per second, `pinIterations` =
+   * constraint passes per sub-step.
+   */
+  gyration: 0.22,
+  pivotFollow: 45,
+  swingDamping: 1.1,
+  pinIterations: 3,
+  /** Getting back on its feet, running speed (px/s), pick-up reach (px) and pause. */
+  landingSeconds: 0.55,
+  runSpeed: 300,
+  pickupDistance: 26,
+  pickupSeconds: 0.35,
+  /** How far the creature turns toward where it runs (degrees of yaw). */
+  runYaw: 40,
+  /** Fallen accessories: their own, lighter physics; they settle on the floor a little below the creature's centre. */
+  item: { gravity: 2200, restitution: 0.4, friction: 0.7, restSpeed: 30, maxSeconds: 4, half: 0.16, floor: 0.34 },
+  /** The floor shadow: its line below the drawing's centre (fraction of the size, = the SVG's ground line), its opacity at rest and its smallest scale in flight. */
+  shadowLine: 0.435,
+  shadowOpacity: 0.28,
+  shadowMinScale: 0.35,
+  /** Stand-in silhouette when no drawing is known (`defaultShape`): half width, reach above and below the centre, as fractions of the size; and the gap kept under its feet. */
+  box: { side: 0.28, top: 0.3, bottom: 0.42 },
+  restBottom: 4,
+  /** A press shorter than this and moving less than this is a pat, not a throw; pointer samples used for the release speed. */
+  tapMs: 350,
+  tapDistance: 8,
+  velocityWindowMs: 90,
+} as const;
+
+/** The 3D creature on its printed marker (spec § 3.19), shared by « Voir en vrai » and every AR game: the admin-tunable default of `rules.ar`. */
+export const AR_SCENE = {
+  /** Height of the creature in marker sides (the printed square is 1). */
+  creatureHeight: 2.2,
+} as const;
+
+/**
  * "Défendre": the tower-defense game played on the printed marker (spec § 3.21).
  * Lengths are in marker sides, times in seconds. The first six values are the
  * admin-tunable defaults (`rules.defense`); the rest is fixed.
@@ -245,10 +322,12 @@ export const DEFENSE = {
   bossEveryWaves: 3,
   /** Eggs needed to destroy the first boss (one more at each following boss). */
   bossHits: 3,
-  /** Where foods appear, from the creature. */
+  /** How far foods appear from the creature at most (admin-tunable default, `rules.defense.spawnDistance`); they surge between `spawnNearFraction` × that and that. */
   arenaRadius: 2.8,
-  /** How far the aim point can go beyond the arena. */
+  spawnNearFraction: 0.75,
+  /** How far the aim point can go: at least this, and always a bit beyond where foods appear (`aimBeyondSpawn`). */
   aimMaxRadius: 3.4,
+  aimBeyondSpawn: 0.6,
   /** A food closer than this has reached the creature. */
   reachRadius: 0.45,
   /** An egg destroys the foods within this distance of its landing point (and lower than `blastHeight`). */

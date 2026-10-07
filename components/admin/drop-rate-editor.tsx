@@ -22,6 +22,8 @@ export type DropRateRow = {
   pools?: string[];
   /** Short label shown next to the name (e.g. "élève"). */
   tag?: string;
+  /** Switched off from the draws (species): weighs nothing, its field is frozen. */
+  disabled?: boolean;
 };
 
 type Props = {
@@ -73,7 +75,7 @@ export function DropRateEditor({ kind, title, rows, hiddenPoolWeight = 0, poolLa
   const invalid = rows.filter((r) => parsed[r.id].reason !== null && parsed[r.id].reason !== "decimals").map((r) => r.name);
   const tooPrecise = rows.filter((r) => parsed[r.id].reason === "decimals").map((r) => r.name);
   // Untouched fields count with their exact weight (defaults like 60/9 are not representable in 3 decimals), so a default pool totals 100 %.
-  const effective = (row: DropRateRow) => (valueOf(row) === quantizeWeight(row.weight) ? row.weight : (valueOf(row) ?? 0));
+  const effective = (row: DropRateRow) => (row.disabled ? 0 : valueOf(row) === quantizeWeight(row.weight) ? row.weight : (valueOf(row) ?? 0));
   const totalOf = (key: string) => rows.filter((r) => poolsOf(r).includes(key)).reduce((sum, r) => sum + effective(r), 0) + (hidden[key] ?? 0);
   const mainKey = poolKeys[0] ?? "main";
   const total = totalOf(mainKey);
@@ -156,13 +158,14 @@ export function DropRateEditor({ kind, title, rows, hiddenPoolWeight = 0, poolLa
                 const used = effective(row);
                 const rowTotal = totalOf(poolOf(row));
                 const percent = value !== null && rowTotal > 0 ? (used / rowTotal) * PERCENT : 0;
-                const oneIn = value && value > 0 ? Math.max(1, Math.round(rowTotal / used)) : null;
+                const oneIn = value && value > 0 && used > 0 ? Math.max(1, Math.round(rowTotal / used)) : null;
                 const changed = value !== quantizeWeight(row.defaultWeight);
                 return (
                   <tr key={row.id} className="border-t border-ink-600/60">
-                    <td className="py-1.5 pr-2 font-semibold text-cream-50">
+                    <td className={`py-1.5 pr-2 font-semibold ${row.disabled ? "text-cream-500" : "text-cream-50"}`}>
                       {row.name}
                       {row.tag ? <span className="ml-1.5 rounded-full border border-sage-500/50 bg-sage-800/40 px-1.5 py-0.5 text-[10px] font-semibold text-sage-200">{row.tag}</span> : null}
+                      {row.disabled ? <span className="ml-1.5 rounded-full border border-ink-500 bg-ink-700 px-1.5 py-0.5 text-[10px] font-semibold text-cream-500">désactivée</span> : null}
                     </td>
                     <td className="py-1.5 pr-2">
                       <RarityBadge rarity={row.rarity} className="text-[10px]" />
@@ -174,11 +177,13 @@ export function DropRateEditor({ kind, title, rows, hiddenPoolWeight = 0, poolLa
                         aria-label={`Poids de ${row.name} en pourcentage`}
                         value={text(row)}
                         onChange={(e) => setDraft((d) => ({ ...d, [row.id]: e.target.value }))}
-                        className={`min-h-10 w-24 rounded-xl border bg-ink-900/80 px-2 text-base tabular-nums text-cream-50 focus:outline-none focus:ring-2 focus:ring-sage-500/40 ${changed ? "border-brass-400/70" : "border-ink-500"}`}
+                        disabled={row.disabled}
+                        title={row.disabled ? "Espèce désactivée : remets-la dans les tirages pour régler son poids." : undefined}
+                        className={`min-h-10 w-24 rounded-xl border bg-ink-900/80 px-2 text-base tabular-nums text-cream-50 focus:outline-none focus:ring-2 focus:ring-sage-500/40 disabled:opacity-50 ${changed ? "border-brass-400/70" : "border-ink-500"}`}
                       />
                     </td>
                     <td className="py-1.5 pr-2 tabular-nums text-cream-300">
-                      {oneIn ? `${formatPercent(percent)} · 1 sur ${oneIn.toLocaleString("fr-FR")}` : value === 0 ? "jamais" : "—"}
+                      {row.disabled ? "désactivée" : oneIn ? `${formatPercent(percent)} · 1 sur ${oneIn.toLocaleString("fr-FR")}` : value === 0 ? "jamais" : "—"}
                     </td>
                     <td className="py-1.5 text-xs text-cream-700">
                       {formatPercent(row.defaultWeight)}

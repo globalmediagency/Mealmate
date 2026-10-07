@@ -283,7 +283,12 @@ export function yawToward(target: Vec2): number {
 }
 
 /** Keeps the aim point within reach: beyond the arena it slides back along its direction. */
-export function clampAim(point: Vec2, maxRadius = DEFENSE.aimMaxRadius): Vec2 {
+/** How far the aim may go (marker sides): the fixed reach, or a little beyond where foods appear when the admin pushed them further. */
+export function aimRadius(rules: DefenseRules = DEFAULT_RULES.defense): number {
+  return Math.max(DEFENSE.aimMaxRadius, rules.spawnDistance + DEFENSE.aimBeyondSpawn);
+}
+
+export function clampAim(point: Vec2, maxRadius: number = DEFENSE.aimMaxRadius): Vec2 {
   const r = Math.hypot(point.x, point.y);
   if (r <= maxRadius || r === 0) return point;
   return { x: (point.x / r) * maxRadius, y: (point.y / r) * maxRadius };
@@ -400,6 +405,8 @@ function spawnEnemy(state: DefenseState, random: () => number) {
     maxHits: hits,
     radius: boss ? DEFENSE.bossRadius : DEFENSE.foodRadius,
   };
+  // Somewhere between three quarters of the admin distance and that distance (drawn last: the rolls above keep their order).
+  enemy.dist = state.rules.spawnDistance * (DEFENSE.spawnNearFraction + (1 - DEFENSE.spawnNearFraction) * random());
   place(enemy);
   state.enemies.push(enemy);
   state.summary.spawned += 1;
@@ -580,7 +587,7 @@ export type FireOptions = {
 export function fireDefense(state: DefenseState, target: Vec2, options: FireOptions = {}): boolean {
   if (state.status !== "wave" && state.status !== "intro") return false;
   if (!options.cosmetic && state.time - state.lastFireAt < state.rules.fireCooldownMs / 1000) return false;
-  const aim = clampAim(target);
+  const aim = clampAim(target, aimRadius(state.rules));
   const distance = Math.hypot(aim.x, aim.y);
   const dir = distance > 0 ? { x: aim.x / distance, y: aim.y / distance } : { x: 0, y: -1 };
   if (!options.cosmetic) {
@@ -610,7 +617,7 @@ export function fireDefense(state: DefenseState, target: Vec2, options: FireOpti
 export function tongueDefense(state: DefenseState, target: Vec2, options: { cosmetic?: boolean } = {}): boolean {
   if (state.status !== "wave" && state.status !== "intro") return false;
   if (!options.cosmetic && (state.tongue || state.time - state.lastTongueAt < DEFENSE.tongueCooldownMs / 1000)) return false;
-  const aim = clampAim(target);
+  const aim = clampAim(target, aimRadius(state.rules));
   const distance = Math.hypot(aim.x, aim.y);
   const dir = distance > 0 ? { x: aim.x / distance, y: aim.y / distance } : { x: 0, y: -1 };
   if (!options.cosmetic) state.lastTongueAt = state.time;

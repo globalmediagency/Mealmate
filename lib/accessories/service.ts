@@ -2,7 +2,10 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { DomainError } from "@/lib/api/errors";
 import { getDb } from "@/lib/db";
 import { creatureOutfits, creatures, userAccessories, type Creature } from "@/lib/db/schema";
+import type { Backdrop } from "@/lib/backdrops/catalog";
+import { addBackdrop, getOwnedBackdrops } from "@/lib/backdrops/service";
 import { chestStatus, drawAccessory, type ChestStatus } from "@/lib/game/accessories";
+import { drawChestBackdrop } from "@/lib/game/backdrops";
 import { getDropWeights } from "@/lib/game/drops-service";
 import { gameDate } from "@/lib/game/time";
 import { creatureStepsSince } from "@/lib/boarding/custody-service";
@@ -130,7 +133,8 @@ export function assertHolder(userId: string, creature: Creature, options: Holder
   if (!options.boarded && creature.userId !== userId) throw new DomainError("forbidden", "Cette créature n'est pas la tienne.", 403);
 }
 
-export type ChestReward = {
+export type AccessoryReward = {
+  kind: "accessory";
   accessory: Accessory;
   /** Already owned: this chest adds a copy (to trade or give away). */
   duplicate: boolean;
@@ -141,7 +145,23 @@ export type ChestReward = {
   status: ChestStatus;
 };
 
-/** Opens one earned chest: draws an accessory with the admin-tunable weights; a duplicate adds a copy. The opener (owner or host) keeps it. */
+/** A chest holding a scene for the wardrobe instead of an accessory (spec § 3.28): never a duplicate, the opener keeps it. */
+export type BackdropReward = {
+  kind: "backdrop";
+  backdrop: Backdrop;
+  /** The creature already shows this scene (the opener's own creature only). */
+  equipped: boolean;
+  status: ChestStatus;
+};
+
+export type ChestReward = AccessoryReward | BackdropReward;
+
+/**
+ * Opens one earned chest: with `BACKDROP_DROPS.chestChance`, while some are
+ * missing, a backdrop the opener has not found yet; otherwise an accessory
+ * drawn with the admin-tunable weights (a duplicate adds a copy). The opener
+ * (owner or host) keeps it.
+ */
 export async function openChest(userId: string, creature: Creature, random?: () => number, options: HolderOptions = {}): Promise<ChestReward> {
   assertHolder(userId, creature, options);
   const status = await getChestStatus(creature);
@@ -157,15 +177,24 @@ export async function openChest(userId: string, creature: Creature, random?: () 
     .returning({ drops: creatures.accessoryDrops });
   if (claimed.length === 0) throw new DomainError("no_chest", "Ce coffre a déjà été ouvert.", 409);
 
+  const after = chestStatus(status.totalSteps, creature.accessoryDrops + 1);
+  const ownedBackdrops = await getOwnedBackdrops(userId);
+  const scene = drawChestBackdrop(new Set(ownedBackdrops.map((o) => o.backdrop.id)), random);
+  if (scene) {
+    await addBackdrop(userId, scene.id);
+    return { kind: "backdrop", backdrop: scene, equipped: creature.userId === userId && creature.backdrop === scene.id, status: after };
+  }
+
   const [ownedList, weights, outfit] = await Promise.all([getOwnedAccessories(userId), getDropWeights(), getOutfit(creature.id)]);
   const owned = new Set(ownedList.map((o) => o.accessory.id));
   const draw = drawAccessory(owned, random, weights.accessories);
   const copies = await addAccessoryCopies(userId, draw.accessory.id);
   return {
+    kind: "accessory",
     accessory: draw.accessory,
     duplicate: draw.duplicate,
     copies,
     equipped: outfit[draw.accessory.slot] === draw.accessory.id,
-    status: chestStatus(status.totalSteps, creature.accessoryDrops + 1),
+    status: after,
   };
 }

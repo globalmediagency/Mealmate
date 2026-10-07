@@ -101,6 +101,21 @@ describe("overrides", () => {
   });
 });
 
+describe("disabled rows", () => {
+  it("weigh nothing at every fallback step and are excluded from the all-zero check", () => {
+    expect(effectiveWeights([{ weight: 5, disabled: true }, { weight: 0, defaultWeight: 3 }, { weight: 0, defaultWeight: 0 }])).toEqual([0, 3, 0]);
+    expect(effectiveWeights([{ weight: 0, defaultWeight: 9, disabled: true }, { weight: 0, defaultWeight: 0 }, { weight: 0 }])).toEqual([0, 1, 1]);
+    expect(isAllZero([{ weight: 5, disabled: true }, { weight: 0 }])).toBe(true);
+    expect(isAllZero([{ weight: 5, disabled: true }, { weight: 1 }])).toBe(false);
+    expect(() => pickWeighted([{ item: "a", weight: 5, disabled: true }], sequence([0]))).toThrow();
+    const rows = speciesWeights("facile", {}, new Set([speciesForTier("facile")[0].id]));
+    expect(rows[0].disabled).toBe(true);
+    expect(rows[0].percent).toBe(0);
+    expect(rows[0].oneIn).toBeNull();
+    expect(rows.slice(1).reduce((s, r) => s + r.percent, 0)).toBeCloseTo(PERCENT, 6);
+  });
+});
+
 describe("pickWeighted", () => {
   const rows = [
     { item: "a", weight: 600 },

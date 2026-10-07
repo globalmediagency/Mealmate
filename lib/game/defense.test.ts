@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFENSE } from "./config";
 import {
+  aimRadius,
   bonusBlinking,
   bossesInWave,
   bossHitsFor,
@@ -79,7 +80,9 @@ describe("a game", () => {
     expect(state.enemies).toHaveLength(1);
     expect(state.enemies[0].phase).toBe("spawning");
     expect(state.effects.map((e) => e.kind)).toEqual(["smoke"]);
-    expect(Math.hypot(state.enemies[0].x, state.enemies[0].y)).toBeCloseTo(DEFENSE.arenaRadius, 5);
+    const dist = Math.hypot(state.enemies[0].x, state.enemies[0].y);
+    expect(dist).toBeGreaterThanOrEqual(DEFENSE.arenaRadius * DEFENSE.spawnNearFraction - 1e-6);
+    expect(dist).toBeLessThanOrEqual(DEFENSE.arenaRadius + 1e-6);
     run(state, DEFENSE.smokeSeconds + 0.05);
     expect(state.enemies[0].phase).toBe("moving");
     expect(state.summary.spawned).toBe(1);
@@ -190,6 +193,24 @@ describe("boss timing", () => {
 });
 
 describe("aim and score", () => {
+  it("lets the admin push where foods appear, and the aim reaches a little beyond", () => {
+    const far = { ...DEFAULT_RULES.defense, spawnDistance: 5 };
+    const state = createDefense(far);
+    startDefense(state);
+    run(state, DEFENSE.waveIntroSeconds + 0.05);
+    const dist = Math.hypot(state.enemies[0].x, state.enemies[0].y);
+    expect(dist).toBeGreaterThanOrEqual(5 * DEFENSE.spawnNearFraction - 1e-6);
+    expect(dist).toBeLessThanOrEqual(5 + 1e-6);
+    expect(aimRadius(far)).toBeCloseTo(5 + DEFENSE.aimBeyondSpawn, 9);
+    expect(aimRadius()).toBe(DEFENSE.aimMaxRadius);
+    // An egg thrown at a far food is not clamped short of it.
+    run(state, DEFENSE.smokeSeconds + 0.05);
+    const enemy = state.enemies[0];
+    expect(fireDefense(state, { x: enemy.x, y: enemy.y })).toBe(true);
+    const egg = state.eggs[0];
+    expect(Math.hypot(egg.to.x, egg.to.y)).toBeCloseTo(Math.hypot(enemy.x, enemy.y), 6);
+  });
+
   it("clamps far aims to the reachable radius and faces the aim", () => {
     expect(clampAim({ x: 10, y: 0 })).toEqual({ x: DEFENSE.aimMaxRadius, y: 0 });
     expect(clampAim({ x: 1, y: -1 })).toEqual({ x: 1, y: -1 });

@@ -51,39 +51,43 @@ export function defaultAccessoryWeight(accessory: Accessory, pool: readonly Acce
 
 export type Weighted<T> = {
   item: T;
-  /** Weight in % actually used by the draw. */
+  /** Weight in % actually used by the draw (a disabled row keeps its weight for display but never draws). */
   weight: number;
   defaultWeight: number;
   overridden: boolean;
+  /** Switched off from /admin: kept by its owners, never drawn again. */
+  disabled: boolean;
   /** Effective chance once the pool is normalised (% of the pool). */
   percent: number;
   /** "1 chance sur N", null when the weight is zero. */
   oneIn: number | null;
 };
 
-type PoolRow = { weight: number; defaultWeight?: number };
+type PoolRow = { weight: number; defaultWeight?: number; disabled?: boolean };
 
 const positiveSum = (values: number[]) => values.reduce((sum, v) => sum + Math.max(0, v), 0);
+const enabled = (row: PoolRow, value: number) => (row.disabled ? 0 : Math.max(0, value));
 
 /**
  * Weights the draw really uses. An all-zero pool (every override at 0) falls
  * back to the rarity defaults, then to a uniform pick, so a bad override never
  * breaks hatching or chests — and the admin pages display the same fallback.
+ * A disabled row weighs 0 at every step: no fallback brings it back.
  */
 export function effectiveWeights(rows: ReadonlyArray<PoolRow>): number[] {
-  const weights = rows.map((row) => Math.max(0, row.weight));
+  const weights = rows.map((row) => enabled(row, row.weight));
   if (positiveSum(weights) > 0) return weights;
-  const defaults = rows.map((row) => Math.max(0, row.defaultWeight ?? 0));
+  const defaults = rows.map((row) => enabled(row, row.defaultWeight ?? 0));
   if (positiveSum(defaults) > 0) return defaults;
-  return rows.map(() => 1);
+  return rows.map((row) => enabled(row, 1));
 }
 
-/** True when every weight of the pool is 0 (the draw then falls back to the defaults). */
+/** True when every enabled weight of the pool is 0 (the draw then falls back to the defaults). */
 export function isAllZero(rows: ReadonlyArray<PoolRow>): boolean {
-  return rows.length > 0 && positiveSum(rows.map((row) => row.weight)) <= 0;
+  return rows.length > 0 && positiveSum(rows.map((row) => enabled(row, row.weight))) <= 0;
 }
 
-function withChances<T>(rows: Array<Pick<Weighted<T>, "item" | "weight" | "defaultWeight" | "overridden">>): Weighted<T>[] {
+function withChances<T>(rows: Array<Pick<Weighted<T>, "item" | "weight" | "defaultWeight" | "overridden" | "disabled">>): Weighted<T>[] {
   const used = effectiveWeights(rows);
   const total = positiveSum(used);
   return rows.map((row, i) => ({
@@ -93,17 +97,19 @@ function withChances<T>(rows: Array<Pick<Weighted<T>, "item" | "weight" | "defau
   }));
 }
 
-/** Species of a tier with their weights, commons first (the draw order). */
-export function speciesWeights(tier: Tier, overrides: Record<string, number> = {}): Weighted<Species>[] {
+/** Species of a tier with their weights, commons first (the draw order). `disabled` species (admin switch) keep their row but never draw. */
+export function speciesWeights(tier: Tier, overrides: Record<string, number> = {}, disabled: ReadonlySet<string> = NO_SPECIES): Weighted<Species>[] {
   const pool = speciesForTier(tier);
   return withChances(
     pool.map((species) => {
       const defaultWeight = defaultSpeciesWeight(species, pool);
       const override = overrides[species.id];
-      return { item: species, defaultWeight, weight: override ?? defaultWeight, overridden: override !== undefined };
+      return { item: species, defaultWeight, weight: override ?? defaultWeight, overridden: override !== undefined, disabled: disabled.has(species.id) };
     }),
   );
 }
+
+const NO_SPECIES: ReadonlySet<string> = new Set();
 
 /** Every accessory of a pool (step chests by default) with its weight, commons first then catalogue order. */
 export function accessoryWeights(overrides: Record<string, number> = {}, source: readonly Accessory[] = CHEST_ACCESSORIES): Weighted<Accessory>[] {
@@ -112,7 +118,7 @@ export function accessoryWeights(overrides: Record<string, number> = {}, source:
     pool.map((accessory) => {
       const defaultWeight = defaultAccessoryWeight(accessory);
       const override = overrides[accessory.id];
-      return { item: accessory, defaultWeight, weight: override ?? defaultWeight, overridden: override !== undefined };
+      return { item: accessory, defaultWeight, weight: override ?? defaultWeight, overridden: override !== undefined, disabled: false };
     }),
   );
 }
@@ -125,6 +131,7 @@ export function pickWeighted<T>(rows: ReadonlyArray<{ item: T } & PoolRow>, rand
   if (rows.length === 0) throw new Error("Empty pool.");
   const weights = effectiveWeights(rows);
   const total = positiveSum(weights);
+  if (total <= 0) throw new Error("Empty pool: every item is disabled.");
   const roll = Math.min(0.999_999_999, Math.max(0, random()));
   const target = roll * total;
   // Tiny epsilon so an exact boundary roll (0.6 on a 60 % block) is not swallowed by float noise.

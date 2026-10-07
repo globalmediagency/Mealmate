@@ -17,7 +17,7 @@ const DEG = Math.PI / 180;
  * cells; accessories, the sick overlay and the reactions use the sprite's
  * anchors. Turned (`yaw`), the sprite narrows and mirrors past its side.
  */
-export function PixelCreature({ species, pixel, stage = "enfant", state = "healthy", accessories = [], size = 200, animated = true, reaction = null, silhouette = false, yaw = 0, className, style, title }: CreatureRenderProps & { pixel: PixelArt }) {
+export function PixelCreature({ species, pixel, stage = "enfant", state = "healthy", accessories = [], size = 200, animated = true, reaction = null, silhouette = false, yaw = 0, shadow = true, className, style, title }: CreatureRenderProps & { pixel: PixelArt }) {
   const sprite = parsePixelArt(pixel);
   const tones = PIXEL_PALETTES[state];
   const layout = pixelLayout(sprite);
@@ -54,7 +54,7 @@ export function PixelCreature({ species, pixel, stage = "enfant", state = "healt
       style={{ "--mm-blink-dur": `${blinkDuration.toFixed(2)}s`, "--mm-blink-delay": `${blinkDelay.toFixed(2)}s`, ...style } as CSSProperties}
       data-pixel-species={species.id}
     >
-      {isAlive && !silhouette ? <ellipse cx="50" cy="93.5" rx={20 * scale} ry="2.6" fill="#000" opacity="0.28" shapeRendering="auto" /> : null}
+      {isAlive && !silhouette && shadow ? <ellipse cx="50" cy="93.5" rx={20 * scale} ry="2.6" fill="#000" opacity="0.28" shapeRendering="auto" /> : null}
       <g transform={transform}>
         <g className={cn("mm-breathe", state === "dead" && "mm-ghost", state === "sick" && "mm-tremble")}>
           <g className="mm-root">

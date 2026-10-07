@@ -14,6 +14,8 @@ import { requireViewer } from "@/lib/auth/session";
 import { diedInBoarding, getHeldCreatures, listOwnerNotices, listProposalsFor, listUnseenDeathsHosted, toBoardingView } from "@/lib/boarding/service";
 import { hostedCreatureViews } from "@/lib/boarding/views";
 import { playableTiers, speciesByTierAll } from "@/lib/creatures";
+import { discoverableSpecies, getDisabledSpecies } from "@/lib/game/species-service";
+import { TIERS, type Tier } from "@/lib/game/config";
 import { getObtainedSpeciesIds, getUnmournedDeath, refreshEggSteps } from "@/lib/creatures/service";
 import { getChestStatus, getOutfit, outfitToEquipped } from "@/lib/accessories/service";
 import { toCreatureView } from "@/lib/game/creature-view";
@@ -75,10 +77,15 @@ export default async function HomePage() {
   if (!creature) {
     const unmourned = await getUnmournedDeath(session.user.id);
     if (unmourned) return frame(<Mourning creature={toCreatureView(unmourned, now, rules)} boardedWith={(await diedInBoarding(unmourned.id))?.username ?? null} />);
-    const obtained = await getObtainedSpeciesIds(session.user.id);
+    const [obtained, disabledSpecies] = await Promise.all([getObtainedSpeciesIds(session.user.id), getDisabledSpecies()]);
+    const all = speciesByTierAll();
+    const owned = new Set(obtained);
+    const speciesByTier = Object.fromEntries(TIERS.map((tier) => [tier, discoverableSpecies(all[tier], disabledSpecies, owned)])) as Record<Tier, typeof all[Tier]>;
+    const hiddenByTier = Object.fromEntries(TIERS.map((tier) => [tier, all[tier].length - speciesByTier[tier].length])) as Record<Tier, number>;
     return frame(
       <EggChoice
-        speciesByTier={speciesByTierAll()}
+        speciesByTier={speciesByTier}
+        hiddenSpeciesByTier={hiddenByTier}
         obtainedSpeciesIds={obtained}
         playableTiers={playableTiers()}
         rules={rules}
@@ -98,7 +105,7 @@ export default async function HomePage() {
 
   if (held.away) {
     const outfit = await getOutfit(creature.id);
-    return frame(<BoardedAway creature={creature} accessories={outfitToEquipped(outfit)} boarding={toBoardingView(held.away, now)} host={held.away.host} />);
+    return frame(<BoardedAway creature={creature} accessories={outfitToEquipped(outfit)} boarding={toBoardingView(held.away, now)} host={held.away.host} creatureSize={rules.home.creatureSize} />);
   }
 
   const today = gameDate();
@@ -122,6 +129,7 @@ export default async function HomePage() {
       playsLeft={plays === null ? null : Math.max(0, rules.play.maxPerDay - plays)}
       mealsToday={meals}
       maxMeals={rules.feeding.maxMealsPerDay}
+      home={rules.home}
     />,
     { gifts: false },
   );

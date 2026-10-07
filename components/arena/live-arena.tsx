@@ -194,7 +194,7 @@ export function LiveArena({ initialInvites, children }: LiveArenaProps) {
         if (known.current) {
           const fresh = invites.filter((i) => !known.current!.has(i.matchId));
           if (fresh.length > 0) {
-            if (pathRef.current === "/arena" || pathRef.current === "/play" || pathRef.current === "/friends") router.refresh();
+            if (pathRef.current === "/arena" || pathRef.current === "/play" || pathRef.current === "/play/amis" || pathRef.current === "/friends") router.refresh();
             for (const notice of fresh) notifyInBackground(notice, () => router.push(`/arena/${notice.matchId}`));
           }
         }

@@ -10,7 +10,6 @@ import type { ArCreature } from "@/components/ar/types";
 import { getAccessory, type Slot } from "@/lib/accessories/catalog";
 import { addAccessoryCopies, decrementAccessoryCopy, dropEmptyAccessory, getOutfit, getOwnedAccessories, outfitToEquipped } from "@/lib/accessories/service";
 import { DomainError } from "@/lib/api/errors";
-import { photoMarkerUrls } from "@/lib/ar/photo-marker";
 import { ensureCreatureMarker } from "@/lib/ar/service";
 import { getHeldCreature } from "@/lib/boarding/service";
 import { tickCreature } from "@/lib/creatures/tick-service";
@@ -36,7 +35,7 @@ import { coopScore, parseCoopState, type CoopStateMessage } from "@/lib/game/coo
 import { parsePingPongState, pingpongScore, type PingPongStateMessage } from "@/lib/game/pingpong";
 import type { DefenseSummary } from "@/lib/game/defense";
 import { randomSeed } from "@/lib/game/random";
-import type { DefenseRules, PingPongRules } from "@/lib/game/rules";
+import type { ArSceneRules, DefenseRules, PingPongRules } from "@/lib/game/rules";
 import { deriveState } from "@/lib/game/creature-view";
 import { stageForXp } from "@/lib/game/growth";
 import type { PlayEffects } from "@/lib/game/play";
@@ -74,6 +73,8 @@ export type ArenaMatchView = {
   seed: number;
   /** The defense rules the coop simulation runs with. */
   defense: DefenseRules;
+  /** The 3D scene settings of the moment (creature height on the markers). */
+  ar: ArSceneRules;
   /** Coop only: the host's latest published simulation and, once finished, the team's result. */
   coop: { live: CoopStateMessage | null; liveAt: string | null; result: CoopResultStored | null } | null;
   /** Ping-pong only: the host's latest published state and, once finished, the score (spec § 3.25). */
@@ -119,8 +120,6 @@ export type ArenaPlayerView = {
   markerId: number;
   /** Present in full snapshots only (first read, lobby). */
   creature?: ArCreature | null;
-  /** Full snapshots only: the player's photo marker, when they use one (spec § 3.19); the other phones recognise it as `markerId`. */
-  markerImage?: string | null;
   status: ArenaPlayer["status"];
   hp: number;
   hitsDealt: number;
@@ -207,6 +206,7 @@ function toMatchView(match: ArenaMatch, userId: string, now: Date, rules: GameRu
     mode: match.mode,
     seed: match.seed,
     defense: rules.defense,
+    ar: rules.ar,
     coop: coopView(match),
     pingpong: pingpongView(match, rules),
     stakes,
@@ -845,11 +845,9 @@ async function settle(match: ArenaMatch, players: ArenaPlayer[], now: Date, rand
 async function playerViews(match: ArenaMatch, players: ArenaPlayer[], userId: string, full: boolean, stakes: ArenaStake[]): Promise<ArenaPlayerView[]> {
   const names = await publicProfiles(players.map((p) => p.userId));
   let byCreature = new Map<string, Creature>();
-  let photos = new Map<string, string>();
   if (full && players.length > 0) {
     const rows = await getDb().select().from(creatures).where(inArray(creatures.id, players.map((p) => p.creatureId)));
     byCreature = new Map(rows.map((c) => [c.id, c]));
-    photos = await photoMarkerUrls(players.map((p) => p.userId));
   }
   const views: ArenaPlayerView[] = [];
   for (const p of players) {
@@ -877,7 +875,6 @@ async function playerViews(match: ArenaMatch, players: ArenaPlayer[], userId: st
     if (full) {
       const creature = byCreature.get(p.creatureId);
       view.creature = creatureFor(creature, creature ? outfitToEquipped(await getOutfit(creature.id)) : []);
-      view.markerImage = photos.get(p.userId) ?? null;
     }
     if (p.userId === userId && match.status === "finished") view.reward = (p.reward as ArenaReward | null) ?? null;
     views.push(view);

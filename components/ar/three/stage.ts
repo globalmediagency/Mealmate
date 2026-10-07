@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { cameraFovDeg, pickPose, posesFromCorners, type Pose3d } from "@/lib/ar/pose3d";
 import type { Corner } from "../marker-camera";
 import { buildCreatureMesh, type CreatureMesh, type CreatureMeshInput, type MouthPosition } from "./creature-mesh";
+import { CREATURE_HEIGHT_UNITS } from "./units";
 
 export { textureFromSvg } from "./textures";
 export type { Corner } from "../marker-camera";
@@ -10,6 +11,11 @@ export type { Corner } from "../marker-camera";
 const SMOOTHING = 0.35;
 /** Ground shadow radius in marker sides. */
 const SHADOW_RADIUS = 0.42;
+
+export type ThreeStageOptions = {
+  /** Height of the creatures in marker sides (`rules.ar.creatureHeight`); the meshes are built at `CREATURE_HEIGHT_UNITS` and scaled. */
+  creatureHeight?: number;
+};
 
 type Slot = {
   /** Marker frame: x right, y toward the top edge, z out of the paper. */
@@ -47,13 +53,18 @@ export class ThreeStage {
   private readonly scene = new THREE.Scene();
   private readonly camera: THREE.PerspectiveCamera;
   private readonly slots = new Map<number, Slot>();
-  private readonly shadowGeometry = new THREE.CircleGeometry(SHADOW_RADIUS, 36);
+  private readonly shadowGeometry: THREE.CircleGeometry;
   private readonly shadowMaterial = new THREE.MeshBasicMaterial({ color: 0x0b1210, transparent: true, opacity: 0.32, depthWrite: false });
   private readonly clock = new THREE.Clock();
+  /** Scale applied to every creature (admin height ÷ the height the meshes are built at). */
+  private readonly creatureScale: number;
   private width: number;
   private height: number;
 
-  constructor(canvas: HTMLCanvasElement, videoWidth: number, videoHeight: number) {
+  constructor(canvas: HTMLCanvasElement, videoWidth: number, videoHeight: number, options: ThreeStageOptions = {}) {
+    const height = options.creatureHeight ?? CREATURE_HEIGHT_UNITS;
+    this.creatureScale = Number.isFinite(height) && height > 0 ? height / CREATURE_HEIGHT_UNITS : 1;
+    this.shadowGeometry = new THREE.CircleGeometry(SHADOW_RADIUS * Math.sqrt(this.creatureScale), 36);
     this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: "low-power" });
     this.renderer.setPixelRatio(1);
     this.renderer.setClearColor(0x000000, 0);
@@ -95,13 +106,14 @@ export class ThreeStage {
     const mesh = buildCreatureMesh(input);
     const holder = new THREE.Group();
     holder.quaternion.copy(STANDING);
+    holder.scale.setScalar(this.creatureScale);
     holder.add(mesh.root);
     const turn = new THREE.Group();
     turn.add(holder);
     group.add(turn);
     this.scene.add(group);
     bounds.setFromObject(mesh.root);
-    const top = Number.isFinite(bounds.max.y) ? bounds.max.y : 1;
+    const top = (Number.isFinite(bounds.max.y) ? bounds.max.y : 1) * this.creatureScale;
     this.slots.set(id, { group, turn, mesh, top, pose: null, fresh: true });
   }
 
@@ -137,7 +149,13 @@ export class ThreeStage {
 
   /** Where a creature's mouth is (height above the paper, distance ahead of its centre), in marker sides. */
   mouthOf(id: number): MouthPosition | null {
-    return this.slots.get(id)?.mesh.mouth ?? null;
+    const mouth = this.slots.get(id)?.mesh.mouth;
+    return mouth ? { height: mouth.height * this.creatureScale, front: mouth.front * this.creatureScale } : null;
+  }
+
+  /** Height of the creatures on their paper, in marker sides. */
+  get creatureHeight(): number {
+    return CREATURE_HEIGHT_UNITS * this.creatureScale;
   }
 
   /** Turns a creature on its marker (radians about the paper's normal, positive = counter-clockwise seen from above). */

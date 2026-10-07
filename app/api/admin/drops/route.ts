@@ -5,6 +5,7 @@ import { optionalEnv } from "@/lib/env";
 import { TIERS } from "@/lib/game/config";
 import { accessoryWeights, speciesWeights, weightEntrySchema } from "@/lib/game/drops";
 import { getDropWeights, getStoredDropWeights, saveDropWeights } from "@/lib/game/drops-service";
+import { getDisabledSpecies } from "@/lib/game/species-service";
 
 export const dynamic = "force-dynamic";
 
@@ -15,15 +16,15 @@ const patchSchema = z.object({
 });
 
 const view = (rows: ReturnType<typeof speciesWeights> | ReturnType<typeof accessoryWeights>) =>
-  rows.map((r) => ({ id: r.item.id, name: r.item.name, rarity: r.item.rarity, weight: r.weight, defaultWeight: r.defaultWeight, overridden: r.overridden, percent: r.percent, oneIn: r.oneIn }));
+  rows.map((r) => ({ id: r.item.id, name: r.item.name, rarity: r.item.rarity, weight: r.weight, defaultWeight: r.defaultWeight, overridden: r.overridden, disabled: r.disabled, percent: r.percent, oneIn: r.oneIn }));
 
 /** GET /api/admin/drops → effective weights per tier and for accessories. */
 export async function GET() {
   try {
     if (!(await isAdminSession())) return fail("unauthorized", "Connexion admin requise.", 401);
-    const [weights, stored] = await Promise.all([getDropWeights(), getStoredDropWeights()]);
+    const [weights, stored, disabled] = await Promise.all([getDropWeights(), getStoredDropWeights(), getDisabledSpecies()]);
     return ok({
-      species: Object.fromEntries(TIERS.map((tier) => [tier, view(speciesWeights(tier, weights.species))])),
+      species: Object.fromEntries(TIERS.map((tier) => [tier, view(speciesWeights(tier, weights.species, disabled))])),
       accessories: view(accessoryWeights(weights.accessories)),
       updatedAt: stored.updatedAt?.toISOString() ?? null,
       updatedBy: stored.updatedBy,

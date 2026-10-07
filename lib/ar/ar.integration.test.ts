@@ -7,10 +7,8 @@ import { creatures, profiles } from "@/lib/db/schema";
 import { acceptFriendRequest, listRequests, sendFriendRequest } from "@/lib/friends/service";
 import { gameDate } from "@/lib/game/time";
 import { saveManualSteps } from "@/lib/steps/service";
-import type { ObjectStorage } from "@/lib/storage/r2";
 import { createTestDatabase, insertTestUser, type TestDatabase } from "@/lib/test/pglite";
 import { AR_MARKER, isMarkerId } from "./config";
-import { photoMarkerImage, savePhotoMarker, setPhotoMarkerEnabled } from "./photo-marker";
 import { ensureCreatureMarker, listArTargets, ownCreatureById } from "./service";
 
 let tdb: TestDatabase;
@@ -23,26 +21,6 @@ let friendship: string;
 
 const T0 = new Date();
 const D0 = gameDate(T0);
-
-const stored = new Map<string, Uint8Array>();
-const storage: ObjectStorage = {
-  async put(key, bytes) {
-    stored.set(key, bytes);
-  },
-  async get(key) {
-    const bytes = stored.get(key);
-    return bytes ? { bytes, contentType: "image/jpeg" } : null;
-  },
-  async signedUrl(key) {
-    return `https://signed.example/${key}`;
-  },
-  async remove(key) {
-    stored.delete(key);
-  },
-  async removePrefix() {
-    return 0;
-  },
-};
 
 async function bringUp(userId: string, name: string) {
   await createEgg(userId, "facile");
@@ -141,31 +119,6 @@ describe("listArTargets", () => {
     const forAlice = await listArTargets(alice, T0);
     expect(forAlice.own?.creature.name).toBe("Miso");
     expect(forAlice.targets.map((t) => t.creature.name)).toEqual(["Miso", "Roux"]);
-  });
-
-  it("hands a friend's photo marker to the viewer's phone (and the owner's to the host of a boarded creature), only while it is in use", async () => {
-    // Nobody uses a photo yet.
-    expect((await listArTargets(alice, T0)).targets.map((t) => t.image)).toEqual([null, null]);
-    // Bob photographs his marker: Alice's phone must look for that picture under Roux's number.
-    const bobPhoto = await savePhotoMarker(bob, { bytes: Uint8Array.of(1, 2), mimeType: "image/jpeg" }, storage, T0, "bob-photo");
-    let forAlice = await listArTargets(alice, T0);
-    expect(forAlice.targets.find((t) => t.creature.name === "Roux")).toMatchObject({ markerId: 0, ownerName: "BobAR", image: bobPhoto.imageUrl });
-    expect(forAlice.own?.image).toBeNull();
-    expect((await photoMarkerImage(alice, bob, storage))?.bytes).toEqual(Uint8Array.of(1, 2));
-    // Alice photographs hers: Bob, who boards Miso, gets it for Miso; he still sees his own on Roux.
-    const alicePhoto = await savePhotoMarker(alice, { bytes: Uint8Array.of(3), mimeType: "image/jpeg" }, storage, T0, "alice-photo");
-    const forBob = await listArTargets(bob, T0);
-    expect(forBob.targets.find((t) => t.creature.name === "Miso")).toMatchObject({ mine: false, ownerName: "AliceAR", image: alicePhoto.imageUrl });
-    expect(forBob.own).toMatchObject({ creature: { name: "Roux" }, image: bobPhoto.imageUrl });
-    // Carol is nobody's friend: neither the target nor the picture reach her.
-    const forCarol = await listArTargets(carol, T0);
-    expect(forCarol.targets.map((t) => t.creature.name)).toEqual(["Nuage"]);
-    await expect(photoMarkerImage(carol, alice, storage)).rejects.toMatchObject({ code: "not_found" });
-    // Bob switches his photo off: Alice's phone stops looking for it, the printed marker remains.
-    await setPhotoMarkerEnabled(bob, false);
-    forAlice = await listArTargets(alice, T0);
-    expect(forAlice.targets.find((t) => t.creature.name === "Roux")).toMatchObject({ markerId: 0, image: null });
-    expect(await photoMarkerImage(alice, bob, storage)).toBeNull();
   });
 
   it("stays inside the dictionary", () => {

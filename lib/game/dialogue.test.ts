@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { moodEffectsFor, type CreatureView } from "./creature-view";
-import { ageLabel, creatureLine, hungerLabel } from "./dialogue";
+import { ageLabel, creatureLine, hungerLabel, TOSS_REACTIONS, tossLanding } from "./dialogue";
 
 function view(overrides: Partial<CreatureView> = {}): CreatureView {
   return {
@@ -34,6 +34,7 @@ function view(overrides: Partial<CreatureView> = {}): CreatureView {
     healthyScoreThreshold: 40,
     moodBand: "happy",
     moodEffects: moodEffectsFor({ status: "alive", mood: 72 }),
+    backdrop: null,
     ...overrides,
   };
 }
@@ -95,5 +96,25 @@ describe("careAction", () => {
     expect(careAction({ status: "alive", state: "tired", hunger: 20 }, 0)).toBe(null);
     expect(careAction({ status: "alive", state: "healthy", hunger: 20 }, 3)).toBe(null);
     expect(careAction({ status: "dead", state: "dead", hunger: 90 }, 3)).toBe(null);
+  });
+});
+
+describe("tossLanding", () => {
+  it("picks one of the four reactions at random, a sick creature is only dizzy, and the pick-up line follows when things fell", () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 40; i += 1) {
+      const landing = tossLanding(() => (i % 4) / 4 + 0.01);
+      expect(TOSS_REACTIONS).toContain(landing.reaction);
+      expect(landing.line.length).toBeGreaterThan(3);
+      seen.add(landing.reaction);
+    }
+    expect([...seen].sort()).toEqual([...TOSS_REACTIONS].sort());
+    expect(tossLanding(() => 0.99, { state: "sick" }).reaction).toBe("dizzy");
+    expect(tossLanding(() => 0.3, { state: "sick" }).reaction).toBe("dizzy");
+    expect(tossLanding(() => 0, { loose: 2 }).line).toMatch(/ramasse tout ça\.$/);
+    expect(tossLanding(() => 0, { loose: 0 }).line).not.toMatch(/ramasse/);
+    // A degenerate random never falls outside the lists.
+    expect(TOSS_REACTIONS).toContain(tossLanding(() => 1).reaction);
+    expect(TOSS_REACTIONS).toContain(tossLanding(() => -1).reaction);
   });
 });

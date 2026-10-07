@@ -1,4 +1,3 @@
-import { DEV_DOODLE_URL } from "@/lib/ar/dev-doodle";
 import type { ArenaCollectionItem, ArenaEventView, ArenaMode, ArenaPlayerView, ArenaSnapshot, ArenaStakeView, ArenaStakesView, CoopResultStored, PingPongResultStored, ShotInput, ShotOutcome, TongueInput, TongueOutcome } from "@/lib/arena/service";
 import { getAccessory } from "@/lib/accessories/catalog";
 import { coopScore, parseCoopState, type CoopStateMessage } from "@/lib/game/coop";
@@ -64,7 +63,6 @@ function basePlayers(side: PreviewSide = "me"): Player[] {
     creatureId: "c-preview-lea",
     creatureName: "Pipo",
     markerId: 42,
-    markerImage: DEV_DOODLE_URL,
     creature: {
       name: "Pipo",
       speciesId: "facile-cochon-dinde",
@@ -106,6 +104,7 @@ export function previewArenaSnapshot(side: PreviewSide = "me", webrtc = false, m
       mode,
       seed: 4242,
       defense: DEFAULT_RULES.defense,
+      ar: DEFAULT_RULES.ar,
       coop: mode === "coop" ? { live: null, liveAt: null, result: null } : null,
       pingpong: mode === "pingpong" ? { live: null, liveAt: null, result: null, rules: DEFAULT_RULES.pingpong } : null,
       stakes: noStakes(mode !== "coop", mode !== "coop" ? ["toi", players[1].username] : []),
@@ -392,6 +391,7 @@ export class PreviewTransport implements ArenaTransport {
         mode: this.snapshot.match.mode,
         seed: this.snapshot.match.seed,
         defense: this.snapshot.match.defense,
+        ar: this.snapshot.match.ar,
         coop: this.snapshot.match.mode === "coop" ? { live: this.coopLive, liveAt: this.coopLiveAt, result: this.coopResult } : null,
         pingpong: this.snapshot.match.mode === "pingpong" ? { live: this.pingpongLive, liveAt: this.coopLiveAt, result: this.pingpongResult, rules: DEFAULT_RULES.pingpong } : null,
         stakes: this.stakesView(),

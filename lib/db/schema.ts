@@ -106,10 +106,8 @@ export const profiles = pgTable(
     /** Coaching rewards already opened as a student / as a coach (migration 010). */
     studentRewardsOpened: integer("student_rewards_opened").notNull().default(0),
     coachRewardsOpened: integer("coach_rewards_opened").notNull().default(0),
-    /** Photo marker (migration 019): object key of the picture recognised instead of the printed marker, whether it is in use, when it changed. */
-    photoMarkerKey: text("photo_marker_key"),
-    photoMarkerEnabled: boolean("photo_marker_enabled").notNull().default(false),
-    photoMarkerUpdatedAt: timestamptz("photo_marker_updated_at"),
+    /** Design of the site the player picked (`lib/themes/catalog.ts` id, migration 020); NULL = the admin's default. */
+    theme: text("theme"),
   },
   (table) => [
     // Usernames are unique case-insensitively ("Chabond" == "chabond").
@@ -154,6 +152,8 @@ export const creatures = pgTable(
     chestBonusSteps: integer("chest_bonus_steps").notNull().default(0),
     /** AprilTag number of the creature's printed marker for "Voir en vrai" (spec § 3.19, migration 013), assigned on first use. */
     arMarker: integer("ar_marker"),
+    /** Backdrop picked in the wardrobe (spec § 3.28, migration 021); NULL = the scene of the design in force. */
+    backdrop: text("backdrop"),
   },
   (table) => [
     index("creatures_user_status_idx").on(table.userId, table.status),
@@ -271,6 +271,19 @@ export const userAccessories = pgTable(
     qty: integer("qty").notNull().default(1),
   },
   (table) => [primaryKey({ columns: [table.userId, table.accessoryId] })],
+);
+
+/** Backdrops found in step chests (spec § 3.28, migration 021); the five design scenes are always available and never stored. */
+export const userBackdrops = pgTable(
+  "user_backdrops",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    backdropId: text("backdrop_id").notNull(),
+    obtainedAt: timestamptz("obtained_at").notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.backdropId] })],
 );
 
 export const creatureOutfits = pgTable(

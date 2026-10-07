@@ -30,7 +30,7 @@ export default async function ArenaMatchPage({ params }: { params: Promise<{ id:
     <div className="space-y-5">
       <ArenaMatch initial={initial} webrtc={rules.arena.webrtc} />
       {me && initial.match.status !== "finished" && initial.match.status !== "cancelled" ? (
-        <MarkerCard name={me.creatureName ?? "ta créature"} markerId={me.markerId} creatureId={me.creatureId} photoUrl={me.markerImage ?? null} />
+        <MarkerCard name={me.creatureName ?? "ta créature"} markerId={me.markerId} creatureId={me.creatureId} />
       ) : null}
     </div>
   );

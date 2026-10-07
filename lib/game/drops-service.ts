@@ -6,6 +6,7 @@ import { gameSettings } from "@/lib/db/schema";
 import { isConfigError } from "@/lib/env";
 import { TIERS } from "./config";
 import { rewardPool } from "@/lib/accessories/catalog";
+import { getDisabledSpecies } from "./species-service";
 import { accessoryWeights, defaultWeightsById, dropWeightsSchema, EMPTY_DROP_WEIGHTS, isAllZero, quantizeWeight, speciesWeights, weightEntrySchema, type DropWeights } from "./drops";
 
 const SETTINGS_ID = "drops";
@@ -100,10 +101,10 @@ export async function getStoredDropWeights(): Promise<StoredDropWeights> {
 
 export type DropWeightsPatch = { kind: keyof DropWeights; weights: Record<string, number | null> };
 
-/** Names the pools (tier or catalogue) whose weights would all be 0 with `next`. */
-function emptyPools(next: DropWeights): string[] {
+/** Names the pools (tier or catalogue) whose weights would all be 0 with `next` (disabled species do not count). */
+function emptyPools(next: DropWeights, disabled: ReadonlySet<string>): string[] {
   const names: string[] = [];
-  for (const tier of TIERS) if (isAllZero(speciesWeights(tier, next.species))) names.push(`créatures · niveau ${tier}`);
+  for (const tier of TIERS) if (isAllZero(speciesWeights(tier, next.species, disabled))) names.push(`créatures · niveau ${tier}`);
   if (isAllZero(accessoryWeights(next.accessories))) names.push("accessoires des coffres");
   if (isAllZero(accessoryWeights(next.accessories, rewardPool("student")))) names.push("récompenses d'élève");
   if (isAllZero(accessoryWeights(next.accessories, rewardPool("coach")))) names.push("récompenses de coach");
@@ -127,7 +128,7 @@ export async function saveDropWeights(patch: DropWeightsPatch, updatedBy: string
     else map[id] = quantizeWeight(value);
   }
   const next = dropWeightsSchema.parse({ ...current, [patch.kind]: map });
-  const empty = emptyPools(next);
+  const empty = emptyPools(next, await getDisabledSpecies());
   if (empty.length > 0) {
     throw new DomainError("empty_pool", `Impossible de tout mettre à 0 (${empty.join(", ")}) : au moins un objet du groupe doit pouvoir sortir.`, 400);
   }
